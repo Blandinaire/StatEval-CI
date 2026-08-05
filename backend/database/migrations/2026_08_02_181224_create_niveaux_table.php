@@ -12,7 +12,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('niveaux', function (Blueprint $table) {
+
             $table->id();
+
+            // Libellé du niveau
+            $table->string('libelle');
+
+            // Code du niveau
+            $table->string('code')->unique();
+
+            // Ordre d'affichage
+            $table->integer('ordre');
+
             $table->timestamps();
         });
     }
