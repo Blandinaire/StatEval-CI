@@ -9,6 +9,9 @@ import {
     BookText,
     BarChart3,
     Settings,
+    ClipboardList,
+    ClipboardCheck,
+    FileText,
 } from "lucide-react";
 
 import MenuItem from "./MenuItem";
@@ -32,7 +35,9 @@ export default function Sidebar() {
 
             <div className="p-4">
 
-                <SectionTitle>Tableau de bord</SectionTitle>
+                <SectionTitle>
+                    Tableau de bord
+                </SectionTitle>
 
                 <MenuItem
                     href="/dashboard"
@@ -41,7 +46,10 @@ export default function Sidebar() {
                     Tableau de bord
                 </MenuItem>
 
-                <SectionTitle>Administration</SectionTitle>
+
+                <SectionTitle>
+                    Administration
+                </SectionTitle>
 
                 <MenuItem
                     href="/etablissements"
@@ -85,7 +93,10 @@ export default function Sidebar() {
                     Matières
                 </MenuItem>
 
-                <SectionTitle>Personnel</SectionTitle>
+
+                <SectionTitle>
+                    Personnel
+                </SectionTitle>
 
                 <MenuItem
                     href="/enseignants"
@@ -94,7 +105,17 @@ export default function Sidebar() {
                     Enseignants
                 </MenuItem>
 
-                <SectionTitle>Scolarité</SectionTitle>
+                <MenuItem
+                    href="/affectations"
+                    icon={ClipboardList}
+                >
+                    Affectations
+                </MenuItem>
+
+
+                <SectionTitle>
+                    Scolarité
+                </SectionTitle>
 
                 <MenuItem
                     href="/eleves"
@@ -103,7 +124,31 @@ export default function Sidebar() {
                     Élèves
                 </MenuItem>
 
-                <SectionTitle>Statistiques</SectionTitle>
+
+                <SectionTitle>
+                    Évaluations
+                </SectionTitle>
+
+                <MenuItem
+                    href="/evaluations"
+                    icon={ClipboardCheck}
+                    activeMatch={["/evaluations"]}
+                >
+                    Évaluations
+                </MenuItem>
+
+                <MenuItem
+                    href="/notes"
+                    icon={FileText}
+                    activeMatch={["/notes"]}
+                >
+                    Saisie des notes
+                </MenuItem>
+
+
+                <SectionTitle>
+                    Statistiques
+                </SectionTitle>
 
                 <MenuItem
                     href="/statistiques"
@@ -112,7 +157,10 @@ export default function Sidebar() {
                     Statistiques
                 </MenuItem>
 
-                <SectionTitle>Système</SectionTitle>
+
+                <SectionTitle>
+                    Système
+                </SectionTitle>
 
                 <MenuItem
                     href="/parametres"

@@ -2,20 +2,13 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Maquette extends Model
 {
-    //
-}
-<?php
+    use HasFactory;
 
-namespace App\Models;
-
-use Illuminate\Database\Eloquent\Model;
-
-class Maquette extends Model
-{
     protected $fillable = [
         'etablissement_id',
         'annee_scolaire_id',
@@ -31,7 +24,9 @@ class Maquette extends Model
         'active' => 'boolean',
     ];
 
-    // Relations
+    /**
+     * Relations
+     */
 
     public function etablissement()
     {
@@ -58,8 +53,33 @@ class Maquette extends Model
         return $this->belongsTo(Serie::class);
     }
 
+    /**
+     * Lignes de la maquette (table pivot enrichie)
+     */
     public function lignes()
     {
-        return $this->hasMany(MaquetteMatiere::class);
+        return $this->hasMany(MaquetteMatiere::class)
+            ->orderBy('ordre');
+    }
+
+    /**
+     * Matières de la maquette
+     */
+    public function matieres()
+    {
+        return $this->belongsToMany(
+            Matiere::class,
+            'maquette_matieres'
+        )->withPivot([
+            'coefficient',
+            'volume_horaire',
+            'ordre',
+            'obligatoire',
+            'prise_en_compte_moyenne',
+            'note_sur',
+            'active',
+        ])
+            ->withTimestamps()
+            ->orderByPivot('ordre');
     }
 }

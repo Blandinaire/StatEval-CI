@@ -16,7 +16,6 @@ class StoreMatiereRequest extends FormRequest
         return [
             'libelle' => 'required|string|max:255',
             'code' => 'required|string|max:20|unique:matieres,code',
-            'coefficient' => 'required|integer|min:1|max:20',
             'couleur' => 'required|string|max:20',
             'active' => 'boolean',
         ];

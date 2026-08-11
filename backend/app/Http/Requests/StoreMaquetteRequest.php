@@ -29,6 +29,7 @@ class StoreMaquetteRequest extends FormRequest
         'niveau_id' => ['required', 'exists:niveaux,id'],
         'serie_id' => ['nullable', 'exists:series,id'],
 
+        'libelle' => ['required', 'string', 'max:255'],
     ];
 }
 }

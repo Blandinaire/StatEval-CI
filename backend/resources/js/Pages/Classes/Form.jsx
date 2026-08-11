@@ -3,8 +3,12 @@ import { Link } from "@inertiajs/react";
 export default function Form({
     data,
     setData,
-    niveaux,
+    etablissements,
     annees,
+    cycles,
+    niveaux,
+    series,
+    maquettes,
     errors,
     processing,
     submit,
@@ -12,12 +16,115 @@ export default function Form({
 }) {
     return (
         <form onSubmit={submit} className="space-y-6">
+            {/* Établissement */}
+            <div>
+                <label className="block font-semibold mb-2">
+                    Établissement
+                </label>
+
+                <select
+                    value={data.etablissement_id}
+                    onChange={(e) =>
+                        setData("etablissement_id", e.target.value)
+                    }
+                    className="w-full border rounded-lg p-3"
+                >
+                    <option value="">-- Sélectionner --</option>
+
+                    {etablissements.map((item) => (
+                        <option key={item.id} value={item.id}>
+                            {item.nom}
+                        </option>
+                    ))}
+                </select>
+
+                {errors.etablissement_id && (
+                    <p className="text-red-600 text-sm mt-1">
+                        {errors.etablissement_id}
+                    </p>
+                )}
+            </div>
+
+            {/* Cycle */}
+            <div>
+                <label className="block font-semibold mb-2">Cycle</label>
+
+                <select
+                    value={data.cycle_id}
+                    onChange={(e) => setData("cycle_id", e.target.value)}
+                    className="w-full border rounded-lg p-3"
+                >
+                    <option value="">-- Sélectionner --</option>
+
+                    {cycles.map((cycle) => (
+                        <option key={cycle.id} value={cycle.id}>
+                            {cycle.libelle}
+                        </option>
+                    ))}
+                </select>
+
+                {errors.cycle_id && (
+                    <p className="text-red-600 text-sm mt-1">
+                        {errors.cycle_id}
+                    </p>
+                )}
+            </div>
+
+            {/* Série */}
+            <div>
+                <label className="block font-semibold mb-2">Série</label>
+
+                <select
+                    value={data.serie_id}
+                    onChange={(e) => setData("serie_id", e.target.value)}
+                    className="w-full border rounded-lg p-3"
+                >
+                    <option value="">Aucune</option>
+
+                    {series.map((serie) => (
+                        <option key={serie.id} value={serie.id}>
+                            {serie.libelle}
+                        </option>
+                    ))}
+                </select>
+
+                {errors.serie_id && (
+                    <p className="text-red-600 text-sm mt-1">
+                        {errors.serie_id}
+                    </p>
+                )}
+            </div>
+
+            {/* Maquette */}
+            <div>
+                <label className="block font-semibold mb-2">
+                    Maquette pédagogique
+                </label>
+
+                <select
+                    value={data.maquette_id}
+                    onChange={(e) => setData("maquette_id", e.target.value)}
+                    className="w-full border rounded-lg p-3"
+                >
+                    <option value="">-- Sélectionner --</option>
+
+                    {maquettes.map((maquette) => (
+                        <option key={maquette.id} value={maquette.id}>
+                            {maquette.libelle}
+                        </option>
+                    ))}
+                </select>
+
+                {errors.maquette_id && (
+                    <p className="text-red-600 text-sm mt-1">
+                        {errors.maquette_id}
+                    </p>
+                )}
+            </div>
 
             {/* Libellé */}
             <div>
-                <label className="block font-semibold mb-2">
-                    Libellé
-                </label>
+                <label className="block font-semibold mb-2">Libellé</label>
 
                 <input
                     type="text"
@@ -36,24 +143,17 @@ export default function Form({
 
             {/* Niveau */}
             <div>
-                <label className="block font-semibold mb-2">
-                    Niveau
-                </label>
+                <label className="block font-semibold mb-2">Niveau</label>
 
                 <select
                     value={data.niveau_id}
                     onChange={(e) => setData("niveau_id", e.target.value)}
                     className="w-full border rounded-lg p-3"
                 >
-                    <option value="">
-                        -- Sélectionner un niveau --
-                    </option>
+                    <option value="">-- Sélectionner un niveau --</option>
 
                     {niveaux.map((niveau) => (
-                        <option
-                            key={niveau.id}
-                            value={niveau.id}
-                        >
+                        <option key={niveau.id} value={niveau.id}>
                             {niveau.libelle}
                         </option>
                     ))}
@@ -79,15 +179,10 @@ export default function Form({
                     }
                     className="w-full border rounded-lg p-3"
                 >
-                    <option value="">
-                        -- Sélectionner une année --
-                    </option>
+                    <option value="">-- Sélectionner une année --</option>
 
                     {annees.map((annee) => (
-                        <option
-                            key={annee.id}
-                            value={annee.id}
-                        >
+                        <option key={annee.id} value={annee.id}>
                             {annee.libelle}
                         </option>
                     ))}
@@ -102,9 +197,7 @@ export default function Form({
 
             {/* Capacité */}
             <div>
-                <label className="block font-semibold mb-2">
-                    Capacité
-                </label>
+                <label className="block font-semibold mb-2">Capacité</label>
 
                 <input
                     type="number"
@@ -122,7 +215,6 @@ export default function Form({
 
             {/* Boutons */}
             <div className="flex justify-end gap-4">
-
                 <Link
                     href={route("classes.index")}
                     className="border rounded-lg px-6 py-3"
@@ -137,9 +229,7 @@ export default function Form({
                 >
                     {submitLabel}
                 </button>
-
             </div>
-
         </form>
     );
 }

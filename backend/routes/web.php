@@ -10,6 +10,13 @@ use App\Http\Controllers\MatiereController;
 use App\Http\Controllers\CycleController;
 use App\Http\Controllers\SerieController;
 use App\Http\Controllers\MaquetteController;
+use App\Http\Controllers\MaquetteMatiereController;
+use App\Http\Controllers\EnseignantController;
+use App\Http\Controllers\AffectationController;
+use App\Http\Controllers\EleveController;
+use App\Http\Controllers\EvaluationController;
+use App\Http\Controllers\NoteController;
+use App\Http\Controllers\StatistiqueController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -39,6 +46,79 @@ Route::middleware('auth')->group(function () {
     Route::resource('cycles', CycleController::class);
     Route::resource('series', SerieController::class);
     Route::resource('maquettes', MaquetteController::class);
+    Route::resource('enseignants', EnseignantController::class);
+    Route::resource('affectations', AffectationController::class);
+    Route::resource('eleves', EleveController::class)
+
+        ->parameters([
+            'eleves' => 'eleve',
+        ]);
+    Route::resource('evaluations', EvaluationController::class);
+
+    Route::get(
+        '/evaluations/{evaluation}/statistiques',
+        [EvaluationController::class, 'statistiques']
+    )->name('evaluations.statistiques');
+
+    Route::get(
+        '/evaluations/{evaluation}/notes/create',
+        [NoteController::class, 'create']
+    )->name('notes.create');
+
+    Route::post(
+        '/evaluations/{evaluation}/notes',
+        [NoteController::class, 'store']
+    )->name('notes.store');
+
+    Route::get('/notes', [NoteController::class, 'index'])
+        ->name('notes.index');
+
+    Route::get(
+        '/statistiques',
+        [StatistiqueController::class, 'index']
+    )->name('statistiques.index');
+
+    // Matières d'une maquette
+
+    Route::get(
+        '/maquettes/{maquette}/matieres',
+        [MaquetteMatiereController::class, 'index']
+    )->name('maquettes.matieres.index');
+
+    Route::get(
+        '/maquettes/{maquette}/matieres/create',
+        [MaquetteMatiereController::class, 'create']
+    )->name('maquettes.matieres.create');
+
+    Route::post(
+        '/maquettes/{maquette}/matieres',
+        [MaquetteMatiereController::class, 'store']
+    )->name('maquettes.matieres.store');
+
+    Route::get(
+        '/maquettes/{maquette}/matieres/{maquetteMatiere}/edit',
+        [MaquetteMatiereController::class, 'edit']
+    )->name('maquettes.matieres.edit');
+
+    Route::put(
+        '/maquettes/{maquette}/matieres/{maquetteMatiere}',
+        [MaquetteMatiereController::class, 'update']
+    )->name('maquettes.matieres.update');
+
+    Route::delete(
+        '/maquettes/{maquette}/matieres/{maquetteMatiere}',
+        [MaquetteMatiereController::class, 'destroy']
+    )->name('maquettes.matieres.destroy');
+
+    Route::get(
+        '/api/enseignants-par-matiere/{matiere}',
+        [AffectationController::class, 'enseignantsParMatiere']
+    )->name('api.enseignants.matiere');
+
+    Route::get(
+        '/api/classes-par-etablissement',
+        [EleveController::class, 'classesParEtablissement']
+    )->name('api.classes.etablissement');
 });
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';

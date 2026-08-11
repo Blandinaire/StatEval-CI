@@ -7,7 +7,6 @@ export default function Create() {
     const { data, setData, post, processing, errors } = useForm({
         libelle: "",
         code: "",
-        coefficient: 1,
         couleur: "#2563EB",
         active: true,
     });

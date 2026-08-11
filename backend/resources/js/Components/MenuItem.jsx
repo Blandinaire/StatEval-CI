@@ -4,10 +4,13 @@ export default function MenuItem({
     href,
     icon: Icon,
     children,
+    activeMatch = null,
 }) {
     const { url } = usePage();
 
-    const active = url.startsWith(href);
+    const active = activeMatch
+        ? activeMatch.some((prefix) => url.startsWith(prefix))
+        : url === href || url.startsWith(`${href}/`);
 
     return (
         <Link

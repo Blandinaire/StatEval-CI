@@ -1,25 +1,56 @@
-import Button from "@/Components/UI/Button";
-import { Link } from "@inertiajs/react";
-
-export default function ActionButtons({
-    editHref,
-    onDelete,
+export default function DataTable({
+    columns = [],
+    data = [],
+    children,
 }) {
     return (
-        <div className="flex justify-center gap-2">
+        <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
 
-            <Link href={editHref}>
-                <Button>
-                    Modifier
-                </Button>
-            </Link>
+            <table className="min-w-full">
 
-            <Button
-                variant="danger"
-                onClick={onDelete}
-            >
-                Supprimer
-            </Button>
+                <thead className="bg-gray-50">
+
+                    <tr>
+
+                        {columns.map((column) => (
+
+                            <th
+                                key={column.key}
+                                className="px-6 py-4 text-left text-sm font-semibold text-gray-700"
+                            >
+                                {column.label}
+                            </th>
+
+                        ))}
+
+                    </tr>
+
+                </thead>
+
+                <tbody>
+
+                    {data.length === 0 ? (
+
+                        <tr>
+
+                            <td
+                                colSpan={columns.length}
+                                className="px-6 py-10 text-center text-gray-500"
+                            >
+                                Aucune donnée disponible
+                            </td>
+
+                        </tr>
+
+                    ) : (
+
+                        children
+
+                    )}
+
+                </tbody>
+
+            </table>
 
         </div>
     );

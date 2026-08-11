@@ -13,19 +13,33 @@ class Matiere extends Model
     protected $fillable = [
         'libelle',
         'code',
-        'coefficient',
         'couleur',
         'active',
     ];
 
     protected $casts = [
-        'coefficient' => 'integer',
         'active' => 'boolean',
     ];
 
-public function maquettes()
+public function lignesMaquette()
 {
     return $this->hasMany(MaquetteMatiere::class);
+}
+
+public function maquettes()
+{
+    return $this->belongsToMany(
+        Maquette::class,
+        'maquette_matieres'
+    )->withPivot([
+        'coefficient',
+        'volume_horaire',
+        'ordre',
+        'obligatoire',
+        'prise_en_compte_moyenne',
+        'note_sur',
+        'active',
+    ]);
 }
 
 }

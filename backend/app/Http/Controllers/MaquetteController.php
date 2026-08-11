@@ -22,11 +22,14 @@ class MaquetteController extends Controller
     {
         return Inertia::render('Maquettes/Index', [
             'maquettes' => Maquette::with([
-                'cycle',
-                'niveau',
-                'serie',
-                'anneeScolaire'
-            ])->get()
+    'cycle',
+    'niveau',
+    'serie',
+    'anneeScolaire',
+    'etablissement'
+])
+->latest()
+->paginate(15),
         ]);
     }
 
@@ -34,7 +37,7 @@ class MaquetteController extends Controller
 {
     return Inertia::render('Maquettes/Create', [
 
-        'etablissements' => Etablissement::orderBy('libelle')->get(),
+        'etablissements' => Etablissement::orderBy('nom')->get(),
 
         'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
 
@@ -57,4 +60,20 @@ class MaquetteController extends Controller
             ->route('maquettes.index')
             ->with('success', 'Maquette créée avec succès.');
     }
+
+    public function show(Maquette $maquette)
+{
+    $maquette->load([
+        'etablissement',
+        'anneeScolaire',
+        'cycle',
+        'niveau',
+        'serie',
+        'matieres.matiere',
+    ]);
+
+    return Inertia::render('Maquettes/Show', [
+        'maquette' => $maquette,
+    ]);
+}
 }

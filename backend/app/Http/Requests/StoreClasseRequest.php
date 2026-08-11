@@ -12,32 +12,58 @@ class StoreClasseRequest extends FormRequest
     }
 
     public function rules(): array
-    {
-        return [
-            'libelle' => [
-                'required',
-                'string',
-                'max:255',
-            ],
+{
+    return [
 
-            'niveau_id' => [
-                'required',
-                'exists:niveaux,id',
-            ],
+        'etablissement_id' => [
+            'required',
+            'exists:etablissements,id',
+        ],
 
-            'annee_scolaire_id' => [
-                'required',
-                'exists:annee_scolaires,id',
-            ],
+        'annee_scolaire_id' => [
+            'required',
+            'exists:annee_scolaires,id',
+        ],
 
-            'capacite' => [
-                'required',
-                'integer',
-                'min:1',
-                'max:100',
-            ],
-        ];
-    }
+        'cycle_id' => [
+            'required',
+            'exists:cycles,id',
+        ],
+
+        'niveau_id' => [
+            'required',
+            'exists:niveaux,id',
+        ],
+
+        'serie_id' => [
+            'nullable',
+            'exists:series,id',
+        ],
+
+        'maquette_id' => [
+            'required',
+            'exists:maquettes,id',
+        ],
+
+        'libelle' => [
+            'required',
+            'string',
+            'max:100',
+        ],
+
+        'capacite' => [
+            'required',
+            'integer',
+            'min:1',
+            'max:100',
+        ],
+
+        'active' => [
+            'boolean',
+        ],
+
+    ];
+}
 
     public function messages(): array
     {

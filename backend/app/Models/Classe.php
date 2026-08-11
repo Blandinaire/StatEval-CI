@@ -2,24 +2,62 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Classe extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
-        'libelle',
-        'niveau_id',
+        'etablissement_id',
         'annee_scolaire_id',
+        'cycle_id',
+        'niveau_id',
+        'serie_id',
+        'maquette_id',
+        'libelle',
         'capacite',
+        'active',
     ];
+
+    protected $casts = [
+        'active' => 'boolean',
+    ];
+
+    /*
+    |--------------------------------------------------------------------------
+    | Relations
+    |--------------------------------------------------------------------------
+    */
+
+    public function etablissement()
+    {
+        return $this->belongsTo(Etablissement::class);
+    }
+
+    public function anneeScolaire()
+    {
+        return $this->belongsTo(AnneeScolaire::class);
+    }
+
+    public function cycle()
+    {
+        return $this->belongsTo(Cycle::class);
+    }
 
     public function niveau()
     {
         return $this->belongsTo(Niveau::class);
     }
 
-    public function anneeScolaire()
+    public function serie()
     {
-        return $this->belongsTo(AnneeScolaire::class);
+        return $this->belongsTo(Serie::class);
+    }
+
+    public function maquette()
+    {
+        return $this->belongsTo(Maquette::class);
     }
 }

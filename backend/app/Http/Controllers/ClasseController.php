@@ -2,6 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Etablissement;
+use App\Models\Cycle;
+use App\Models\Serie;
+use App\Models\Maquette;
 use App\Http\Requests\StoreClasseRequest;
 use App\Models\AnneeScolaire;
 use App\Models\Classe;
@@ -15,9 +19,16 @@ class ClasseController extends Controller
      */
     public function index()
 {
-    $classes = Classe::with(['niveau', 'anneeScolaire'])
-        ->orderBy('libelle')
-        ->get();
+    $classes = Classe::with([
+        'etablissement',
+        'anneeScolaire',
+        'cycle',
+        'niveau',
+        'serie',
+        'maquette',
+    ])
+    ->orderBy('libelle')
+    ->get();
 
     return Inertia::render('Classes/Index', [
         'classes' => $classes,
@@ -28,12 +39,23 @@ class ClasseController extends Controller
      * Formulaire de création.
      */
     public function create()
-    {
-        return Inertia::render('Classes/Create', [
-            'niveaux' => Niveau::orderBy('ordre')->get(),
-            'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
-        ]);
-    }
+{
+    return Inertia::render('Classes/Create', [
+
+        'etablissements' => Etablissement::orderBy('nom')->get(),
+
+        'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
+
+        'cycles' => Cycle::orderBy('libelle')->get(),
+
+        'niveaux' => Niveau::orderBy('ordre')->get(),
+
+        'series' => Serie::orderBy('libelle')->get(),
+
+        'maquettes' => Maquette::orderBy('libelle')->get(),
+
+    ]);
+}
 
     /**
      * Enregistrement.
@@ -51,13 +73,25 @@ class ClasseController extends Controller
      * Formulaire de modification.
      */
     public function edit(Classe $classe)
-    {
-        return Inertia::render('Classes/Edit', [
-            'classe' => $classe,
-            'niveaux' => Niveau::orderBy('ordre')->get(),
-            'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
-        ]);
-    }
+{
+    return Inertia::render('Classes/Edit', [
+
+        'classe' => $classe,
+
+        'etablissements' => Etablissement::orderBy('nom')->get(),
+
+        'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
+
+        'cycles' => Cycle::orderBy('libelle')->get(),
+
+        'niveaux' => Niveau::orderBy('ordre')->get(),
+
+        'series' => Serie::orderBy('libelle')->get(),
+
+        'maquettes' => Maquette::orderBy('libelle')->get(),
+
+    ]);
+}
 
     /**
      * Mise à jour.

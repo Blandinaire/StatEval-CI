@@ -53,26 +53,6 @@ export default function Form({
                     )}
                 </div>
 
-                <div>
-                    <label className="block font-semibold mb-2">
-                        Coefficient
-                    </label>
-
-                    <input
-                        type="number"
-                        value={data.coefficient}
-                        onChange={(e) =>
-                            setData("coefficient", e.target.value)
-                        }
-                        className="w-full rounded-lg border p-3"
-                    />
-
-                    {errors.coefficient && (
-                        <p className="mt-1 text-sm text-red-600">
-                            {errors.coefficient}
-                        </p>
-                    )}
-                </div>
 
             </div>
 
