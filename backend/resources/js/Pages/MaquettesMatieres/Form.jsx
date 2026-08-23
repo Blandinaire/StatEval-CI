@@ -54,7 +54,7 @@ export default function Form({
                         ))}
                     </SelectField>
 
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-2 gap-4">
 
                         <TextField
                             label="Coefficient"
@@ -84,19 +84,7 @@ export default function Form({
                             }
                         />
 
-                        <TextField
-                            label="Ordre"
-                            type="number"
-                            value={data.ordre}
-                            error={errors.ordre}
-                            onChange={(e) =>
-                                setData(
-                                    "ordre",
-                                    e.target.value
-                                )
-                            }
-                        />
-
+                        
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">

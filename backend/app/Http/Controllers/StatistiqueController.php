@@ -7,6 +7,8 @@ use App\Models\Classe;
 use App\Models\Etablissement;
 use App\Models\Evaluation;
 use App\Models\Matiere;
+use App\Exports\NotesExport;
+use Maatwebsite\Excel\Facades\Excel;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -978,5 +980,10 @@ class StatistiqueController extends Controller
 
             'analyseAvancee' => $analyseAvancee,
         ]);
+    }
+
+    public function export($classeId, $matiereId)
+    {
+        return Excel::download(new NotesExport($classeId, $matiereId), 'notes_export.xlsx');
     }
 }

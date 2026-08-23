@@ -44,12 +44,19 @@ class MaquetteMatiereController extends Controller
      */
     public function create(Maquette $maquette)
     {
+        $matieresDejaAjoutees = $maquette->lignes()
+            ->pluck('matiere_id');
+
+        $matieres = Matiere::whereNotIn(
+            'id',
+            $matieresDejaAjoutees
+        )
+            ->orderBy('libelle')
+            ->get();
+
         return Inertia::render('MaquettesMatieres/Create', [
-
             'maquette' => $maquette,
-
-            'matieres' => Matiere::orderBy('libelle')->get(),
-
+            'matieres' => $matieres,
         ]);
     }
 
@@ -83,42 +90,77 @@ class MaquetteMatiereController extends Controller
     }
 
     public function update(
-    StoreMaquetteMatiereRequest $request,
-    Maquette $maquette,
-    MaquetteMatiere $maquetteMatiere
-) {
+        StoreMaquetteMatiereRequest $request,
+        Maquette $maquette,
+        MaquetteMatiere $maquetteMatiere
+    ) {
 
-    $this->service->update(
-        $maquetteMatiere,
-        $request->validated()
-    );
-
-    return redirect()
-        ->route(
-            'maquettes.matieres.index',
-            $maquette->id
-        )
-        ->with(
-            'success',
-            'Matière modifiée avec succès.'
+        $this->service->update(
+            $maquetteMatiere,
+            $request->validated()
         );
-}
+
+        return redirect()
+            ->route(
+                'maquettes.matieres.index',
+                $maquette->id
+            )
+            ->with(
+                'success',
+                'Matière modifiée avec succès.'
+            );
+    }
 
     public function destroy(
-    Maquette $maquette,
-    MaquetteMatiere $maquetteMatiere
-) {
+        Maquette $maquette,
+        MaquetteMatiere $maquetteMatiere
+    ) {
 
-    $this->service->delete($maquetteMatiere);
+        $this->service->delete($maquetteMatiere);
 
-    return redirect()
-        ->route(
-            'maquettes.matieres.index',
-            $maquette->id
-        )
-        ->with(
-            'success',
-            'Matière supprimée avec succès.'
+        return redirect()
+            ->route(
+                'maquettes.matieres.index',
+                $maquette->id
+            )
+            ->with(
+                'success',
+                'Matière supprimée avec succès.'
+            );
+    }
+    /**
+     * Monter une matière dans l'ordre.
+     */
+    public function monter(
+        Maquette $maquette,
+        MaquetteMatiere $maquetteMatiere
+    ) {
+        $this->service->monter(
+            $maquetteMatiere
         );
-}
+
+        return redirect()
+            ->route(
+                'maquettes.matieres.index',
+                $maquette->id
+            );
+    }
+
+    /**
+     * Descendre une matière dans l'ordre.
+     */
+    public function descendre(
+        Maquette $maquette,
+        MaquetteMatiere $maquetteMatiere
+    ) {
+        $this->service->descendre(
+            $maquetteMatiere
+        );
+
+        return redirect()
+            ->route(
+                'maquettes.matieres.index',
+                $maquette->id
+            );
+    }
 }

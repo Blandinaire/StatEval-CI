@@ -24,8 +24,6 @@ export default function Edit({
 
         volume_horaire: ligne.volume_horaire,
 
-        ordre: ligne.ordre,
-
         obligatoire: ligne.obligatoire,
 
         prise_en_compte_moyenne:

@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreMaquetteMatiereRequest extends FormRequest
 {
@@ -20,60 +21,61 @@ class StoreMaquetteMatiereRequest extends FormRequest
      *
      * @return array<string, ValidationRule|array<mixed>|string>
      */
-   public function rules(): array
-{
-    return [
+    public function rules(): array
+    {
+        return [
 
-        'maquette_id' => [
-            'required',
-            'exists:maquettes,id',
-        ],
+            'maquette_id' => [
+                'required',
+                'exists:maquettes,id',
+            ],
 
-        'matiere_id' => [
-            'required',
-            'exists:matieres,id',
-        ],
+            'matiere_id' => [
+                'required',
+                'exists:matieres,id',
+                Rule::unique('maquette_matieres', 'matiere_id')
+                    ->where(
+                        fn($query) => $query->where(
+                            'maquette_id',
+                            $this->maquette_id
+                        )
+                    ),
+            ],
 
-        'coefficient' => [
-            'required',
-            'numeric',
-            'min:0.5',
-        ],
+            'coefficient' => [
+                'required',
+                'numeric',
+                'min:0.5',
+            ],
 
-        'volume_horaire' => [
-            'required',
-            'numeric',
-            'min:0',
-        ],
+            'volume_horaire' => [
+                'required',
+                'numeric',
+                'min:0',
+            ],
 
-        'ordre' => [
-            'nullable',
-            'integer',
-            'min:1',
-        ],
+            'obligatoire' => [
+                'nullable',
+                'boolean',
+            ],
 
-        'obligatoire' => [
-            'nullable',
-            'boolean',
-        ],
+            'prise_en_compte_moyenne' => [
+                'nullable',
+                'boolean',
+            ],
 
-        'prise_en_compte_moyenne' => [
-            'nullable',
-            'boolean',
-        ],
+            'note_sur' => [
+                'nullable',
+                'numeric',
+                'min:1',
+                'max:100',
+            ],
 
-        'note_sur' => [
-            'nullable',
-            'numeric',
-            'min:1',
-            'max:100',
-        ],
+            'active' => [
+                'nullable',
+                'boolean',
+            ],
 
-        'active' => [
-            'nullable',
-            'boolean',
-        ],
-
-    ];
-}
+        ];
+    }
 }

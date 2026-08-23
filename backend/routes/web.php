@@ -17,6 +17,10 @@ use App\Http\Controllers\EleveController;
 use App\Http\Controllers\EvaluationController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\StatistiqueController;
+use App\Http\Controllers\EducateurController;
+use App\Http\Controllers\ConduiteController;
+use App\Http\Controllers\AbsenceController;
+use App\Http\Controllers\RetardController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -48,6 +52,22 @@ Route::middleware('auth')->group(function () {
     Route::resource('maquettes', MaquetteController::class);
     Route::resource('enseignants', EnseignantController::class);
     Route::resource('affectations', AffectationController::class);
+    Route::resource('conduites', ConduiteController::class)
+        ->parameters([
+            'conduites' => 'conduite',
+        ]);
+    Route::resource('absences', AbsenceController::class)
+        ->parameters([
+            'absences' => 'absence',
+        ]);
+    Route::resource('retards', RetardController::class)
+        ->parameters([
+            'retards' => 'retard',
+        ]);
+    Route::resource('educateurs', EducateurController::class)
+        ->parameters([
+            'educateurs' => 'educateur',
+        ]);
     Route::resource('eleves', EleveController::class)
 
         ->parameters([
@@ -110,6 +130,16 @@ Route::middleware('auth')->group(function () {
         [MaquetteMatiereController::class, 'destroy']
     )->name('maquettes.matieres.destroy');
 
+    Route::post(
+        '/maquettes/{maquette}/matieres/{maquetteMatiere}/monter',
+        [MaquetteMatiereController::class, 'monter']
+    )->name('maquettes.matieres.monter');
+
+    Route::post(
+        '/maquettes/{maquette}/matieres/{maquetteMatiere}/descendre',
+        [MaquetteMatiereController::class, 'descendre']
+    )->name('maquettes.matieres.descendre');
+
     Route::get(
         '/api/enseignants-par-matiere/{matiere}',
         [AffectationController::class, 'enseignantsParMatiere']
@@ -119,6 +149,8 @@ Route::middleware('auth')->group(function () {
         '/api/classes-par-etablissement',
         [EleveController::class, 'classesParEtablissement']
     )->name('api.classes.etablissement');
+
+    Route::get('/export/{classeId}/{matiereId}', [StatistiqueController::class, 'export']);
 });
 
 require __DIR__ . '/auth.php';

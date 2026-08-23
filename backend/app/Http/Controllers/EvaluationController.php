@@ -66,6 +66,8 @@ class EvaluationController extends Controller
                     'classe_id',
                     'matiere_id',
                     'enseignant_id',
+                    'coefficient',
+                    'actif',
                 ]),
         ]);
     }
@@ -260,6 +262,18 @@ class EvaluationController extends Controller
             'enseignants' => Enseignant::orderBy('nom')
                 ->orderBy('prenoms')
                 ->get(),
+
+            'affectations' => Affectation::where('actif', 1)
+                ->get([
+                    'id',
+                    'etablissement_id',
+                    'annee_scolaire_id',
+                    'classe_id',
+                    'matiere_id',
+                    'enseignant_id',
+                    'coefficient',
+                    'actif',
+                ]),
         ]);
     }
 
@@ -368,6 +382,37 @@ class EvaluationController extends Controller
                 ->withInput();
         }
 
+        $affectation = Affectation::where(
+            'etablissement_id',
+            $validated['etablissement_id']
+        )
+            ->where(
+                'annee_scolaire_id',
+                $validated['annee_scolaire_id']
+            )
+            ->where('classe_id', $validated['classe_id'])
+            ->where('matiere_id', $validated['matiere_id'])
+            ->where('enseignant_id', $validated['enseignant_id'])
+            ->where('actif', 1)
+            ->first();
+
+        if (!$affectation) {
+            return back()
+                ->withErrors([
+                    'enseignant_id' =>
+                    "Cet enseignant n'est pas affecté à cette classe et cette matière pour l'année scolaire sélectionnée.",
+                ])
+                ->withInput();
+        }
+
+        /*
+|--------------------------------------------------------------------------
+| Le coefficient vient obligatoirement de l'affectation
+|--------------------------------------------------------------------------
+*/
+
+        $validated['coefficient'] = $affectation->coefficient;
+      
         /*
         |--------------------------------------------------------------------------
         | Mise à jour

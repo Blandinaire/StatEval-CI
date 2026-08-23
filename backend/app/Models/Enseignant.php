@@ -63,4 +63,8 @@ class Enseignant extends Model
             'matiere_secondaire_id'
         );
     }
+    public function affectations()
+    {
+        return $this->hasMany(Affectation::class);
+    }
 }

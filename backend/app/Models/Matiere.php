@@ -21,25 +21,29 @@ class Matiere extends Model
         'active' => 'boolean',
     ];
 
-public function lignesMaquette()
-{
-    return $this->hasMany(MaquetteMatiere::class);
-}
+    public function lignesMaquette()
+    {
+        return $this->hasMany(MaquetteMatiere::class);
+    }
 
-public function maquettes()
-{
-    return $this->belongsToMany(
-        Maquette::class,
-        'maquette_matieres'
-    )->withPivot([
-        'coefficient',
-        'volume_horaire',
-        'ordre',
-        'obligatoire',
-        'prise_en_compte_moyenne',
-        'note_sur',
-        'active',
-    ]);
-}
+    public function maquettes()
+    {
+        return $this->belongsToMany(
+            Maquette::class,
+            'maquette_matieres'
+        )->withPivot([
+            'coefficient',
+            'volume_horaire',
+            'ordre',
+            'obligatoire',
+            'prise_en_compte_moyenne',
+            'note_sur',
+            'active',
+        ]);
+    }
 
+    public function affectations()
+    {
+        return $this->hasMany(Affectation::class);
+    }
 }

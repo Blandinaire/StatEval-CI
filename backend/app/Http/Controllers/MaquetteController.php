@@ -69,7 +69,7 @@ class MaquetteController extends Controller
         'cycle',
         'niveau',
         'serie',
-        'matieres.matiere',
+        'lignes.matiere',
     ]);
 
     return Inertia::render('Maquettes/Show', [

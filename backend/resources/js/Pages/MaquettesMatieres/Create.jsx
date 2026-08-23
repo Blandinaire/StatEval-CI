@@ -23,8 +23,6 @@ export default function Create({
 
         volume_horaire: "",
 
-        ordre: 1,
-
         obligatoire: true,
 
         prise_en_compte_moyenne: true,

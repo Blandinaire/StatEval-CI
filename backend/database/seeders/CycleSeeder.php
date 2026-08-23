@@ -9,19 +9,22 @@ class CycleSeeder extends Seeder
 {
     public function run(): void
     {
-        Cycle::insert([
+        Cycle::firstOrCreate(
+            ['code' => 'COL'],
             [
-                'code' => 'COL',
                 'libelle' => 'Collège',
                 'ordre' => 1,
                 'actif' => true,
-            ],
+            ]
+        );
+
+        Cycle::firstOrCreate(
+            ['code' => 'LYC'],
             [
-                'code' => 'LYC',
                 'libelle' => 'Lycée',
                 'ordre' => 2,
                 'actif' => true,
-            ],
-        ]);
+            ]
+        );
     }
 }

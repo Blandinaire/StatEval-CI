@@ -12,6 +12,9 @@ import {
     ClipboardList,
     ClipboardCheck,
     FileText,
+    UserRound,
+    UserX,
+    Clock,
 } from "lucide-react";
 
 import MenuItem from "./MenuItem";
@@ -19,115 +22,85 @@ import SectionTitle from "./SectionTitle";
 
 export default function Sidebar() {
     return (
-        <aside className="w-72 min-h-screen bg-slate-900 text-white">
-
+        <aside className="min-h-screen w-72 bg-slate-900 text-white">
             <div className="border-b border-slate-700 p-6">
+                <h1 className="text-2xl font-bold">StatEval-CI</h1>
 
-                <h1 className="text-2xl font-bold">
-                    StatEval-CI
-                </h1>
-
-                <p className="text-sm text-slate-400">
-                    Gestion scolaire
-                </p>
-
+                <p className="text-sm text-slate-400">Gestion scolaire</p>
             </div>
 
             <div className="p-4">
+                <SectionTitle>Tableau de bord</SectionTitle>
 
-                <SectionTitle>
-                    Tableau de bord
-                </SectionTitle>
-
-                <MenuItem
-                    href="/dashboard"
-                    icon={LayoutDashboard}
-                >
+                <MenuItem href="/dashboard" icon={LayoutDashboard}>
                     Tableau de bord
                 </MenuItem>
 
+                <SectionTitle>Administration</SectionTitle>
 
-                <SectionTitle>
-                    Administration
-                </SectionTitle>
-
-                <MenuItem
-                    href="/etablissements"
-                    icon={School}
-                >
+                <MenuItem href="/etablissements" icon={School}>
                     Établissements
                 </MenuItem>
 
-                <MenuItem
-                    href="/annee-scolaires"
-                    icon={CalendarDays}
-                >
+                <MenuItem href="/annee-scolaires" icon={CalendarDays}>
                     Années scolaires
                 </MenuItem>
 
-                <MenuItem
-                    href="/cycles"
-                    icon={Layers}
-                >
+                <MenuItem href="/cycles" icon={Layers}>
                     Cycles
                 </MenuItem>
 
-                <MenuItem
-                    href="/niveaux"
-                    icon={Layers}
-                >
+                <MenuItem href="/niveaux" icon={Layers}>
                     Niveaux
                 </MenuItem>
 
-                <MenuItem
-                    href="/classes"
-                    icon={BookOpen}
-                >
+                <MenuItem href="/classes" icon={BookOpen}>
                     Classes
                 </MenuItem>
 
-                <MenuItem
-                    href="/matieres"
-                    icon={BookText}
-                >
+                <MenuItem href="/matieres" icon={BookText}>
                     Matières
                 </MenuItem>
 
+                <MenuItem href="/maquettes" icon={BookOpen}>
+                    Maquettes pédagogiques
+                </MenuItem>
 
-                <SectionTitle>
-                    Personnel
-                </SectionTitle>
+                <SectionTitle>Personnel</SectionTitle>
 
-                <MenuItem
-                    href="/enseignants"
-                    icon={Users}
-                >
+                <MenuItem href="/enseignants" icon={Users}>
                     Enseignants
                 </MenuItem>
 
-                <MenuItem
-                    href="/affectations"
-                    icon={ClipboardList}
-                >
+                <MenuItem href="/educateurs" icon={UserRound}>
+                    Éducateurs
+                </MenuItem>
+
+                <MenuItem href="/affectations" icon={ClipboardList}>
                     Affectations
                 </MenuItem>
 
+                <SectionTitle>Vie scolaire</SectionTitle>
 
-                <SectionTitle>
-                    Scolarité
-                </SectionTitle>
+                <MenuItem href="/conduites" icon={ClipboardCheck}>
+                    Conduite
+                </MenuItem>
 
-                <MenuItem
-                    href="/eleves"
-                    icon={GraduationCap}
-                >
+                <MenuItem href="/absences" icon={UserX}>
+                    Absences
+                </MenuItem>
+
+                <MenuItem href="/retards" icon={Clock}>
+                    Retards
+                </MenuItem>
+
+                <SectionTitle>Scolarité</SectionTitle>
+
+                <MenuItem href="/eleves" icon={GraduationCap}>
                     Élèves
                 </MenuItem>
 
-
-                <SectionTitle>
-                    Évaluations
-                </SectionTitle>
+                <SectionTitle>Évaluations</SectionTitle>
 
                 <MenuItem
                     href="/evaluations"
@@ -145,32 +118,18 @@ export default function Sidebar() {
                     Saisie des notes
                 </MenuItem>
 
+                <SectionTitle>Statistiques</SectionTitle>
 
-                <SectionTitle>
-                    Statistiques
-                </SectionTitle>
-
-                <MenuItem
-                    href="/statistiques"
-                    icon={BarChart3}
-                >
+                <MenuItem href="/statistiques" icon={BarChart3}>
                     Statistiques
                 </MenuItem>
 
+                <SectionTitle>Système</SectionTitle>
 
-                <SectionTitle>
-                    Système
-                </SectionTitle>
-
-                <MenuItem
-                    href="/parametres"
-                    icon={Settings}
-                >
+                <MenuItem href="/parametres" icon={Settings}>
                     Paramètres
                 </MenuItem>
-
             </div>
-
         </aside>
     );
 }

@@ -7,6 +7,7 @@ use App\Models\AnneeScolaire;
 use App\Models\Classe;
 use App\Models\Eleve;
 use App\Models\Etablissement;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class EleveController extends Controller
@@ -37,9 +38,7 @@ class EleveController extends Controller
     {
         return Inertia::render('Eleves/Create', [
             'etablissements' => Etablissement::orderBy('nom')->get(),
-
             'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
-
             'classes' => Classe::orderBy('libelle')->get(),
         ]);
     }
@@ -53,19 +52,47 @@ class EleveController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Vérification de cohérence
+        | Préparation du responsable légal
+        |--------------------------------------------------------------------------
+        */
+
+        $validated = $this->preparerResponsableLegal($validated);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Vérification établissement / classe
         |--------------------------------------------------------------------------
         */
 
         $classe = Classe::findOrFail($validated['classe_id']);
 
         if (
-            $classe->etablissement_id != $validated['etablissement_id']
+            (int) $classe->etablissement_id !==
+            (int) $validated['etablissement_id']
         ) {
             return back()
                 ->withErrors([
                     'classe_id' =>
-                    "La classe sélectionnée n'appartient pas à l'établissement choisi.",
+                        "La classe sélectionnée n'appartient pas à l'établissement choisi.",
+                ])
+                ->withInput();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Vérification année scolaire / classe
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            isset($classe->annee_scolaire_id) &&
+            (int) $classe->annee_scolaire_id !==
+            (int) $validated['annee_scolaire_id']
+        ) {
+            return back()
+                ->withErrors([
+                    'classe_id' =>
+                        "La classe sélectionnée n'appartient pas à l'année scolaire choisie.",
                 ])
                 ->withInput();
         }
@@ -76,16 +103,27 @@ class EleveController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $eleve = Eleve::create($validated);
+        $eleve = DB::transaction(function () use ($validated) {
 
-        $eleve->update([
-            'code_eleve' => 'ELV-' . str_pad(
-                $eleve->id,
-                6,
-                '0',
-                STR_PAD_LEFT
-            ),
-        ]);
+            $eleve = Eleve::create($validated);
+
+            $eleve->update([
+                'code_eleve' => 'ELV-' . str_pad(
+                    $eleve->id,
+                    6,
+                    '0',
+                    STR_PAD_LEFT
+                ),
+            ]);
+
+            return $eleve;
+        });
+
+        /*
+        |--------------------------------------------------------------------------
+        | Redirection vers la liste des élèves
+        |--------------------------------------------------------------------------
+        */
 
         return redirect()
             ->route('eleves.index')
@@ -121,11 +159,8 @@ class EleveController extends Controller
 
         return Inertia::render('Eleves/Edit', [
             'eleve' => $eleve,
-
             'etablissements' => Etablissement::orderBy('nom')->get(),
-
             'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
-
             'classes' => Classe::orderBy('libelle')->get(),
         ]);
     }
@@ -141,30 +176,60 @@ class EleveController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Vérification de cohérence
+        | Préparation du responsable légal
+        |--------------------------------------------------------------------------
+        */
+
+        $validated = $this->preparerResponsableLegal($validated);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Vérification établissement / classe
         |--------------------------------------------------------------------------
         */
 
         $classe = Classe::findOrFail($validated['classe_id']);
 
         if (
-            $classe->etablissement_id != $validated['etablissement_id']
+            (int) $classe->etablissement_id !==
+            (int) $validated['etablissement_id']
         ) {
             return back()
                 ->withErrors([
                     'classe_id' =>
-                    "La classe sélectionnée n'appartient pas à l'établissement choisi.",
+                        "La classe sélectionnée n'appartient pas à l'établissement choisi.",
                 ])
                 ->withInput();
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Mise à jour
+        | Vérification année scolaire / classe
         |--------------------------------------------------------------------------
         */
 
-        $eleve->update($validated);
+        if (
+            isset($classe->annee_scolaire_id) &&
+            (int) $classe->annee_scolaire_id !==
+            (int) $validated['annee_scolaire_id']
+        ) {
+            return back()
+                ->withErrors([
+                    'classe_id' =>
+                        "La classe sélectionnée n'appartient pas à l'année scolaire choisie.",
+                ])
+                ->withInput();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Mise à jour de l'élève
+        |--------------------------------------------------------------------------
+        */
+
+        DB::transaction(function () use ($eleve, $validated) {
+            $eleve->update($validated);
+        });
 
         return redirect()
             ->route('eleves.index')
@@ -184,8 +249,14 @@ class EleveController extends Controller
             return response()->json([]);
         }
 
-        $classes = Classe::where('etablissement_id', $etablissementId)
-            ->where('annee_scolaire_id', $anneeScolaireId)
+        $classes = Classe::where(
+            'etablissement_id',
+            $etablissementId
+        )
+            ->where(
+                'annee_scolaire_id',
+                $anneeScolaireId
+            )
             ->where('active', true)
             ->orderBy('libelle')
             ->get([
@@ -197,6 +268,109 @@ class EleveController extends Controller
 
         return response()->json($classes);
     }
+
+    /**
+     * Préparer automatiquement les informations
+     * du responsable légal.
+     *
+     * Le tuteur légal peut être :
+     * - le Père ;
+     * - la Mère ;
+     * - une autre personne.
+     */
+    private function preparerResponsableLegal(array $data): array
+{
+    $type = $data['type_tuteur'] ?? null;
+
+    /*
+    |--------------------------------------------------------------------------
+    | Père
+    |--------------------------------------------------------------------------
+    */
+
+    if ($type === 'Père') {
+
+        $data['type_tuteur_legal'] = 'PERE';
+
+        $data['responsable_nom'] =
+            $data['pere_nom'] ?? null;
+
+        $data['responsable_prenoms'] =
+            $data['pere_prenoms'] ?? null;
+
+        $data['responsable_telephone'] =
+            $data['pere_telephone'] ?? null;
+
+        $data['responsable_email'] =
+            $data['pere_email'] ?? null;
+
+        $data['responsable_profession'] =
+            $data['pere_profession'] ?? null;
+
+        $data['responsable_adresse'] =
+            $data['pere_adresse'] ?? null;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mère
+    |--------------------------------------------------------------------------
+    */
+
+    elseif ($type === 'Mère') {
+
+        $data['type_tuteur_legal'] = 'MERE';
+
+        $data['responsable_nom'] =
+            $data['mere_nom'] ?? null;
+
+        $data['responsable_prenoms'] =
+            $data['mere_prenoms'] ?? null;
+
+        $data['responsable_telephone'] =
+            $data['mere_telephone'] ?? null;
+
+        $data['responsable_email'] =
+            $data['mere_email'] ?? null;
+
+        $data['responsable_profession'] =
+            $data['mere_profession'] ?? null;
+
+        $data['responsable_adresse'] =
+            $data['mere_adresse'] ?? null;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Autre tuteur
+    |--------------------------------------------------------------------------
+    */
+
+    elseif ($type === 'Autre') {
+
+        $data['type_tuteur_legal'] = 'AUTRE';
+
+        $data['responsable_nom'] =
+            $data['tuteur_nom'] ?? null;
+
+        $data['responsable_prenoms'] =
+            $data['tuteur_prenoms'] ?? null;
+
+        $data['responsable_telephone'] =
+            $data['tuteur_telephone'] ?? null;
+
+        $data['responsable_email'] =
+            $data['tuteur_email'] ?? null;
+
+        $data['responsable_profession'] =
+            $data['tuteur_profession'] ?? null;
+
+        $data['responsable_adresse'] =
+            $data['tuteur_adresse'] ?? null;
+    }
+
+    return $data;
+}
 
     /**
      * Supprimer un élève.

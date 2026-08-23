@@ -13,6 +13,7 @@ class RoleSeeder extends Seeder
             'Administrateur',
             'Directeur des Études',
             'Professeur',
+            'Educateur',
         ];
 
         foreach ($roles as $role) {

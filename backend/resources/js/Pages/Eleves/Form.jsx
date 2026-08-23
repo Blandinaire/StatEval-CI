@@ -67,8 +67,31 @@ export default function Form({
             });
     }, [data.etablissement_id, data.annee_scolaire_id]);
 
+    const estAutreTuteur = data.type_tuteur === "Autre";
+
     return (
         <form onSubmit={submit} className="space-y-8">
+            {Object.keys(errors).length > 0 && (
+                <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                    <h3 className="font-bold text-red-700">
+                        Impossible d'enregistrer l'élève.
+                    </h3>
+
+                    <p className="mt-1 text-sm text-red-600">
+                        Veuillez corriger les informations signalées dans le
+                        formulaire.
+                    </p>
+
+                    <ul className="mt-3 list-disc pl-5 text-sm text-red-600">
+                        {Object.entries(errors).map(([champ, message]) => (
+                            <li key={champ}>
+                                <strong>{champ}</strong> : {message}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
+
             {/* =========================================================
                 SCOLARITÉ
             ========================================================= */}
@@ -224,23 +247,6 @@ export default function Form({
                         <p className="text-xs text-slate-500 mt-1">
                             Format : 8 chiffres suivis d'une lettre majuscule.
                         </p>
-
-                        {errors.matricule && (
-                            <p className="text-sm text-red-600 mt-1">
-                                {errors.matricule}
-                            </p>
-                        )}
-
-                        <p className="text-xs text-slate-500 mt-1">
-                            Format obligatoire : 8 chiffres suivis d'une lettre
-                            majuscule.
-                        </p>
-
-                        {errors.matricule && (
-                            <p className="mt-1 text-sm text-red-600">
-                                {errors.matricule}
-                            </p>
-                        )}
                     </div>
 
                     {/* Nom */}
@@ -474,6 +480,34 @@ export default function Form({
                 </div>
 
                 <div className="grid grid-cols-2 gap-6 p-6">
+                    {/* Statut d'affectation */}
+
+                    <div>
+                        <label className="block font-semibold mb-2">
+                            Statut d'affectation
+                        </label>
+
+                        <select
+                            value={data.statut_affectation}
+                            onChange={(e) =>
+                                setData("statut_affectation", e.target.value)
+                            }
+                            className="w-full rounded-lg border p-3"
+                        >
+                            <option value="AFFECTÉ">Affecté</option>
+
+                            <option value="NON AFFECTÉ">Non affecté</option>
+                        </select>
+
+                        {errors.statut_affectation && (
+                            <p className="mt-1 text-sm text-red-600">
+                                {errors.statut_affectation}
+                            </p>
+                        )}
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6 p-6">
                     {/* Régime */}
                     <div>
                         <label className="block font-semibold mb-2">
@@ -569,12 +603,14 @@ export default function Form({
             </div>
 
             {/* =========================================================
-                RESPONSABLE LÉGAL
-            ========================================================= */}
+    PÈRE
+========================================================= */}
 
             <div className="rounded-xl border bg-white shadow-sm">
                 <div className="border-b bg-slate-50 px-6 py-4">
-                    <h2 className="text-xl font-bold">👨‍👩‍👦 Responsable légal</h2>
+                    <h2 className="text-xl font-bold">
+                        👨 Informations du Père
+                    </h2>
                 </div>
 
                 <div className="grid grid-cols-2 gap-6 p-6">
@@ -583,15 +619,18 @@ export default function Form({
 
                         <input
                             type="text"
-                            value={data.responsable_nom}
+                            value={data.pere_nom}
                             onChange={(e) =>
-                                setData(
-                                    "responsable_nom",
-                                    formatNom(e.target.value),
-                                )
+                                setData("pere_nom", formatNom(e.target.value))
                             }
                             className="w-full rounded-lg border p-3"
                         />
+
+                        {errors.pere_nom && (
+                            <p className="mt-1 text-sm text-red-600">
+                                {errors.pere_nom}
+                            </p>
+                        )}
                     </div>
 
                     <div>
@@ -601,10 +640,10 @@ export default function Form({
 
                         <input
                             type="text"
-                            value={data.responsable_prenoms}
+                            value={data.pere_prenoms}
                             onChange={(e) =>
                                 setData(
-                                    "responsable_prenoms",
+                                    "pere_prenoms",
                                     formatPrenoms(e.target.value),
                                 )
                             }
@@ -619,10 +658,10 @@ export default function Form({
 
                         <input
                             type="text"
-                            value={data.responsable_telephone}
+                            value={data.pere_telephone}
                             onChange={(e) =>
                                 setData(
-                                    "responsable_telephone",
+                                    "pere_telephone",
                                     formatTelephone(e.target.value),
                                 )
                             }
@@ -637,10 +676,10 @@ export default function Form({
 
                         <input
                             type="email"
-                            value={data.responsable_email}
+                            value={data.pere_email}
                             onChange={(e) =>
                                 setData(
-                                    "responsable_email",
+                                    "pere_email",
                                     formatEmail(e.target.value),
                                 )
                             }
@@ -655,10 +694,10 @@ export default function Form({
 
                         <input
                             type="text"
-                            value={data.responsable_profession}
+                            value={data.pere_profession}
                             onChange={(e) =>
                                 setData(
-                                    "responsable_profession",
+                                    "pere_profession",
                                     formatTexte(e.target.value),
                                 )
                             }
@@ -672,14 +711,300 @@ export default function Form({
                         </label>
 
                         <textarea
-                            value={data.responsable_adresse}
+                            value={data.pere_adresse}
                             onChange={(e) =>
-                                setData("responsable_adresse", e.target.value)
+                                setData("pere_adresse", e.target.value)
                             }
                             rows="3"
                             className="w-full rounded-lg border p-3"
                         />
                     </div>
+                </div>
+            </div>
+            {/* =========================================================
+    MÈRE
+========================================================= */}
+
+            <div className="rounded-xl border bg-white shadow-sm">
+                <div className="border-b bg-slate-50 px-6 py-4">
+                    <h2 className="text-xl font-bold">
+                        👩 Informations de la Mère
+                    </h2>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6 p-6">
+                    <div>
+                        <label className="block font-semibold mb-2">Nom</label>
+
+                        <input
+                            type="text"
+                            value={data.mere_nom}
+                            onChange={(e) =>
+                                setData("mere_nom", formatNom(e.target.value))
+                            }
+                            className="w-full rounded-lg border p-3"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block font-semibold mb-2">
+                            Prénoms
+                        </label>
+
+                        <input
+                            type="text"
+                            value={data.mere_prenoms}
+                            onChange={(e) =>
+                                setData(
+                                    "mere_prenoms",
+                                    formatPrenoms(e.target.value),
+                                )
+                            }
+                            className="w-full rounded-lg border p-3"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block font-semibold mb-2">
+                            Téléphone
+                        </label>
+
+                        <input
+                            type="text"
+                            value={data.mere_telephone}
+                            onChange={(e) =>
+                                setData(
+                                    "mere_telephone",
+                                    formatTelephone(e.target.value),
+                                )
+                            }
+                            className="w-full rounded-lg border p-3"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block font-semibold mb-2">
+                            Email
+                        </label>
+
+                        <input
+                            type="email"
+                            value={data.mere_email}
+                            onChange={(e) =>
+                                setData(
+                                    "mere_email",
+                                    formatEmail(e.target.value),
+                                )
+                            }
+                            className="w-full rounded-lg border p-3"
+                        />
+                    </div>
+
+                    <div>
+                        <label className="block font-semibold mb-2">
+                            Profession
+                        </label>
+
+                        <input
+                            type="text"
+                            value={data.mere_profession}
+                            onChange={(e) =>
+                                setData(
+                                    "mere_profession",
+                                    formatTexte(e.target.value),
+                                )
+                            }
+                            className="w-full rounded-lg border p-3"
+                        />
+                    </div>
+
+                    <div className="col-span-2">
+                        <label className="block font-semibold mb-2">
+                            Adresse
+                        </label>
+
+                        <textarea
+                            value={data.mere_adresse}
+                            onChange={(e) =>
+                                setData("mere_adresse", e.target.value)
+                            }
+                            rows="3"
+                            className="w-full rounded-lg border p-3"
+                        />
+                    </div>
+                </div>
+            </div>
+            {/* =========================================================
+    TUTEUR LÉGAL
+========================================================= */}
+
+            <div className="rounded-xl border bg-white shadow-sm">
+                <div className="border-b bg-slate-50 px-6 py-4">
+                    <h2 className="text-xl font-bold">👨‍👩‍👦 Tuteur légal</h2>
+                </div>
+
+                <div className="grid grid-cols-2 gap-6 p-6">
+                    {/* Type de tuteur */}
+
+                    <div>
+                        <label className="block font-semibold mb-2">
+                            Le tuteur légal est :
+                        </label>
+
+                        <select
+                            value={data.type_tuteur}
+                            onChange={(e) =>
+                                setData("type_tuteur", e.target.value)
+                            }
+                            className="w-full rounded-lg border p-3"
+                        >
+                            <option value="">
+                                Sélectionner le tuteur légal...
+                            </option>
+
+                            <option value="Père">Le Père</option>
+
+                            <option value="Mère">La Mère</option>
+
+                            <option value="Autre">Une autre personne</option>
+                        </select>
+
+                        {errors.type_tuteur && (
+                            <p className="mt-1 text-sm text-red-600">
+                                {errors.type_tuteur}
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Message informatif */}
+
+                    {data.type_tuteur === "Père" && (
+                        <div className="col-span-2 rounded-lg bg-blue-50 p-4 text-blue-700">
+                            Les informations du Père seront automatiquement
+                            utilisées comme informations du tuteur légal.
+                        </div>
+                    )}
+
+                    {data.type_tuteur === "Mère" && (
+                        <div className="col-span-2 rounded-lg bg-blue-50 p-4 text-blue-700">
+                            Les informations de la Mère seront automatiquement
+                            utilisées comme informations du tuteur légal.
+                        </div>
+                    )}
+
+                    {/* Saisie uniquement pour Autre */}
+
+                    {data.type_tuteur === "Autre" && (
+                        <>
+                            <div>
+                                <label className="block font-semibold mb-2">
+                                    Nom
+                                </label>
+
+                                <input
+                                    type="text"
+                                    value={data.tuteur_nom}
+                                    onChange={(e) =>
+                                        setData(
+                                            "tuteur_nom",
+                                            formatNom(e.target.value),
+                                        )
+                                    }
+                                    className="w-full rounded-lg border p-3"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block font-semibold mb-2">
+                                    Prénoms
+                                </label>
+
+                                <input
+                                    type="text"
+                                    value={data.tuteur_prenoms}
+                                    onChange={(e) =>
+                                        setData(
+                                            "tuteur_prenoms",
+                                            formatPrenoms(e.target.value),
+                                        )
+                                    }
+                                    className="w-full rounded-lg border p-3"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block font-semibold mb-2">
+                                    Téléphone
+                                </label>
+
+                                <input
+                                    type="text"
+                                    value={data.tuteur_telephone}
+                                    onChange={(e) =>
+                                        setData(
+                                            "tuteur_telephone",
+                                            formatTelephone(e.target.value),
+                                        )
+                                    }
+                                    className="w-full rounded-lg border p-3"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block font-semibold mb-2">
+                                    Email
+                                </label>
+
+                                <input
+                                    type="email"
+                                    value={data.tuteur_email}
+                                    onChange={(e) =>
+                                        setData(
+                                            "tuteur_email",
+                                            formatEmail(e.target.value),
+                                        )
+                                    }
+                                    className="w-full rounded-lg border p-3"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block font-semibold mb-2">
+                                    Profession
+                                </label>
+
+                                <input
+                                    type="text"
+                                    value={data.tuteur_profession}
+                                    onChange={(e) =>
+                                        setData(
+                                            "tuteur_profession",
+                                            formatTexte(e.target.value),
+                                        )
+                                    }
+                                    className="w-full rounded-lg border p-3"
+                                />
+                            </div>
+
+                            <div className="col-span-2">
+                                <label className="block font-semibold mb-2">
+                                    Adresse
+                                </label>
+
+                                <textarea
+                                    value={data.tuteur_adresse}
+                                    onChange={(e) =>
+                                        setData(
+                                            "tuteur_adresse",
+                                            e.target.value,
+                                        )
+                                    }
+                                    rows="3"
+                                    className="w-full rounded-lg border p-3"
+                                />
+                            </div>
+                        </>
+                    )}
                 </div>
             </div>
 

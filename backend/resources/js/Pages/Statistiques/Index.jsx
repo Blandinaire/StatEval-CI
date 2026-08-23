@@ -1186,7 +1186,6 @@ export default function Index({
                     </div>
                 </div>
             </section>
-            ;
         </AdminLayout>
     );
 }

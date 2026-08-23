@@ -8,21 +8,9 @@ class Eleve extends Model
 {
     protected $fillable = [
 
-        /*
-        |--------------------------------------------------------------------------
-        | Établissement et scolarité
-        |--------------------------------------------------------------------------
-        */
-
         'etablissement_id',
         'annee_scolaire_id',
         'classe_id',
-
-        /*
-        |--------------------------------------------------------------------------
-        | Identification
-        |--------------------------------------------------------------------------
-        */
 
         'code_eleve',
         'matricule',
@@ -34,32 +22,31 @@ class Eleve extends Model
         'nationalite',
         'photo',
 
-        /*
-        |--------------------------------------------------------------------------
-        | Informations complémentaires
-        |--------------------------------------------------------------------------
-        */
-
         'adresse',
         'telephone',
         'email',
-
-        /*
-        |--------------------------------------------------------------------------
-        | Situation scolaire
-        |--------------------------------------------------------------------------
-        */
 
         'redoublant',
         'boursier',
         'regime',
         'statut',
+        'statut_affectation',
 
-        /*
-        |--------------------------------------------------------------------------
-        | Responsable légal
-        |--------------------------------------------------------------------------
-        */
+        'pere_nom',
+        'pere_prenoms',
+        'pere_telephone',
+        'pere_email',
+        'pere_profession',
+        'pere_adresse',
+
+        'mere_nom',
+        'mere_prenoms',
+        'mere_telephone',
+        'mere_email',
+        'mere_profession',
+        'mere_adresse',
+
+        'type_tuteur',
 
         'responsable_nom',
         'responsable_prenoms',
@@ -68,37 +55,34 @@ class Eleve extends Model
         'responsable_profession',
         'responsable_adresse',
 
-        /*
-        |--------------------------------------------------------------------------
-        | Informations médicales
-        |--------------------------------------------------------------------------
-        */
-
         'groupe_sanguin',
         'allergies',
         'observations_medicales',
         'contact_urgence_nom',
         'contact_urgence_telephone',
 
-        /*
-        |--------------------------------------------------------------------------
-        | Statut système
-        |--------------------------------------------------------------------------
-        */
-
         'actif',
     ];
 
     protected $casts = [
 
+        /*
+        |--------------------------------------------------------------------------
+        | Dates
+        |--------------------------------------------------------------------------
+        */
+
         'date_naissance' => 'date',
 
+        /*
+        |--------------------------------------------------------------------------
+        | Booléens
+        |--------------------------------------------------------------------------
+        */
+
         'redoublant' => 'boolean',
-
         'boursier' => 'boolean',
-
         'actif' => 'boolean',
-
     ];
 
     /*
@@ -107,32 +91,59 @@ class Eleve extends Model
     |--------------------------------------------------------------------------
     */
 
+    /**
+     * Établissement fréquenté par l'élève.
+     */
     public function etablissement()
     {
-        return $this->belongsTo(
-            Etablissement::class
-        );
-    }
-
-    public function anneeScolaire()
-    {
-        return $this->belongsTo(
-            AnneeScolaire::class
-        );
-    }
-
-    public function classe()
-    {
-        return $this->belongsTo(
-            Classe::class
-        );
+        return $this->belongsTo(Etablissement::class);
     }
 
     /**
-     * Notes obtenues par cet élève.
+     * Année scolaire de l'élève.
+     */
+    public function anneeScolaire()
+    {
+        return $this->belongsTo(AnneeScolaire::class);
+    }
+
+    /**
+     * Classe de l'élève.
+     */
+    public function classe()
+    {
+        return $this->belongsTo(Classe::class);
+    }
+
+    /**
+     * Notes obtenues par l'élève.
      */
     public function notes()
     {
         return $this->hasMany(Note::class);
+    }
+
+    /**
+     * Conduites de l'élève.
+     */
+    public function conduites()
+    {
+        return $this->hasMany(Conduite::class);
+    }
+
+    /**
+     * Absences de l'élève.
+     */
+    public function absences()
+    {
+        return $this->hasMany(Absence::class);
+    }
+
+    /**
+     * Retards de l'élève.
+     */
+    public function retards()
+    {
+        return $this->hasMany(Retard::class);
     }
 }

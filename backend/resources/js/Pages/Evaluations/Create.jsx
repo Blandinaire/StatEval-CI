@@ -1,153 +1,267 @@
 import AdminLayout from "@/Layouts/AdminLayout";
 import { Head, Link, useForm } from "@inertiajs/react";
 
-export default function Create({ evaluation, eleves, notes }) {
+export default function Create({
+    etablissements = [],
+    annees = [],
+    classes = [],
+    matieres = [],
+    enseignants = [],
+    affectations = [],
+}) {
+    const { data, setData, post, processing, errors } = useForm({
+        etablissement_id: "",
+        annee_scolaire_id: "",
+        classe_id: "",
+        matiere_id: "",
+        enseignant_id: "",
+        libelle: "",
+        type: "Interrogation",
+        numero: "",
+        date_evaluation: "",
+        bareme: 20,
+        coefficient: 1,
+        periode: "Trimestre 1",
+        active: true,
+    });
+
     /*
     |--------------------------------------------------------------------------
-    | Notes existantes
+    | Affectations actives
     |--------------------------------------------------------------------------
     */
 
-    const notesExistantes = notes || {};
+    const affectationsActives = affectations;
+
+    console.log("ÉTABLISSEMENT SÉLECTIONNÉ :", data.etablissement_id);
+    console.log("ANNÉE SÉLECTIONNÉE :", data.annee_scolaire_id);
+
+    console.log("CLASSES REÇUES :", classes);
+
+    console.log(
+        "AFFECTATIONS REÇUES :",
+        affectations.map((affectation) => ({
+            id: affectation.id,
+            etablissement_id: affectation.etablissement_id,
+            annee_scolaire_id: affectation.annee_scolaire_id,
+            classe_id: affectation.classe_id,
+            matiere_id: affectation.matiere_id,
+            enseignant_id: affectation.enseignant_id,
+            coefficient: affectation.coefficient,
+            actif: affectation.actif,
+            type_actif: typeof affectation.actif,
+        })),
+    );
+
+    console.log(
+        "VALEURS DU CHAMP ACTIF :",
+        affectations.map((affectation) => affectation.actif),
+    );
+
+    console.log("AFFECTATIONS ACTIVES :", affectationsActives);
 
     /*
     |--------------------------------------------------------------------------
-    | Déterminer automatiquement l'appréciation
+    | Classes disponibles
     |--------------------------------------------------------------------------
-    |
-    | La note est toujours normalisée sur 20.
-    |
-    | 18 à 20      → Excellent
-    | 16 à <18     → Très bien
-    | 14 à <16     → Bien
-    | 12 à <14     → Assez bien
-    | 11 à <12     → Moyen
-    | 10 à <11     → Passable
-    | 8 à <10      → Insuffisant
-    | 5 à <8       → Très insuffisant
-    | 0 à <5       → Faible
-    |
+    | Une classe doit correspondre à l'établissement et à l'année sélectionnés.
     */
 
-    function calculerAppreciation(note, absent = false) {
-        if (absent) {
-            return "Absent";
+    /*
+|--------------------------------------------------------------------------
+| Classes disponibles
+|--------------------------------------------------------------------------
+| Toutes les classes appartenant à l'établissement sélectionné sont affichées.
+| L'année scolaire est gérée ensuite par les affectations des enseignants.
+*/
+
+    const classesDisponibles = classes.filter((classe) => {
+        if (!data.etablissement_id) {
+            return false;
         }
 
-        if (note === "" || note === null || note === undefined) {
-            return "";
+        return (
+            String(classe.etablissement_id) === String(data.etablissement_id)
+        );
+    });
+
+    console.log("CLASSES DISPONIBLES :", classesDisponibles);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Matières disponibles
+    |--------------------------------------------------------------------------
+    | Une matière doit être réellement affectée à la classe sélectionnée.
+    */
+
+    const matieresDisponibles = matieres.filter((matiere) => {
+        if (
+            !data.etablissement_id ||
+            !data.annee_scolaire_id ||
+            !data.classe_id
+        ) {
+            return false;
         }
 
-        const valeur = Number(note);
-        const bareme = Number(evaluation.bareme);
+        return affectationsActives.some(
+            (affectation) =>
+                String(affectation.etablissement_id) ===
+                    String(data.etablissement_id) &&
+                String(affectation.annee_scolaire_id) ===
+                    String(data.annee_scolaire_id) &&
+                String(affectation.classe_id) === String(data.classe_id) &&
+                String(affectation.matiere_id) === String(matiere.id),
+        );
+    });
 
-        if (Number.isNaN(valeur) || Number.isNaN(bareme) || bareme <= 0) {
-            return "";
+    /*
+    |--------------------------------------------------------------------------
+    | Enseignants disponibles
+    |--------------------------------------------------------------------------
+    | Sécurité principale :
+    | l'enseignant doit posséder une affectation active correspondant
+    | exactement à :
+    |
+    | établissement
+    | année scolaire
+    | classe
+    | matière
+    |--------------------------------------------------------------------------
+    */
+
+    const enseignantsDisponibles = enseignants.filter((enseignant) => {
+        if (
+            !data.etablissement_id ||
+            !data.annee_scolaire_id ||
+            !data.classe_id ||
+            !data.matiere_id
+        ) {
+            return false;
         }
 
-        /*
-        | Normalisation de la note sur 20.
-        |
-        | Exemple :
-        | 15/20 = 15/20
-        | 24/30 = 16/20
-        | 45/50 = 18/20
-        */
+        return affectationsActives.some(
+            (affectation) =>
+                String(affectation.etablissement_id) ===
+                    String(data.etablissement_id) &&
+                String(affectation.annee_scolaire_id) ===
+                    String(data.annee_scolaire_id) &&
+                String(affectation.classe_id) === String(data.classe_id) &&
+                String(affectation.matiere_id) === String(data.matiere_id) &&
+                String(affectation.enseignant_id) === String(enseignant.id),
+        );
+    });
 
-        const noteSur20 = (valeur / bareme) * 20;
+    /*
+    |--------------------------------------------------------------------------
+    | Affectation sélectionnée
+    |--------------------------------------------------------------------------
+    | Elle permet de vérifier définitivement que le professeur choisi
+    | correspond bien à la combinaison sélectionnée.
+    */
 
-        if (noteSur20 >= 18) {
-            return "Excellent";
-        }
+    const affectationSelectionnee = affectationsActives.find(
+        (affectation) =>
+            String(affectation.etablissement_id) ===
+                String(data.etablissement_id) &&
+            String(affectation.annee_scolaire_id) ===
+                String(data.annee_scolaire_id) &&
+            String(affectation.classe_id) === String(data.classe_id) &&
+            String(affectation.matiere_id) === String(data.matiere_id) &&
+            String(affectation.enseignant_id) === String(data.enseignant_id),
+    );
 
-        if (noteSur20 >= 16) {
-            return "Très bien";
-        }
+    const affectationValide = Boolean(affectationSelectionnee);
 
-        if (noteSur20 >= 14) {
-            return "Bien";
-        }
+    /*
+    |--------------------------------------------------------------------------
+    | Changement d'établissement
+    |--------------------------------------------------------------------------
+    */
 
-        if (noteSur20 >= 12) {
-            return "Assez bien";
-        }
-
-        if (noteSur20 >= 11) {
-            return "Moyen";
-        }
-
-        if (noteSur20 >= 10) {
-            return "Passable";
-        }
-
-        if (noteSur20 >= 8) {
-            return "Insuffisant";
-        }
-
-        if (noteSur20 >= 5) {
-            return "Très insuffisant";
-        }
-
-        return "Faible";
+    function handleEtablissementChange(value) {
+        setData({
+            ...data,
+            etablissement_id: value,
+            annee_scolaire_id: "",
+            classe_id: "",
+            matiere_id: "",
+            enseignant_id: "",
+            coefficient: 1,
+        });
     }
 
     /*
     |--------------------------------------------------------------------------
-    | Préparation des lignes
+    | Changement d'année scolaire
     |--------------------------------------------------------------------------
     */
 
-    const initialNotes = eleves.map((eleve) => {
-        const noteExistante = notesExistantes[eleve.id];
-
-        const note = noteExistante?.note ?? "";
-        const absent = Boolean(noteExistante?.absent ?? false);
-
-        return {
-            eleve_id: eleve.id,
-            note: note,
-            absent: absent,
-
-            /*
-            | L'appréciation est recalculée automatiquement.
-            */
-
-            appreciation: calculerAppreciation(note, absent),
-
-            observation: noteExistante?.observation ?? "",
-        };
-    });
-
-    const { data, setData, post, processing, errors } = useForm({
-        notes: initialNotes,
-    });
-
-    /*
-|--------------------------------------------------------------------------
-| Génération automatique de l'appréciation
-|--------------------------------------------------------------------------
-*/
+    function handleAnneeChange(value) {
+        setData({
+            ...data,
+            annee_scolaire_id: value,
+            classe_id: "",
+            matiere_id: "",
+            enseignant_id: "",
+            coefficient: 1,
+        });
+    }
 
     /*
     |--------------------------------------------------------------------------
-    | Modification d'une ligne
+    | Changement de classe
     |--------------------------------------------------------------------------
     */
 
-    function updateNote(index, field, value) {
-        const nouvellesNotes = [...data.notes];
+    function handleClasseChange(value) {
+        setData({
+            ...data,
+            classe_id: value,
+            matiere_id: "",
+            enseignant_id: "",
+            coefficient: 1,
+        });
+    }
 
-        nouvellesNotes[index] = {
-            ...nouvellesNotes[index],
-            [field]: value,
-        };
+    /*
+    |--------------------------------------------------------------------------
+    | Changement de matière
+    |--------------------------------------------------------------------------
+    */
 
-        if (field === "absent" && value === true) {
-            nouvellesNotes[index].note = "";
-            nouvellesNotes[index].appreciation = "";
-        }
+    function handleMatiereChange(value) {
+        setData({
+            ...data,
+            matiere_id: value,
+            enseignant_id: "",
+            coefficient: 1,
+        });
+    }
 
-        setData("notes", nouvellesNotes);
+    /*
+    |--------------------------------------------------------------------------
+    | Changement d'enseignant
+    |--------------------------------------------------------------------------
+    | Le coefficient de l'affectation est automatiquement récupéré.
+    */
+
+    function handleEnseignantChange(value) {
+        const affectation = affectationsActives.find(
+            (item) =>
+                String(item.etablissement_id) ===
+                    String(data.etablissement_id) &&
+                String(item.annee_scolaire_id) ===
+                    String(data.annee_scolaire_id) &&
+                String(item.classe_id) === String(data.classe_id) &&
+                String(item.matiere_id) === String(data.matiere_id) &&
+                String(item.enseignant_id) === String(value),
+        );
+
+        setData({
+            ...data,
+            enseignant_id: value,
+            coefficient: affectation?.coefficient ?? 1,
+        });
     }
 
     /*
@@ -156,539 +270,516 @@ export default function Create({ evaluation, eleves, notes }) {
     |--------------------------------------------------------------------------
     */
 
-    function submit(e) {
+    function handleSubmit(e) {
         e.preventDefault();
 
-        post(route("notes.store", evaluation.id));
-    }
+        /*
+        |--------------------------------------------------------------
+        | Blocage supplémentaire côté React
+        |--------------------------------------------------------------
+        */
 
-    /*
-    |--------------------------------------------------------------------------
-    | Vérification côté interface
-    |--------------------------------------------------------------------------
-    */
+        if (!affectationValide) {
+            alert(
+                "Impossible d'enregistrer cette évaluation : aucun enseignant n'est affecté à cette matière dans la classe et pour l'année scolaire sélectionnées.",
+            );
 
-    const noteMax = Number(evaluation.bareme);
-
-    function noteInvalide(note) {
-        if (note === "" || note === null || note === undefined) {
-            return false;
+            return;
         }
 
-        return Number(note) < 0 || Number(note) > noteMax;
-    }
-
-    /*
-    |--------------------------------------------------------------------------
-    | Note normalisée sur 20
-    |--------------------------------------------------------------------------
-    */
-
-    function noteSur20(note) {
-        if (note === "" || note === null || note === undefined) {
-            return "";
-        }
-
-        const valeur = Number(note);
-        const bareme = Number(evaluation.bareme);
-
-        if (Number.isNaN(valeur) || Number.isNaN(bareme) || bareme <= 0) {
-            return "";
-        }
-
-        return ((valeur / bareme) * 20).toFixed(2);
+        post(route("evaluations.store"));
     }
 
     return (
         <AdminLayout>
-            <Head title={`Saisie des notes - ${evaluation.libelle}`} />
+            <Head title="Nouvelle évaluation" />
 
-            <div className="mx-auto max-w-7xl space-y-6">
-                {/* =====================================================
-                    EN-TÊTE
-                ===================================================== */}
+            <div className="space-y-6">
+                {/* En-tête */}
 
-                <div className="rounded-xl bg-white p-8 shadow">
-                    <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                        <div>
-                            <h1 className="text-3xl font-bold text-gray-800">
-                                Saisie des notes
-                            </h1>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-800">
+                            Nouvelle évaluation
+                        </h1>
 
-                            <p className="mt-2 text-gray-500">
-                                {evaluation.libelle}
-                            </p>
-                        </div>
-
-                        <Link
-                            href={route("evaluations.show", evaluation.id)}
-                            className="rounded-lg border px-5 py-3 text-center hover:bg-gray-50"
-                        >
-                            ← Retour à l'évaluation
-                        </Link>
+                        <p className="mt-1 text-gray-500">
+                            Créer une nouvelle évaluation scolaire
+                        </p>
                     </div>
 
-                    {/* =================================================
-                        INFORMATIONS ÉVALUATION
-                    ================================================= */}
+                    <Link
+                        href={route("evaluations.index")}
+                        className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-gray-700 hover:bg-gray-50"
+                    >
+                        Retour à la liste
+                    </Link>
+                </div>
 
-                    <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
-                        <div className="rounded-lg bg-slate-50 p-4">
-                            <p className="text-sm text-gray-500">
+                {/* Formulaire */}
+
+                <form
+                    onSubmit={handleSubmit}
+                    className="rounded-xl border bg-white p-6 shadow-sm"
+                >
+                    <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                        {/* ÉTABLISSEMENT */}
+
+                        <div>
+                            <label className="mb-2 block font-medium text-gray-700">
                                 Établissement
-                            </p>
+                                <span className="ml-1 text-red-600">*</span>
+                            </label>
 
-                            <p className="mt-1 font-semibold">
-                                {evaluation.etablissement?.nom ?? "—"}
-                            </p>
-                        </div>
+                            <select
+                                required
+                                value={data.etablissement_id}
+                                onChange={(e) =>
+                                    handleEtablissementChange(e.target.value)
+                                }
+                                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-blue-500 focus:outline-none"
+                            >
+                                <option value="">
+                                    Sélectionner un établissement
+                                </option>
 
-                        <div className="rounded-lg bg-slate-50 p-4">
-                            <p className="text-sm text-gray-500">
-                                Année scolaire
-                            </p>
+                                {etablissements.map((etablissement) => (
+                                    <option
+                                        key={etablissement.id}
+                                        value={etablissement.id}
+                                    >
+                                        {etablissement.nom}
+                                    </option>
+                                ))}
+                            </select>
 
-                            <p className="mt-1 font-semibold">
-                                {evaluation.anneeScolaire?.libelle ?? "—"}
-                            </p>
-                        </div>
-
-                        <div className="rounded-lg bg-slate-50 p-4">
-                            <p className="text-sm text-gray-500">Classe</p>
-
-                            <p className="mt-1 font-semibold">
-                                {evaluation.classe?.libelle ?? "—"}
-                            </p>
-                        </div>
-
-                        <div className="rounded-lg bg-blue-50 p-4">
-                            <p className="text-sm text-gray-500">Barème</p>
-
-                            <p className="mt-1 text-2xl font-bold text-blue-600">
-                                /{evaluation.bareme}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-                        <div>
-                            <span className="text-sm text-gray-500">
-                                Matière
-                            </span>
-
-                            <p className="font-semibold">
-                                {evaluation.matiere?.libelle ?? "—"}
-                            </p>
-                        </div>
-
-                        <div>
-                            <span className="text-sm text-gray-500">
-                                Enseignant
-                            </span>
-
-                            <p className="font-semibold">
-                                {evaluation.enseignant
-                                    ? `${evaluation.enseignant.nom ?? ""} ${evaluation.enseignant.prenoms ?? ""}`
-                                    : "—"}
-                            </p>
-                        </div>
-
-                        <div>
-                            <span className="text-sm text-gray-500">
-                                Période
-                            </span>
-
-                            <p className="font-semibold">
-                                {evaluation.periode ?? "—"}
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* =====================================================
-                    GRILLE DES APPRÉCIATIONS
-                ===================================================== */}
-
-                <div className="rounded-xl bg-white p-6 shadow">
-                    <h2 className="text-xl font-bold text-gray-800">
-                        Grille des appréciations
-                    </h2>
-
-                    <p className="mt-1 text-sm text-gray-500">
-                        Les appréciations sont calculées automatiquement sur la
-                        base d'une note normalisée sur 20.
-                    </p>
-
-                    <div className="mt-5 overflow-x-auto">
-                        <table className="w-full text-sm">
-                            <thead className="bg-gray-100">
-                                <tr>
-                                    <th className="px-4 py-3 text-left">
-                                        Note /20
-                                    </th>
-
-                                    <th className="px-4 py-3 text-left">
-                                        Appréciation
-                                    </th>
-                                </tr>
-                            </thead>
-
-                            <tbody>
-                                <tr className="border-t">
-                                    <td className="px-4 py-2">18 à 20</td>
-                                    <td className="px-4 py-2 font-semibold">
-                                        Excellent
-                                    </td>
-                                </tr>
-
-                                <tr className="border-t">
-                                    <td className="px-4 py-2">16 à &lt;18</td>
-                                    <td className="px-4 py-2 font-semibold">
-                                        Très bien
-                                    </td>
-                                </tr>
-
-                                <tr className="border-t">
-                                    <td className="px-4 py-2">14 à &lt;16</td>
-                                    <td className="px-4 py-2 font-semibold">
-                                        Bien
-                                    </td>
-                                </tr>
-
-                                <tr className="border-t">
-                                    <td className="px-4 py-2">12 à &lt;14</td>
-                                    <td className="px-4 py-2 font-semibold">
-                                        Assez bien
-                                    </td>
-                                </tr>
-
-                                <tr className="border-t">
-                                    <td className="px-4 py-2">11 à &lt;12</td>
-                                    <td className="px-4 py-2 font-semibold">
-                                        Moyen
-                                    </td>
-                                </tr>
-
-                                <tr className="border-t">
-                                    <td className="px-4 py-2">10 à &lt;11</td>
-                                    <td className="px-4 py-2 font-semibold">
-                                        Passable
-                                    </td>
-                                </tr>
-
-                                <tr className="border-t">
-                                    <td className="px-4 py-2">8 à &lt;10</td>
-                                    <td className="px-4 py-2 font-semibold">
-                                        Insuffisant
-                                    </td>
-                                </tr>
-
-                                <tr className="border-t">
-                                    <td className="px-4 py-2">5 à &lt;8</td>
-                                    <td className="px-4 py-2 font-semibold">
-                                        Très insuffisant
-                                    </td>
-                                </tr>
-
-                                <tr className="border-t">
-                                    <td className="px-4 py-2">0 à &lt;5</td>
-                                    <td className="px-4 py-2 font-semibold">
-                                        Faible
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                {/* =====================================================
-                    SAISIE DES NOTES
-                ===================================================== */}
-
-                <div className="rounded-xl bg-white shadow">
-                    <div className="border-b bg-slate-50 px-6 py-5">
-                        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                            <div>
-                                <h2 className="text-xl font-bold">
-                                    Notes des élèves
-                                </h2>
-
-                                <p className="mt-1 text-sm text-gray-500">
-                                    {eleves.length} élève
-                                    {eleves.length > 1 ? "s" : ""} dans cette
-                                    classe
+                            {errors.etablissement_id && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    {errors.etablissement_id}
                                 </p>
-                            </div>
+                            )}
+                        </div>
 
-                            <div className="rounded-lg bg-blue-100 px-4 py-2 font-semibold text-blue-700">
-                                Note maximale : {evaluation.bareme}
-                            </div>
+                        {/* ANNÉE SCOLAIRE */}
+
+                        <div>
+                            <label className="mb-2 block font-medium text-gray-700">
+                                Année scolaire
+                                <span className="ml-1 text-red-600">*</span>
+                            </label>
+
+                            <select
+                                required
+                                disabled={!data.etablissement_id}
+                                value={data.annee_scolaire_id}
+                                onChange={(e) =>
+                                    handleAnneeChange(e.target.value)
+                                }
+                                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100"
+                            >
+                                <option value="">Sélectionner une année</option>
+
+                                {annees.map((annee) => (
+                                    <option key={annee.id} value={annee.id}>
+                                        {annee.libelle ??
+                                            `${annee.date_debut} - ${annee.date_fin}`}
+                                    </option>
+                                ))}
+                            </select>
+
+                            {errors.annee_scolaire_id && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    {errors.annee_scolaire_id}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* CLASSE */}
+
+                        <div>
+                            <label className="mb-2 block font-medium text-gray-700">
+                                Classe
+                                <span className="ml-1 text-red-600">*</span>
+                            </label>
+
+                            <select
+                                required
+                                disabled={
+                                    !data.etablissement_id ||
+                                    !data.annee_scolaire_id
+                                }
+                                value={data.classe_id}
+                                onChange={(e) =>
+                                    handleClasseChange(e.target.value)
+                                }
+                                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100"
+                            >
+                                <option value="">
+                                    Sélectionner une classe
+                                </option>
+
+                                {classesDisponibles.map((classe) => (
+                                    <option key={classe.id} value={classe.id}>
+                                        {classe.libelle}
+                                    </option>
+                                ))}
+                            </select>
+
+                            {errors.classe_id && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    {errors.classe_id}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* MATIÈRE */}
+
+                        <div>
+                            <label className="mb-2 block font-medium text-gray-700">
+                                Matière
+                                <span className="ml-1 text-red-600">*</span>
+                            </label>
+
+                            <select
+                                required
+                                disabled={!data.classe_id}
+                                value={data.matiere_id}
+                                onChange={(e) =>
+                                    handleMatiereChange(e.target.value)
+                                }
+                                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100"
+                            >
+                                <option value="">
+                                    Sélectionner une matière
+                                </option>
+
+                                {matieresDisponibles.map((matiere) => (
+                                    <option key={matiere.id} value={matiere.id}>
+                                        {matiere.libelle}
+                                    </option>
+                                ))}
+                            </select>
+
+                            {errors.matiere_id && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    {errors.matiere_id}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* ENSEIGNANT */}
+
+                        <div>
+                            <label className="mb-2 block font-medium text-gray-700">
+                                Enseignant
+                                <span className="ml-1 text-red-600">*</span>
+                            </label>
+
+                            <select
+                                required
+                                disabled={!data.matiere_id}
+                                value={data.enseignant_id}
+                                onChange={(e) =>
+                                    handleEnseignantChange(e.target.value)
+                                }
+                                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-blue-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-100"
+                            >
+                                <option value="">
+                                    {!data.matiere_id
+                                        ? "Sélectionner d'abord une matière"
+                                        : enseignantsDisponibles.length === 0
+                                          ? "Aucun enseignant affecté"
+                                          : "Sélectionner un enseignant"}
+                                </option>
+
+                                {enseignantsDisponibles.map((enseignant) => (
+                                    <option
+                                        key={enseignant.id}
+                                        value={enseignant.id}
+                                    >
+                                        {enseignant.nom} {enseignant.prenoms}
+                                    </option>
+                                ))}
+                            </select>
+
+                            {data.matiere_id &&
+                                enseignantsDisponibles.length === 0 && (
+                                    <p className="mt-1 text-sm text-amber-600">
+                                        Aucun enseignant actif n'est affecté à
+                                        cette matière dans cette classe.
+                                    </p>
+                                )}
+
+                            {errors.enseignant_id && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    {errors.enseignant_id}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* TYPE */}
+
+                        <div>
+                            <label className="mb-2 block font-medium text-gray-700">
+                                Type d'évaluation
+                                <span className="ml-1 text-red-600">*</span>
+                            </label>
+
+                            <select
+                                required
+                                value={data.type}
+                                onChange={(e) =>
+                                    setData("type", e.target.value)
+                                }
+                                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-blue-500 focus:outline-none"
+                            >
+                                <option value="Interrogation">
+                                    Interrogation
+                                </option>
+
+                                <option value="Devoir">Devoir</option>
+
+                                <option value="Composition">Composition</option>
+
+                                <option value="Examen">Examen</option>
+
+                                <option value="Autre">Autre</option>
+                            </select>
+                        </div>
+
+                        {/* LIBELLÉ */}
+
+                        <div>
+                            <label className="mb-2 block font-medium text-gray-700">
+                                Libellé
+                                <span className="ml-1 text-red-600">*</span>
+                            </label>
+
+                            <input
+                                required
+                                type="text"
+                                value={data.libelle}
+                                onChange={(e) =>
+                                    setData("libelle", e.target.value)
+                                }
+                                placeholder="Exemple : Devoir de mathématiques"
+                                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-blue-500 focus:outline-none"
+                            />
+
+                            {errors.libelle && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    {errors.libelle}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* NUMÉRO */}
+
+                        <div>
+                            <label className="mb-2 block font-medium text-gray-700">
+                                Numéro
+                                <span className="ml-1 text-red-600">*</span>
+                            </label>
+
+                            <input
+                                required
+                                type="number"
+                                min="1"
+                                value={data.numero}
+                                onChange={(e) =>
+                                    setData("numero", e.target.value)
+                                }
+                                placeholder="Exemple : 1"
+                                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-blue-500 focus:outline-none"
+                            />
+
+                            {errors.numero && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    {errors.numero}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* DATE */}
+
+                        <div>
+                            <label className="mb-2 block font-medium text-gray-700">
+                                Date de l'évaluation
+                                <span className="ml-1 text-red-600">*</span>
+                            </label>
+
+                            <input
+                                required
+                                type="date"
+                                value={data.date_evaluation}
+                                onChange={(e) =>
+                                    setData("date_evaluation", e.target.value)
+                                }
+                                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-blue-500 focus:outline-none"
+                            />
+
+                            {errors.date_evaluation && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    {errors.date_evaluation}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* BARÈME */}
+
+                        <div>
+                            <label className="mb-2 block font-medium text-gray-700">
+                                Barème
+                                <span className="ml-1 text-red-600">*</span>
+                            </label>
+
+                            <select
+                                required
+                                value={data.bareme}
+                                onChange={(e) =>
+                                    setData("bareme", e.target.value)
+                                }
+                                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-blue-500 focus:outline-none"
+                            >
+                                {[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(
+                                    (bareme) => (
+                                        <option key={bareme} value={bareme}>
+                                            {bareme} points
+                                        </option>
+                                    ),
+                                )}
+                            </select>
+
+                            {errors.bareme && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    {errors.bareme}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* COEFFICIENT */}
+
+                        <div>
+                            <label className="mb-2 block font-medium text-gray-700">
+                                Coefficient
+                            </label>
+
+                            <input
+                                type="number"
+                                value={data.coefficient}
+                                readOnly
+                                className="w-full cursor-not-allowed rounded-lg border border-gray-300 bg-gray-100 px-4 py-2.5 text-gray-700 focus:outline-none"
+                            />
+
+                            <p className="mt-1 text-xs text-gray-500">
+                                Coefficient récupéré automatiquement depuis
+                                l'affectation de l'enseignant.
+                            </p>
+
+                            {errors.coefficient && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    {errors.coefficient}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* PÉRIODE */}
+
+                        <div>
+                            <label className="mb-2 block font-medium text-gray-700">
+                                Période
+                                <span className="ml-1 text-red-600">*</span>
+                            </label>
+
+                            <select
+                                required
+                                value={data.periode}
+                                onChange={(e) =>
+                                    setData("periode", e.target.value)
+                                }
+                                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 focus:border-blue-500 focus:outline-none"
+                            >
+                                <option value="Trimestre 1">Trimestre 1</option>
+
+                                <option value="Trimestre 2">Trimestre 2</option>
+
+                                <option value="Trimestre 3">Trimestre 3</option>
+                            </select>
+
+                            {errors.periode && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    {errors.periode}
+                                </p>
+                            )}
                         </div>
                     </div>
 
-                    <form onSubmit={submit}>
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead className="bg-gray-100">
-                                    <tr>
-                                        <th className="px-4 py-4 text-left">
-                                            #
-                                        </th>
+                    {/* Vérification de l'affectation */}
 
-                                        <th className="px-4 py-4 text-left">
-                                            Élève
-                                        </th>
-
-                                        <th className="px-4 py-4 text-center">
-                                            Note /{evaluation.bareme}
-                                        </th>
-
-                                        <th className="px-4 py-4 text-center">
-                                            Note /20
-                                        </th>
-
-                                        <th className="px-4 py-4 text-center">
-                                            Appréciation
-                                        </th>
-
-                                        <th className="px-4 py-4 text-center">
-                                            Absent
-                                        </th>
-
-                                        <th className="px-4 py-4 text-left">
-                                            Observation
-                                        </th>
-                                    </tr>
-                                </thead>
-
-                                <tbody>
-                                    {eleves.length === 0 ? (
-                                        <tr>
-                                            <td
-                                                colSpan="7"
-                                                className="px-6 py-10 text-center text-gray-500"
-                                            >
-                                                Aucun élève actif dans cette
-                                                classe.
-                                            </td>
-                                        </tr>
-                                    ) : (
-                                        eleves.map((eleve, index) => {
-                                            const ligne = data.notes[index];
-
-                                            const invalide = noteInvalide(
-                                                ligne.note,
-                                            );
-
-                                            const appreciation =
-                                                calculerAppreciation(
-                                                    ligne.note,
-                                                    ligne.absent,
-                                                );
-
-                                            return (
-                                                <tr
-                                                    key={eleve.id}
-                                                    className="border-t hover:bg-gray-50"
-                                                >
-                                                    {/* Numéro */}
-
-                                                    <td className="px-4 py-4 font-semibold text-gray-500">
-                                                        {index + 1}
-                                                    </td>
-
-                                                    {/* Élève */}
-
-                                                    <td className="px-4 py-4">
-                                                        <div className="font-semibold text-gray-800">
-                                                            {eleve.nom}{" "}
-                                                            {eleve.prenoms}
-                                                        </div>
-
-                                                        <div className="text-sm text-gray-500">
-                                                            {eleve.code_eleve}
-                                                        </div>
-                                                    </td>
-
-                                                    {/* Note */}
-
-                                                    <td className="px-4 py-4 text-center">
-                                                        <input
-                                                            type="number"
-                                                            min="0"
-                                                            max={
-                                                                evaluation.bareme
-                                                            }
-                                                            step="0.01"
-                                                            value={ligne.note}
-                                                            disabled={
-                                                                ligne.absent
-                                                            }
-                                                            onChange={(e) =>
-                                                                updateNote(
-                                                                    index,
-                                                                    "note",
-                                                                    e.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            className={`w-28 rounded-lg border p-3 text-center font-semibold ${
-                                                                ligne.absent
-                                                                    ? "bg-gray-100"
-                                                                    : invalide
-                                                                      ? "border-red-500 bg-red-50"
-                                                                      : ""
-                                                            }`}
-                                                        />
-
-                                                        {invalide && (
-                                                            <p className="mt-1 text-xs text-red-600">
-                                                                Maximum :{" "}
-                                                                {
-                                                                    evaluation.bareme
-                                                                }
-                                                            </p>
-                                                        )}
-
-                                                        {errors[
-                                                            `notes.${index}.note`
-                                                        ] && (
-                                                            <p className="mt-1 text-xs text-red-600">
-                                                                {
-                                                                    errors[
-                                                                        `notes.${index}.note`
-                                                                    ]
-                                                                }
-                                                            </p>
-                                                        )}
-                                                    </td>
-
-                                                    {/* Note normalisée */}
-
-                                                    <td className="px-4 py-4 text-center">
-                                                        <span className="inline-flex rounded-lg bg-slate-100 px-3 py-2 font-semibold text-gray-700">
-                                                            {ligne.absent
-                                                                ? "—"
-                                                                : noteSur20(
-                                                                      ligne.note,
-                                                                  ) || "—"}
-                                                        </span>
-                                                    </td>
-
-                                                    {/* Appréciation automatique */}
-
-                                                    <td className="px-4 py-4 text-center">
-    <span
-        className={`inline-flex min-w-[150px] justify-center rounded-lg px-3 py-2 font-semibold ${
-            appreciation === "Excellent"
-                ? "bg-green-100 text-green-700"
-                : appreciation === "Très bien"
-                  ? "bg-emerald-100 text-emerald-700"
-                  : appreciation === "Bien"
-                    ? "bg-blue-100 text-blue-700"
-                    : appreciation === "Assez bien"
-                      ? "bg-cyan-100 text-cyan-700"
-                      : appreciation === "Moyen"
-                        ? "bg-yellow-100 text-yellow-700"
-                        : appreciation === "Passable"
-                          ? "bg-orange-100 text-orange-700"
-                          : appreciation === "Absent"
-                            ? "bg-gray-200 text-gray-600"
-                            : appreciation === "Insuffisant"
-                              ? "bg-red-100 text-red-700"
-                              : appreciation === "Très insuffisant"
-                                ? "bg-red-100 text-red-700"
-                                : appreciation === "Faible"
-                                  ? "bg-red-200 text-red-800"
-                                  : "bg-gray-100 text-gray-500"
-        }`}
-    >
-        {appreciation || "—"}
-    </span>
-</td>
-
-                                                    {/* Absent */}
-
-                                                    <td className="px-4 py-4 text-center">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={
-                                                                ligne.absent
-                                                            }
-                                                            onChange={(e) =>
-                                                                updateNote(
-                                                                    index,
-                                                                    "absent",
-                                                                    e.target
-                                                                        .checked,
-                                                                )
-                                                            }
-                                                            className="h-5 w-5"
-                                                        />
-                                                    </td>
-
-                                                    {/* Observation */}
-
-                                                    <td className="px-4 py-4">
-                                                        <input
-                                                            type="text"
-                                                            value={
-                                                                ligne.observation
-                                                            }
-                                                            onChange={(e) =>
-                                                                updateNote(
-                                                                    index,
-                                                                    "observation",
-                                                                    e.target
-                                                                        .value,
-                                                                )
-                                                            }
-                                                            placeholder="Observation de l'enseignant..."
-                                                            className="w-full min-w-[250px] rounded-lg border p-3"
-                                                        />
-                                                    </td>
-                                                </tr>
-                                            );
-                                        })
-                                    )}
-                                </tbody>
-                            </table>
+                    {data.enseignant_id && (
+                        <div
+                            className={`mt-6 rounded-lg border p-4 ${
+                                affectationValide
+                                    ? "border-green-200 bg-green-50 text-green-700"
+                                    : "border-red-200 bg-red-50 text-red-700"
+                            }`}
+                        >
+                            {affectationValide ? (
+                                <p>
+                                    ✓ Affectation vérifiée : cet enseignant est
+                                    bien affecté à cette matière dans la classe
+                                    sélectionnée.
+                                </p>
+                            ) : (
+                                <p>
+                                    ✕ Affectation invalide : cette combinaison
+                                    établissement, année, classe, matière et
+                                    enseignant n'est pas autorisée.
+                                </p>
+                            )}
                         </div>
+                    )}
 
-                        {/* =================================================
-                            ERREURS GÉNÉRALES
-                        ================================================= */}
+                    {/* STATUT */}
 
-                        {errors.notes && (
-                            <div className="mx-6 mt-4 rounded-lg bg-red-50 p-4 text-red-700">
-                                {errors.notes}
-                            </div>
-                        )}
+                    <div className="mt-6">
+                        <label className="flex items-center gap-3 text-gray-700">
+                            <input
+                                type="checkbox"
+                                checked={data.active}
+                                onChange={(e) =>
+                                    setData("active", e.target.checked)
+                                }
+                                className="h-4 w-4"
+                            />
 
-                        {/* =================================================
-                            BOUTONS
-                        ================================================= */}
+                            <span className="font-medium">
+                                Évaluation active
+                            </span>
+                        </label>
+                    </div>
 
-                        <div className="flex justify-end gap-4 border-t p-6">
-                            <Link
-                                href={route("evaluations.show", evaluation.id)}
-                                className="rounded-lg border px-6 py-3 hover:bg-gray-50"
-                            >
-                                Annuler
-                            </Link>
+                    {/* BOUTONS */}
 
-                            <button
-                                type="submit"
-                                disabled={processing || eleves.length === 0}
-                                className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                                {processing
-                                    ? "Enregistrement..."
-                                    : "💾 Enregistrer les notes"}
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                    <div className="mt-8 flex justify-end gap-3 border-t pt-6">
+                        <Link
+                            href={route("evaluations.index")}
+                            className="rounded-lg border border-gray-300 px-5 py-2.5 text-gray-700 hover:bg-gray-50"
+                        >
+                            Annuler
+                        </Link>
+
+                        <button
+                            type="submit"
+                            disabled={processing || !affectationValide}
+                            className="rounded-lg bg-blue-600 px-5 py-2.5 font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            {processing
+                                ? "Enregistrement..."
+                                : "Enregistrer l'évaluation"}
+                        </button>
+                    </div>
+                </form>
             </div>
         </AdminLayout>
     );
