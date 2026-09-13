@@ -5,9 +5,13 @@ import Form from "./Form";
 export default function Edit({
     educateur,
     etablissements,
+    etablissementId,
+    isSuperAdmin,
 }) {
     const { data, setData, put, processing, errors } = useForm({
-        etablissement_id: educateur.etablissement_id ?? "",
+        etablissement_id: isSuperAdmin
+            ? educateur.etablissement_id ?? ""
+            : etablissementId ?? educateur.etablissement_id ?? "",
 
         nom: educateur.nom ?? "",
         prenoms: educateur.prenoms ?? "",
@@ -27,6 +31,7 @@ export default function Edit({
         diplome: educateur.diplome ?? "",
 
         date_embauche: educateur.date_embauche ?? "",
+
         date_prise_service:
             educateur.date_prise_service ?? "",
 
@@ -37,7 +42,12 @@ export default function Edit({
     function submit(e) {
         e.preventDefault();
 
-        put(route("educateurs.update", educateur.id));
+        put(
+            route(
+                "educateurs.update",
+                educateur.id
+            )
+        );
     }
 
     return (
@@ -54,6 +64,7 @@ export default function Edit({
                         data={data}
                         setData={setData}
                         etablissements={etablissements}
+                        isSuperAdmin={isSuperAdmin}
                         errors={errors}
                         processing={processing}
                         submit={submit}

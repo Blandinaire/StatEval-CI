@@ -2,76 +2,177 @@
 
 namespace App\Http\Requests;
 
+use App\Models\AnneeScolaire;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class StoreClasseRequest extends FormRequest
 {
+    /**
+     * Autorisation.
+     */
     public function authorize(): bool
     {
         return true;
     }
 
+    /**
+     * Préparation des données avant validation.
+     */
+    protected function prepareForValidation(): void
+    {
+        $user = $this->user();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Établissement
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $user &&
+            !$user->hasRole('SuperAdmin')
+        ) {
+            $this->merge([
+                'etablissement_id' => $user->etablissement_id,
+            ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Année scolaire
+        |--------------------------------------------------------------------------
+        */
+
+        if (!$this->input('annee_scolaire_id')) {
+            $this->merge([
+                'annee_scolaire_id' => AnneeScolaire::activeId(),
+            ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Nettoyage du libellé
+        |--------------------------------------------------------------------------
+        */
+
+        if ($this->has('libelle')) {
+            $this->merge([
+                'libelle' => preg_replace(
+                    '/\s+/',
+                    ' ',
+                    trim($this->input('libelle'))
+                ),
+            ]);
+        }
+    }
+
+    /**
+     * Règles de validation.
+     */
     public function rules(): array
-{
-    return [
+    {
+        /*
+        |--------------------------------------------------------------------------
+        | Classe actuellement modifiée
+        |--------------------------------------------------------------------------
+        */
 
-        'etablissement_id' => [
-            'required',
-            'exists:etablissements,id',
-        ],
+        $classe = $this->route('classe');
 
-        'annee_scolaire_id' => [
-            'required',
-            'exists:annee_scolaires,id',
-        ],
+        /*
+        |--------------------------------------------------------------------------
+        | Identifiant de la classe
+        |--------------------------------------------------------------------------
+        */
 
-        'cycle_id' => [
-            'required',
-            'exists:cycles,id',
-        ],
+        $classeId = is_object($classe)
+            ? $classe->id
+            : $classe;
 
-        'niveau_id' => [
-            'required',
-            'exists:niveaux,id',
-        ],
+        return [
 
-        'serie_id' => [
-            'nullable',
-            'exists:series,id',
-        ],
+            'etablissement_id' => [
+                'required',
+                'exists:etablissements,id',
+            ],
 
-        'maquette_id' => [
-            'required',
-            'exists:maquettes,id',
-        ],
+            'annee_scolaire_id' => [
+                'required',
+                'exists:annee_scolaires,id',
+            ],
 
-        'libelle' => [
-            'required',
-            'string',
-            'max:100',
-        ],
+            'cycle_id' => [
+                'required',
+                'exists:cycles,id',
+            ],
 
-        'capacite' => [
-            'required',
-            'integer',
-            'min:1',
-            'max:100',
-        ],
+            'niveau_id' => [
+                'required',
+                'exists:niveaux,id',
+            ],
 
-        'active' => [
-            'boolean',
-        ],
+            'serie_id' => [
+                'nullable',
+                'exists:series,id',
+            ],
 
-    ];
-}
+            'maquette_id' => [
+                'required',
+                'exists:maquettes,id',
+            ],
 
+            'libelle' => [
+                'required',
+                'string',
+                'max:100',
+
+                Rule::unique(
+                    'classes',
+                    'libelle'
+                )
+                    ->where(function ($query) {
+
+                        return $query
+                            ->where(
+                                'etablissement_id',
+                                $this->input(
+                                    'etablissement_id'
+                                )
+                            )
+                            ->where(
+                                'annee_scolaire_id',
+                                $this->input(
+                                    'annee_scolaire_id'
+                                )
+                            );
+                    })
+                    ->ignore($classeId),
+            ],
+
+            'capacite' => [
+                'required',
+                'integer',
+                'min:1',
+                'max:200',
+            ],
+
+            'active' => [
+                'boolean',
+            ],
+        ];
+    }
+
+    /**
+     * Messages personnalisés.
+     */
     public function messages(): array
     {
         return [
-            'libelle.required' => 'Le libellé est obligatoire.',
-            'niveau_id.required' => 'Veuillez sélectionner un niveau.',
-            'annee_scolaire_id.required' => 'Veuillez sélectionner une année scolaire.',
-            'capacite.required' => 'La capacité est obligatoire.',
+
+            'libelle.unique' =>
+            'Cette classe existe déjà dans cet établissement pour cette année scolaire.',
+
         ];
     }
 }

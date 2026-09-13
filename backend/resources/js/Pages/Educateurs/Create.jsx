@@ -2,9 +2,15 @@ import AdminLayout from "@/Layouts/AdminLayout";
 import { Head, useForm } from "@inertiajs/react";
 import Form from "./Form";
 
-export default function Create({ etablissements }) {
+export default function Create({
+    etablissements,
+    etablissementId,
+    isSuperAdmin,
+}) {
     const { data, setData, post, processing, errors } = useForm({
-        etablissement_id: "",
+        etablissement_id: isSuperAdmin
+            ? ""
+            : etablissementId ?? "",
 
         nom: "",
         prenoms: "",
@@ -48,6 +54,7 @@ export default function Create({ etablissements }) {
                         data={data}
                         setData={setData}
                         etablissements={etablissements}
+                        isSuperAdmin={isSuperAdmin}
                         errors={errors}
                         processing={processing}
                         submit={submit}

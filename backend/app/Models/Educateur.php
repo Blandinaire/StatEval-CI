@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Educateur extends Model
 {
@@ -64,5 +65,10 @@ class Educateur extends Model
     public function retards()
     {
         return $this->hasMany(Retard::class);
+    }
+
+    public function affectationsClasses(): HasMany
+    {
+        return $this->hasMany(EducateurClasse::class);
     }
 }

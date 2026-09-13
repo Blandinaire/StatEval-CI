@@ -4,12 +4,16 @@ import Form from "./Form";
 
 export default function Create({
     etablissements,
+    etablissementId,
+    isSuperAdmin,
     matieres,
 }) {
     const { data, setData, post, processing, errors } = useForm({
 
         // Informations administratives
-        etablissement_id: "",
+        etablissement_id: etablissementId
+            ? String(etablissementId)
+            : "",
 
         // Informations personnelles
         nom: "",
@@ -42,7 +46,6 @@ export default function Create({
         date_prise_service: "",
         statut: "Actif",
         actif: true,
-
     });
 
     function submit(e) {
@@ -53,7 +56,6 @@ export default function Create({
 
     return (
         <AdminLayout>
-
             <Head title="Nouvel enseignant" />
 
             <div className="max-w-6xl mx-auto">
@@ -68,6 +70,7 @@ export default function Create({
                         data={data}
                         setData={setData}
                         etablissements={etablissements}
+                        isSuperAdmin={isSuperAdmin}
                         matieres={matieres}
                         errors={errors}
                         processing={processing}
@@ -78,7 +81,6 @@ export default function Create({
                 </div>
 
             </div>
-
         </AdminLayout>
     );
 }

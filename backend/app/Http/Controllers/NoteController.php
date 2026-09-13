@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Eleve;
 use App\Models\Evaluation;
 use App\Models\Note;
+use App\Models\Affectation;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -12,32 +13,226 @@ use Inertia\Inertia;
 class NoteController extends Controller
 {
     /**
-     * Afficher la liste des évaluations pour la saisie des notes.
+     * Vérifie si l'utilisateur est SuperAdmin.
+     */
+    private function estSuperAdmin($user): bool
+    {
+        return $user->hasRole('SuperAdmin');
+    }
+
+    /**
+     * Vérifie si l'utilisateur est professeur.
+     */
+    private function estProfesseur($user): bool
+    {
+        return $user->hasRole('Professeur');
+    }
+
+    /**
+     * Vérifie qu'un professeur possède un enseignant_id.
+     */
+    private function verifierCompteProfesseur($user): void
+    {
+        if ($this->estProfesseur($user)) {
+
+            abort_unless(
+                !empty($user->enseignant_id),
+                403,
+                'Votre compte professeur n\'est pas correctement rattaché à votre profil enseignant.'
+            );
+        }
+    }
+
+    /**
+     * Vérifie qu'une évaluation est accessible
+     * par l'utilisateur connecté.
+     */
+    private function verifierAccesEvaluation(
+        $user,
+        Evaluation $evaluation
+    ): void {
+
+        /*
+        |--------------------------------------------------------------------------
+        | SuperAdmin
+        |--------------------------------------------------------------------------
+        */
+
+        if ($this->estSuperAdmin($user)) {
+            return;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Professeur
+        |--------------------------------------------------------------------------
+        */
+
+        if ($this->estProfesseur($user)) {
+
+            $this->verifierCompteProfesseur($user);
+
+            /*
+            | Établissement
+            */
+
+            abort_unless(
+                (int) $evaluation->etablissement_id ===
+                    (int) $user->etablissement_id,
+                403
+            );
+
+            /*
+            | Enseignant
+            */
+
+            abort_unless(
+                (int) $evaluation->enseignant_id ===
+                    (int) $user->enseignant_id,
+                403
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Affectation
+            |--------------------------------------------------------------------------
+            */
+
+            $affectationExiste =
+                Affectation::query()
+                ->where(
+                    'etablissement_id',
+                    $evaluation->etablissement_id
+                )
+                ->where(
+                    'annee_scolaire_id',
+                    $evaluation->annee_scolaire_id
+                )
+                ->where(
+                    'classe_id',
+                    $evaluation->classe_id
+                )
+                ->where(
+                    'matiere_id',
+                    $evaluation->matiere_id
+                )
+                ->where(
+                    'enseignant_id',
+                    $user->enseignant_id
+                )
+                ->where('actif', true)
+                ->exists();
+
+            abort_unless(
+                $affectationExiste,
+                403
+            );
+
+            return;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Autres utilisateurs
+        |--------------------------------------------------------------------------
+        */
+
+        abort_unless(
+            $user->etablissement_id &&
+                (int) $evaluation->etablissement_id ===
+                (int) $user->etablissement_id,
+            403
+        );
+    }
+
+    /**
+     * Afficher les évaluations disponibles pour la saisie.
      */
     public function index()
     {
-        $evaluations = Evaluation::with([
+        $user = auth()->user();
+
+        $query = Evaluation::with([
             'etablissement',
             'anneeScolaire',
             'classe',
             'matiere',
             'enseignant',
             'notes',
-        ])
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | PROFESSEUR
+        |--------------------------------------------------------------------------
+        */
+
+        if ($this->estProfesseur($user)) {
+
+            $this->verifierCompteProfesseur($user);
+
+            $query
+                ->where(
+                    'etablissement_id',
+                    $user->etablissement_id
+                )
+                ->where(
+                    'enseignant_id',
+                    $user->enseignant_id
+                );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | AUTRES UTILISATEURS
+        |--------------------------------------------------------------------------
+        */ elseif (!$this->estSuperAdmin($user)) {
+
+            $query->where(
+                'etablissement_id',
+                $user->etablissement_id
+            );
+        }
+
+        $evaluations = $query
             ->orderByDesc('date_evaluation')
             ->orderByDesc('id')
             ->get();
 
-        return Inertia::render('Notes/Index', [
-            'evaluations' => $evaluations,
-        ]);
+        return Inertia::render(
+            'Notes/Index',
+            [
+                'evaluations' =>
+                $evaluations,
+            ]
+        );
     }
-    
+
     /**
-     * Afficher la saisie des notes d'une évaluation.
+     * Afficher la saisie des notes.
      */
-    public function create(Evaluation $evaluation)
-    {
+    public function create(
+        Evaluation $evaluation
+    ) {
+        $user = auth()->user();
+
+        /*
+        |--------------------------------------------------------------------------
+        | SÉCURITÉ
+        |--------------------------------------------------------------------------
+        */
+
+        $this->verifierAccesEvaluation(
+            $user,
+            $evaluation
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Chargement de l'évaluation
+        |--------------------------------------------------------------------------
+        */
+
         $evaluation->load([
             'etablissement',
             'anneeScolaire',
@@ -47,14 +242,24 @@ class NoteController extends Controller
         ]);
 
         /*
-    |--------------------------------------------------------------------------
-    | Élèves de la classe concernée
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Élèves de la classe
+        |--------------------------------------------------------------------------
+        */
 
-        $eleves = Eleve::where('etablissement_id', $evaluation->etablissement_id)
-            ->where('annee_scolaire_id', $evaluation->annee_scolaire_id)
-            ->where('classe_id', $evaluation->classe_id)
+        $eleves = Eleve::query()
+            ->where(
+                'etablissement_id',
+                $evaluation->etablissement_id
+            )
+            ->where(
+                'annee_scolaire_id',
+                $evaluation->annee_scolaire_id
+            )
+            ->where(
+                'classe_id',
+                $evaluation->classe_id
+            )
             ->where('actif', true)
             ->orderBy('nom')
             ->orderBy('prenoms')
@@ -68,44 +273,93 @@ class NoteController extends Controller
             ]);
 
         /*
-    |--------------------------------------------------------------------------
-    | Notes déjà enregistrées
-    |--------------------------------------------------------------------------
-    |
-    | On transforme les notes en tableau indexé par eleve_id.
-    | Cela permet à React de retrouver directement la note de chaque élève.
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Notes déjà enregistrées
+        |--------------------------------------------------------------------------
+        */
 
-        $notes = Note::where('evaluation_id', $evaluation->id)
+        $notes = Note::where(
+            'evaluation_id',
+            $evaluation->id
+        )
             ->get()
-            ->mapWithKeys(function ($note) {
-                return [
-                    $note->eleve_id => [
-                        'id' => $note->id,
-                        'eleve_id' => $note->eleve_id,
-                        'note' => $note->note,
-                        'absent' => (bool) $note->absent,
-                        'appreciation' => $note->appreciation,
-                        'observation' => $note->observation,
-                    ],
-                ];
-            })
+            ->mapWithKeys(
+                function ($note) {
+
+                    return [
+                        $note->eleve_id => [
+
+                            'id' =>
+                            $note->id,
+
+                            'eleve_id' =>
+                            $note->eleve_id,
+
+                            'note' =>
+                            $note->note,
+
+                            'absent' =>
+                            (bool) $note->absent,
+
+                            'appreciation' =>
+                            $note->appreciation,
+
+                            'observation' =>
+                            $note->observation,
+                        ],
+                    ];
+                }
+            )
             ->toArray();
 
-        return Inertia::render('Notes/Create', [
-            'evaluation' => $evaluation,
-            'eleves' => $eleves,
-            'notes' => $notes,
-        ]);
+        return Inertia::render(
+            'Notes/Create',
+            [
+
+                'evaluation' =>
+                $evaluation,
+
+                'eleves' =>
+                $eleves,
+
+                'notes' =>
+                $notes,
+            ]
+        );
     }
 
     /**
      * Enregistrer les notes.
      */
-    public function store(Request $request, Evaluation $evaluation)
-    {
+    public function store(
+        Request $request,
+        Evaluation $evaluation
+    ) {
+        $user = auth()->user();
+
+        /*
+        |--------------------------------------------------------------------------
+        | SÉCURITÉ
+        |--------------------------------------------------------------------------
+        |
+        | Impossible pour un professeur de saisir les notes
+        | d'une autre classe ou d'un autre professeur.
+        |
+        */
+
+        $this->verifierAccesEvaluation(
+            $user,
+            $evaluation
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Validation
+        |--------------------------------------------------------------------------
+        */
+
         $validated = $request->validate([
+
             'notes' => [
                 'required',
                 'array',
@@ -145,14 +399,26 @@ class NoteController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        foreach ($validated['notes'] as $index => $noteData) {
+        foreach (
+            $validated['notes']
+            as $index => $noteData
+        ) {
 
-            $note = $noteData['note'] ?? null;
-            $absent = $noteData['absent'] ?? false;
+            $note =
+                $noteData['note'] ?? null;
 
-            if (!$absent && $note !== null) {
+            $absent =
+                $noteData['absent'] ?? false;
 
-                if ((float) $note > (float) $evaluation->bareme) {
+            if (
+                !$absent &&
+                $note !== null
+            ) {
+
+                if (
+                    (float) $note >
+                    (float) $evaluation->bareme
+                ) {
 
                     return back()
                         ->withErrors([
@@ -166,25 +432,51 @@ class NoteController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Vérification des élèves
+        | Élèves réellement présents dans la classe
         |--------------------------------------------------------------------------
         */
 
-        $elevesIds = Eleve::where('etablissement_id', $evaluation->etablissement_id)
-            ->where('annee_scolaire_id', $evaluation->annee_scolaire_id)
-            ->where('classe_id', $evaluation->classe_id)
+        $elevesIds =
+            Eleve::query()
+            ->where(
+                'etablissement_id',
+                $evaluation->etablissement_id
+            )
+            ->where(
+                'annee_scolaire_id',
+                $evaluation->annee_scolaire_id
+            )
+            ->where(
+                'classe_id',
+                $evaluation->classe_id
+            )
             ->where('actif', true)
             ->pluck('id')
             ->toArray();
 
-        foreach ($validated['notes'] as $noteData) {
+        /*
+        |--------------------------------------------------------------------------
+        | Vérification de chaque élève
+        |--------------------------------------------------------------------------
+        */
 
-            if (!in_array((int) $noteData['eleve_id'], $elevesIds, true)) {
+        foreach (
+            $validated['notes']
+            as $noteData
+        ) {
+
+            if (
+                !in_array(
+                    (int) $noteData['eleve_id'],
+                    $elevesIds,
+                    true
+                )
+            ) {
 
                 return back()
                     ->withErrors([
                         'notes' =>
-                        "Un élève sélectionné n'appartient pas à la classe de cette évaluation.",
+                        'Un élève sélectionné n\'appartient pas à la classe de cette évaluation.',
                     ])
                     ->withInput();
             }
@@ -192,92 +484,158 @@ class NoteController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Enregistrement
+        | Enregistrement transactionnel
         |--------------------------------------------------------------------------
         */
 
-        DB::transaction(function () use ($validated, $evaluation) {
+        DB::transaction(
+            function () use (
+                $validated,
+                $evaluation
+            ) {
 
-            foreach ($validated['notes'] as $noteData) {
+                foreach (
+                    $validated['notes']
+                    as $noteData
+                ) {
 
-                $absent = (bool) ($noteData['absent'] ?? false);
+                    $absent =
+                        (bool) (
+                            $noteData['absent']
+                            ?? false
+                        );
 
-                $note = $absent
-                    ? null
-                    : ($noteData['note'] ?? null);
+                    $note =
+                        $absent
+                        ? null
+                        : (
+                            $noteData['note']
+                            ?? null
+                        );
 
-                /*
-        |--------------------------------------------------------------------------
-        | Calcul automatique de l'appréciation
-        |--------------------------------------------------------------------------
-        */
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Appréciation automatique
+                    |--------------------------------------------------------------------------
+                    */
 
-                $appreciation = '';
+                    $appreciation = '';
 
-                if ($absent) {
+                    if ($absent) {
 
-                    $appreciation = 'Absent';
-                } elseif ($note !== null && $note !== '') {
+                        $appreciation =
+                            'Absent';
+                    } elseif (
+                        $note !== null &&
+                        $note !== ''
+                    ) {
 
-                    $bareme = (float) $evaluation->bareme;
+                        $bareme =
+                            (float)
+                            $evaluation->bareme;
 
-                    if ($bareme > 0) {
+                        if ($bareme > 0) {
 
-                        /*
-                | Normalisation de la note sur 20
-                */
+                            $noteSur20 =
+                                (
+                                    (float) $note /
+                                    $bareme
+                                ) * 20;
 
-                        $noteSur20 = ((float) $note / $bareme) * 20;
+                            if (
+                                $noteSur20 >= 18
+                            ) {
 
-                        if ($noteSur20 >= 18) {
-                            $appreciation = 'Excellent';
-                        } elseif ($noteSur20 >= 16) {
-                            $appreciation = 'Très bien';
-                        } elseif ($noteSur20 >= 14) {
-                            $appreciation = 'Bien';
-                        } elseif ($noteSur20 >= 12) {
-                            $appreciation = 'Assez bien';
-                        } elseif ($noteSur20 >= 11) {
-                            $appreciation = 'Moyen';
-                        } elseif ($noteSur20 >= 10) {
-                            $appreciation = 'Passable';
-                        } elseif ($noteSur20 >= 8) {
-                            $appreciation = 'Insuffisant';
-                        } elseif ($noteSur20 >= 5) {
-                            $appreciation = 'Très insuffisant';
-                        } else {
-                            $appreciation = 'Faible';
+                                $appreciation =
+                                    'Excellent';
+                            } elseif (
+                                $noteSur20 >= 16
+                            ) {
+
+                                $appreciation =
+                                    'Très bien';
+                            } elseif (
+                                $noteSur20 >= 14
+                            ) {
+
+                                $appreciation =
+                                    'Bien';
+                            } elseif (
+                                $noteSur20 >= 12
+                            ) {
+
+                                $appreciation =
+                                    'Assez bien';
+                            } elseif (
+                                $noteSur20 >= 11
+                            ) {
+
+                                $appreciation =
+                                    'Moyen';
+                            } elseif (
+                                $noteSur20 >= 10
+                            ) {
+
+                                $appreciation =
+                                    'Passable';
+                            } elseif (
+                                $noteSur20 >= 8
+                            ) {
+
+                                $appreciation =
+                                    'Insuffisant';
+                            } elseif (
+                                $noteSur20 >= 5
+                            ) {
+
+                                $appreciation =
+                                    'Très insuffisant';
+                            } else {
+
+                                $appreciation =
+                                    'Faible';
+                            }
                         }
                     }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Enregistrement
+                    |--------------------------------------------------------------------------
+                    */
+
+                    Note::updateOrCreate(
+                        [
+                            'evaluation_id' =>
+                            $evaluation->id,
+
+                            'eleve_id' =>
+                            $noteData['eleve_id'],
+                        ],
+                        [
+                            'note' =>
+                            $note,
+
+                            'absent' =>
+                            $absent,
+
+                            'appreciation' =>
+                            $appreciation,
+
+                            'observation' =>
+                            $noteData['observation']
+                                ?? null,
+                        ]
+                    );
                 }
-
-                /*
-        |--------------------------------------------------------------------------
-        | Enregistrement
-        |--------------------------------------------------------------------------
-        */
-
-                Note::updateOrCreate(
-                    [
-                        'evaluation_id' => $evaluation->id,
-                        'eleve_id' => $noteData['eleve_id'],
-                    ],
-                    [
-                        'note' => $note,
-
-                        'absent' => $absent,
-
-                        'appreciation' => $appreciation,
-
-                        'observation' =>
-                        $noteData['observation'] ?? null,
-                    ]
-                );
             }
-        });
+        );
 
         return redirect()
-            ->route('evaluations.index')
-            ->with('success', 'Les notes ont été enregistrées avec succès.');
+            ->route('notes.index')
+            ->with(
+                'success',
+                'Les notes ont été enregistrées avec succès.'
+            );
     }
 }

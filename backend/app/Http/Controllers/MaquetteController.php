@@ -22,33 +22,33 @@ class MaquetteController extends Controller
     {
         return Inertia::render('Maquettes/Index', [
             'maquettes' => Maquette::with([
-    'cycle',
-    'niveau',
-    'serie',
-    'anneeScolaire',
-    'etablissement'
-])
-->latest()
-->paginate(15),
+                'cycle',
+                'niveau',
+                'serie',
+                'anneeScolaire',
+                'etablissement'
+            ])
+                ->latest()
+                ->paginate(15),
         ]);
     }
 
     public function create()
-{
-    return Inertia::render('Maquettes/Create', [
+    {
+        return Inertia::render('Maquettes/Create', [
 
-        'etablissements' => Etablissement::orderBy('nom')->get(),
+            'etablissements' => Etablissement::orderBy('nom')->get(),
 
-        'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
+            'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
 
-        'cycles' => Cycle::orderBy('ordre')->get(),
+            'cycles' => Cycle::orderBy('ordre')->get(),
 
-        'niveaux' => Niveau::orderBy('ordre')->get(),
+            'niveaux' => Niveau::orderBy('ordre')->get(),
 
-        'series' => Serie::orderBy('ordre')->get(),
+            'series' => Serie::orderBy('ordre')->get(),
 
-    ]);
-}
+        ]);
+    }
 
     public function store(StoreMaquetteRequest $request)
     {
@@ -62,18 +62,18 @@ class MaquetteController extends Controller
     }
 
     public function show(Maquette $maquette)
-{
-    $maquette->load([
-        'etablissement',
-        'anneeScolaire',
-        'cycle',
-        'niveau',
-        'serie',
-        'lignes.matiere',
-    ]);
+    {
+        $maquette->load([
+            'etablissement',
+            'anneeScolaire',
+            'cycle',
+            'niveau',
+            'serie',
+            'lignes.matiere',
+        ]);
 
-    return Inertia::render('Maquettes/Show', [
-        'maquette' => $maquette,
-    ]);
-}
+        return Inertia::render('Maquettes/Show', [
+            'maquette' => $maquette,
+        ]);
+    }
 }

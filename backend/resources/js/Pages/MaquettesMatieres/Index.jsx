@@ -1,6 +1,14 @@
 import AdminLayout from "@/Layouts/AdminLayout";
 import { Head, Link, router } from "@inertiajs/react";
-import { ArrowUp, ArrowDown, Pencil, Trash2, Plus } from "lucide-react";
+import {
+    ArrowUp,
+    ArrowDown,
+    ArrowLeft,
+    Pencil,
+    Trash2,
+    Plus,
+} from "lucide-react";
+import ResponsiveTable from "@/Components/ResponsiveTable";
 
 export default function Index({ maquette, lignes }) {
     const totalCoefficient = lignes.reduce(
@@ -55,13 +63,26 @@ export default function Index({ maquette, lignes }) {
                         </p>
                     </div>
 
-                    <Link
-                        href={route("maquettes.matieres.create", maquette.id)}
-                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 font-medium text-white transition hover:bg-blue-700"
-                    >
-                        <Plus size={20} />
-                        Ajouter une matière
-                    </Link>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Link
+                            href={route("maquettes.index")}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-3 font-medium text-gray-700 transition hover:bg-gray-50"
+                        >
+                            <ArrowLeft size={18} />
+                            Retour
+                        </Link>
+
+                        <Link
+                            href={route(
+                                "maquettes.matieres.create",
+                                maquette.id,
+                            )}
+                            className="inline-flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-5 py-3 font-medium text-white transition hover:bg-blue-700"
+                        >
+                            <Plus size={20} />
+                            Ajouter une matière
+                        </Link>
+                    </div>
                 </div>
 
                 {/* Informations sur la maquette */}
@@ -134,8 +155,8 @@ export default function Index({ maquette, lignes }) {
                         </p>
                     </div>
 
-                    <div className="overflow-x-auto">
-                        <table className="w-full">
+                    <div className="bg-white rounded-xl shadow">
+                        <ResponsiveTable minWidth="700px">
                             <thead className="bg-gray-50">
                                 <tr>
                                     <th className="px-4 py-3 text-left text-sm font-semibold text-gray-600">
@@ -289,7 +310,7 @@ export default function Index({ maquette, lignes }) {
                                     ))
                                 )}
                             </tbody>
-                        </table>
+                        </ResponsiveTable>
                     </div>
                 </div>
             </div>

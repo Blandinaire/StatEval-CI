@@ -112,11 +112,9 @@ class StoreEducateurRequest extends FormRequest
             */
 
             'matricule' => [
-                'required',
+                'nullable',
                 'string',
                 'max:255',
-                Rule::unique('educateurs', 'matricule')
-                    ->ignore($educateurId),
             ],
 
             'type' => [

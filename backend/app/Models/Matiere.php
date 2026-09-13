@@ -11,6 +11,7 @@ class Matiere extends Model
     use HasFactory;
 
     protected $fillable = [
+        'matiere_parent_id',
         'libelle',
         'code',
         'couleur',
@@ -24,6 +25,16 @@ class Matiere extends Model
     public function lignesMaquette()
     {
         return $this->hasMany(MaquetteMatiere::class);
+    }
+
+    public function parent()
+    {
+        return $this->belongsTo(self::class, 'matiere_parent_id');
+    }
+
+    public function enfants()
+    {
+        return $this->hasMany(self::class, 'matiere_parent_id');
     }
 
     public function maquettes()

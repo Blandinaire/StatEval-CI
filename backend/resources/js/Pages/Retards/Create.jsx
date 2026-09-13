@@ -3,12 +3,16 @@ import { Head, useForm } from "@inertiajs/react";
 import Form from "./Form";
 
 export default function Create({
-    eleves,
-    educateurs,
-    anneesScolaires,
-    classes,
+    eleves = [],
+    educateurs = [],
+    anneesScolaires = [],
+    classes = [],
+    etablissements = [],
+    isSuperAdmin = false,
+    etablissementId = null,
 }) {
     const { data, setData, post, processing, errors } = useForm({
+        etablissement_id: etablissementId ?? "",
         eleve_id: "",
         educateur_id: "",
         annee_scolaire_id: "",
@@ -34,15 +38,17 @@ export default function Create({
         <AdminLayout>
             <Head title="Enregistrer un retard" />
 
-            <div className="mx-auto max-w-5xl">
-                <div className="rounded-xl bg-white p-8 shadow">
-                    <h1 className="mb-2 text-3xl font-bold">
-                        Enregistrer un retard
-                    </h1>
+            <div className="mx-auto max-w-6xl">
+                <div className="rounded-xl bg-white p-6 shadow-sm md:p-8">
+                    <div className="mb-8">
+                        <h1 className="text-2xl font-bold text-gray-800 md:text-3xl">
+                            Enregistrer un retard
+                        </h1>
 
-                    <p className="mb-8 text-gray-500">
-                        Enregistrement d'un retard d'élève
-                    </p>
+                        <p className="mt-1 text-sm text-gray-500">
+                            Enregistrement d'un retard d'élève
+                        </p>
+                    </div>
 
                     <Form
                         data={data}
@@ -51,6 +57,8 @@ export default function Create({
                         educateurs={educateurs}
                         anneesScolaires={anneesScolaires}
                         classes={classes}
+                        etablissements={etablissements}
+                        isSuperAdmin={isSuperAdmin}
                         errors={errors}
                         processing={processing}
                         submit={submit}

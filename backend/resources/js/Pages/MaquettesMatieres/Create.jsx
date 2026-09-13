@@ -2,19 +2,8 @@ import AdminLayout from "@/Layouts/AdminLayout";
 import { Head, useForm } from "@inertiajs/react";
 import Form from "./Form";
 
-export default function Create({
-    maquette,
-    matieres,
-}) {
-
-    const {
-        data,
-        setData,
-        post,
-        processing,
-        errors,
-    } = useForm({
-
+export default function Create({ maquette, matieres }) {
+    const { data, setData, post, processing, errors } = useForm({
         maquette_id: maquette.id,
 
         matiere_id: "",
@@ -30,26 +19,16 @@ export default function Create({
         note_sur: 20,
 
         active: true,
-
     });
 
     function submit(e) {
-
         e.preventDefault();
 
-        post(
-            route(
-                "maquettes.matieres.store",
-                maquette.id
-            )
-        );
-
+        post(route("maquettes.matieres.store", maquette.id));
     }
 
     return (
-
         <AdminLayout>
-
             <Head title="Ajouter une matière" />
 
             <Form
@@ -61,10 +40,8 @@ export default function Create({
                 processing={processing}
                 submit={submit}
                 submitLabel="Créer"
+                showCancel
             />
-
         </AdminLayout>
-
     );
-
 }

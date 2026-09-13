@@ -21,6 +21,7 @@ export default function Index({
     etablissements = [],
     annees = [],
     classes = [],
+    niveaux = [],
     matieres = [],
     statistiques = {},
     repartition = [],
@@ -31,6 +32,7 @@ export default function Index({
     const [filters, setFilters] = useState({
         etablissement_id: filtres.etablissement_id || "",
         annee_scolaire_id: filtres.annee_scolaire_id || "",
+        niveau_id: filtres.niveau_id || "",
         classe_id: filtres.classe_id || "",
         matiere_id: filtres.matiere_id || "",
     });
@@ -59,9 +61,21 @@ export default function Index({
                 return false;
             }
 
+            if (
+                filters.niveau_id &&
+                String(classe.niveau_id) !== String(filters.niveau_id)
+            ) {
+                return false;
+            }
+
             return true;
         });
-    }, [classes, filters.etablissement_id, filters.annee_scolaire_id]);
+    }, [
+        classes,
+        filters.etablissement_id,
+        filters.annee_scolaire_id,
+        filters.niveau_id,
+    ]);
 
     /*
     |--------------------------------------------------------------------------
@@ -87,6 +101,7 @@ export default function Index({
         const nouveauxFiltres = {
             etablissement_id: "",
             annee_scolaire_id: "",
+            niveau_id: "",
             classe_id: "",
             matiere_id: "",
         };
@@ -247,6 +262,37 @@ export default function Index({
                                     {annees.map((annee) => (
                                         <option key={annee.id} value={annee.id}>
                                             {annee.libelle}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Niveau */}
+
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-slate-600">
+                                    Niveau
+                                </label>
+
+                                <select
+                                    value={filters.niveau_id}
+                                    onChange={(e) =>
+                                        setFilters({
+                                            ...filters,
+                                            niveau_id: e.target.value,
+                                            classe_id: "",
+                                        })
+                                    }
+                                    className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                                >
+                                    <option value="">Tous les niveaux</option>
+
+                                    {niveaux.map((niveau) => (
+                                        <option
+                                            key={niveau.id}
+                                            value={niveau.id}
+                                        >
+                                            {niveau.libelle}
                                         </option>
                                     ))}
                                 </select>

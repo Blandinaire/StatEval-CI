@@ -12,6 +12,7 @@ class Conduite extends Model
         'annee_scolaire_id',
         'classe_id',
         'evaluation_id',
+        'periode',
         'note',
         'observation',
     ];

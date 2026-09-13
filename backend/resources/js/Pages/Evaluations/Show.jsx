@@ -1,4 +1,6 @@
 import AdminLayout from "@/Layouts/AdminLayout";
+import ResponsiveTable from "@/Components/ResponsiveTable";
+import { useState } from "react";
 import { Head, Link } from "@inertiajs/react";
 
 export default function Show({ evaluation, notes = [] }) {
@@ -573,8 +575,8 @@ export default function Show({ evaluation, notes = [] }) {
                             </Link>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
+                        <div className="bg-white rounded-xl shadow">
+                            <ResponsiveTable minWidth="750px">
                                 <thead className="bg-gray-100">
                                     <tr>
                                         <th className="px-4 py-4 text-left">
@@ -734,7 +736,7 @@ export default function Show({ evaluation, notes = [] }) {
                                         );
                                     })}
                                 </tbody>
-                            </table>
+                            </ResponsiveTable>
                         </div>
                     )}
                 </div>

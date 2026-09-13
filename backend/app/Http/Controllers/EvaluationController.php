@@ -15,50 +15,364 @@ use Inertia\Inertia;
 class EvaluationController extends Controller
 {
     /**
-     * Afficher la liste des évaluations.
+     * Vérifie si l'utilisateur est SuperAdmin.
      */
-    public function index()
+    private function estSuperAdmin($user): bool
     {
-        $evaluations = Evaluation::with([
-            'etablissement',
-            'anneeScolaire',
-            'classe',
-            'matiere',
-            'enseignant',
-        ])
-            ->orderByDesc('date_evaluation')
-            ->orderByDesc('id')
-            ->get();
-
-        return Inertia::render('Evaluations/Index', [
-            'evaluations' => $evaluations,
-        ]);
+        return $user->hasRole('SuperAdmin');
     }
 
     /**
-     * Afficher le formulaire de création.
+     * Vérifie si l'utilisateur est professeur.
      */
-    public function create()
+    private function estProfesseur($user): bool
     {
-        return Inertia::render('Evaluations/Create', [
-            'etablissements' => Etablissement::orderBy('nom')->get(),
+        return $user->hasRole('Professeur');
+    }
 
-            'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
+    /**
+     * Vérifie qu'un professeur possède bien un
+     * enseignant_id lié à son compte utilisateur.
+     */
+    private function verifierCompteProfesseur($user): void
+    {
+        if ($this->estProfesseur($user)) {
+            abort_unless(
+                !empty($user->enseignant_id),
+                403,
+                'Votre compte professeur n\'est pas correctement rattaché à votre profil enseignant.'
+            );
+        }
+    }
 
-            'classes' => Classe::with([
+    /**
+     * Vérifie qu'une évaluation appartient au périmètre
+     * autorisé de l'utilisateur.
+     *
+     * SuperAdmin :
+     *   accès à tout.
+     *
+     * Professeur :
+     *   uniquement ses propres évaluations,
+     *   dans son établissement.
+     *
+     * Autres utilisateurs :
+     *   uniquement leur établissement.
+     */
+    private function verifierAccesEvaluation(
+        $user,
+        Evaluation $evaluation
+    ): void {
+        /*
+        |--------------------------------------------------------------------------
+        | SuperAdmin
+        |--------------------------------------------------------------------------
+        */
+
+        if ($this->estSuperAdmin($user)) {
+            return;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Professeur
+        |--------------------------------------------------------------------------
+        */
+
+        if ($this->estProfesseur($user)) {
+
+            $this->verifierCompteProfesseur($user);
+
+            abort_unless(
+                (int) $evaluation->etablissement_id ===
+                    (int) $user->etablissement_id,
+                403
+            );
+
+            abort_unless(
+                (int) $evaluation->enseignant_id ===
+                    (int) $user->enseignant_id,
+                403
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Vérification de l'affectation
+            |--------------------------------------------------------------------------
+            |
+            | Le professeur doit être réellement affecté à la
+            | classe + matière + année de cette évaluation.
+            |
+            */
+
+            $affectationExiste = Affectation::query()
+                ->where('etablissement_id', $evaluation->etablissement_id)
+                ->where('annee_scolaire_id', $evaluation->annee_scolaire_id)
+                ->where('classe_id', $evaluation->classe_id)
+                ->where('matiere_id', $evaluation->matiere_id)
+                ->where('enseignant_id', $user->enseignant_id)
+                ->where('actif', true)
+                ->exists();
+
+            abort_unless(
+                $affectationExiste,
+                403
+            );
+
+            return;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Autres utilisateurs
+        |--------------------------------------------------------------------------
+        */
+
+        abort_unless(
+            $user->etablissement_id &&
+                (int) $evaluation->etablissement_id ===
+                (int) $user->etablissement_id,
+            403
+        );
+    }
+
+    /**
+     * Liste des évaluations.
+     */
+    public function index()
+    {
+        $user = auth()->user();
+
+        $isSuperAdmin = $this->estSuperAdmin($user);
+
+        /*
+    |--------------------------------------------------------------------------
+    | SuperAdmin
+    |--------------------------------------------------------------------------
+    */
+        if ($isSuperAdmin) {
+            $evaluations = Evaluation::with([
+                'etablissement',
+                'anneeScolaire',
+                'classe',
+                'matiere',
+                'enseignant',
+            ])
+                ->orderByDesc('date_evaluation')
+                ->orderByDesc('id')
+                ->get();
+
+            $etablissements = Etablissement::where('actif', true)
+                ->orderBy('nom')
+                ->get(['id', 'nom']);
+
+            $classes = Classe::with([
                 'etablissement',
                 'anneeScolaire',
             ])
                 ->orderBy('libelle')
-                ->get(),
+                ->get();
 
-            'matieres' => Matiere::orderBy('libelle')->get(),
+            $matieres = Matiere::orderBy('libelle')
+                ->get();
 
-            'enseignants' => Enseignant::orderBy('nom')
+            $enseignants = Enseignant::orderBy('nom')
                 ->orderBy('prenoms')
-                ->get(),
+                ->get();
 
-            'affectations' => Affectation::where('actif', 1)
+            $periodes = Evaluation::whereNotNull('periode')
+                ->distinct()
+                ->orderBy('periode')
+                ->pluck('periode')
+                ->values();
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Professeur
+    |--------------------------------------------------------------------------
+    */ elseif ($this->estProfesseur($user)) {
+
+            $this->verifierCompteProfesseur($user);
+
+            $affectations = Affectation::query()
+                ->where('etablissement_id', $user->etablissement_id)
+                ->where('enseignant_id', $user->enseignant_id)
+                ->where('actif', true)
+                ->get([
+                    'annee_scolaire_id',
+                    'classe_id',
+                    'matiere_id',
+                    'enseignant_id',
+                    'etablissement_id',
+                ]);
+
+            $classeIds = $affectations
+                ->pluck('classe_id')
+                ->unique()
+                ->values();
+
+            $matiereIds = $affectations
+                ->pluck('matiere_id')
+                ->unique()
+                ->values();
+
+            $evaluations = Evaluation::with([
+                'etablissement',
+                'anneeScolaire',
+                'classe',
+                'matiere',
+                'enseignant',
+            ])
+                ->where('etablissement_id', $user->etablissement_id)
+                ->where('enseignant_id', $user->enseignant_id)
+                ->orderByDesc('date_evaluation')
+                ->orderByDesc('id')
+                ->get();
+
+            $etablissements = Etablissement::where(
+                'id',
+                $user->etablissement_id
+            )
+                ->where('actif', true)
+                ->get(['id', 'nom']);
+
+            $classes = Classe::where(
+                'etablissement_id',
+                $user->etablissement_id
+            )
+                ->whereIn('id', $classeIds)
+                ->with(['etablissement', 'anneeScolaire'])
+                ->orderBy('libelle')
+                ->get();
+
+            $matieres = Matiere::whereIn('id', $matiereIds)
+                ->orderBy('libelle')
+                ->get();
+
+            $enseignants = Enseignant::where(
+                'id',
+                $user->enseignant_id
+            )
+                ->get();
+
+            $periodes = $evaluations
+                ->pluck('periode')
+                ->filter()
+                ->unique()
+                ->values();
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Administrateur / Direction
+    |--------------------------------------------------------------------------
+    */ else {
+
+            $etablissementId = $user->etablissement_id;
+
+            $evaluations = Evaluation::with([
+                'etablissement',
+                'anneeScolaire',
+                'classe',
+                'matiere',
+                'enseignant',
+            ])
+                ->where('etablissement_id', $etablissementId)
+                ->orderByDesc('date_evaluation')
+                ->orderByDesc('id')
+                ->get();
+
+            $etablissements = Etablissement::where(
+                'id',
+                $etablissementId
+            )
+                ->where('actif', true)
+                ->get(['id', 'nom']);
+
+            $classes = Classe::where(
+                'etablissement_id',
+                $etablissementId
+            )
+                ->with(['etablissement', 'anneeScolaire'])
+                ->orderBy('libelle')
+                ->get();
+
+            $matieres = Matiere::orderBy('libelle')
+                ->get();
+
+            $enseignants = Enseignant::where(
+                'etablissement_id',
+                $etablissementId
+            )
+                ->orderBy('nom')
+                ->orderBy('prenoms')
+                ->get();
+
+            $periodes = $evaluations
+                ->pluck('periode')
+                ->filter()
+                ->unique()
+                ->values();
+        }
+
+        return Inertia::render('Evaluations/Index', [
+            'evaluations' => $evaluations,
+            'etablissements' => $etablissements,
+            'classes' => $classes,
+            'matieres' => $matieres,
+            'enseignants' => $enseignants,
+            'periodes' => $periodes,
+            'isSuperAdmin' => $isSuperAdmin,
+        ]);
+    }
+
+    /**
+     * Formulaire de création.
+     */
+    public function create()
+    {
+        $user = auth()->user();
+
+        /*
+    |--------------------------------------------------------------------------
+    | ANNÉE SCOLAIRE ACTIVE
+    |--------------------------------------------------------------------------
+    | La table annee_scolaires ne possède pas de colonne "actif".
+    | On considère donc comme année active l'année scolaire ayant
+    | la date de début la plus récente.
+    |--------------------------------------------------------------------------
+    */
+
+        $anneeScolaireActive = AnneeScolaire::query()
+            ->orderByDesc('date_debut')
+            ->first();
+
+        if (!$anneeScolaireActive) {
+            abort(422, "Aucune année scolaire n'est définie.");
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | PROFESSEUR
+    |--------------------------------------------------------------------------
+    */
+
+        if ($this->estProfesseur($user)) {
+
+            $this->verifierCompteProfesseur($user);
+
+            /*
+        |--------------------------------------------------------------------------
+        | Affectations actives du professeur pour l'année active
+        |--------------------------------------------------------------------------
+        */
+
+            $affectations = Affectation::query()
+                ->where('etablissement_id', $user->etablissement_id)
+                ->where('enseignant_id', $user->enseignant_id)
+                ->where('annee_scolaire_id', $anneeScolaireActive->id)
+                ->where('actif', true)
                 ->get([
                     'id',
                     'etablissement_id',
@@ -66,40 +380,274 @@ class EvaluationController extends Controller
                     'classe_id',
                     'matiere_id',
                     'enseignant_id',
-                    'coefficient',
-                    'actif',
+                ]);
+
+            /*
+        |--------------------------------------------------------------------------
+        | IDs autorisés
+        |--------------------------------------------------------------------------
+        */
+
+            $classeIds = $affectations
+                ->pluck('classe_id')
+                ->unique()
+                ->values();
+
+            $matiereIds = $affectations
+                ->pluck('matiere_id')
+                ->unique()
+                ->values();
+
+            /*
+        |--------------------------------------------------------------------------
+        | Classes autorisées
+        |--------------------------------------------------------------------------
+        */
+
+            $classes = Classe::with([
+                'etablissement',
+                'anneeScolaire',
+            ])
+                ->where('etablissement_id', $user->etablissement_id)
+                ->where('annee_scolaire_id', $anneeScolaireActive->id)
+                ->whereIn('id', $classeIds)
+                ->orderBy('libelle')
+                ->get();
+
+            /*
+        |--------------------------------------------------------------------------
+        | Matières autorisées
+        |--------------------------------------------------------------------------
+        */
+
+            $matieres = Matiere::query()
+                ->whereIn('id', $matiereIds)
+                ->orderBy('libelle')
+                ->get();
+
+            /*
+        |--------------------------------------------------------------------------
+        | Enseignant connecté
+        |--------------------------------------------------------------------------
+        */
+
+            $enseignants = Enseignant::query()
+                ->where('id', $user->enseignant_id)
+                ->where('etablissement_id', $user->etablissement_id)
+                ->get();
+
+            /*
+        |--------------------------------------------------------------------------
+        | Établissement du professeur
+        |--------------------------------------------------------------------------
+        */
+
+            $etablissements = Etablissement::query()
+                ->where('id', $user->etablissement_id)
+                ->where('actif', true)
+                ->get();
+
+            /*
+        |--------------------------------------------------------------------------
+        | Retour du formulaire
+        |--------------------------------------------------------------------------
+        */
+
+            return Inertia::render('Evaluations/Form', [
+                'etablissements' => $etablissements,
+
+                'annees' => collect([$anneeScolaireActive]),
+
+                'anneeScolaireActive' => $anneeScolaireActive,
+
+                'classes' => $classes,
+
+                'matieres' => $matieres,
+
+                'enseignants' => $enseignants,
+
+                'affectations' => $affectations,
+            ]);
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | SUPERADMIN
+    |--------------------------------------------------------------------------
+    */
+
+        if ($this->estSuperAdmin($user)) {
+
+            return Inertia::render('Evaluations/Form', [
+
+                'etablissements' =>
+                Etablissement::query()
+                    ->orderBy('nom')
+                    ->get(),
+
+                'annees' =>
+                AnneeScolaire::query()
+                    ->orderByDesc('date_debut')
+                    ->get(),
+
+                'anneeScolaireActive' =>
+                $anneeScolaireActive,
+
+                'classes' =>
+                Classe::with([
+                    'etablissement',
+                    'anneeScolaire',
+                ])
+                    ->orderBy('libelle')
+                    ->get(),
+
+                'matieres' =>
+                Matiere::query()
+                    ->orderBy('libelle')
+                    ->get(),
+
+                'enseignants' =>
+                Enseignant::query()
+                    ->orderBy('nom')
+                    ->orderBy('prenoms')
+                    ->get(),
+
+                'affectations' =>
+                Affectation::query()
+                    ->where('actif', true)
+                    ->get([
+                        'id',
+                        'etablissement_id',
+                        'annee_scolaire_id',
+                        'classe_id',
+                        'matiere_id',
+                        'enseignant_id',
+                    ]),
+            ]);
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | AUTRES UTILISATEURS
+    |--------------------------------------------------------------------------
+    */
+
+        return Inertia::render('Evaluations/Form', [
+
+            'etablissements' =>
+            Etablissement::query()
+                ->where('id', $user->etablissement_id)
+                ->where('actif', true)
+                ->orderBy('nom')
+                ->get(),
+
+            'annees' =>
+            AnneeScolaire::query()
+                ->orderByDesc('date_debut')
+                ->get(),
+
+            'anneeScolaireActive' =>
+            $anneeScolaireActive,
+
+            'classes' =>
+            Classe::with([
+                'etablissement',
+                'anneeScolaire',
+            ])
+                ->where(
+                    'etablissement_id',
+                    $user->etablissement_id
+                )
+                ->orderBy('libelle')
+                ->get(),
+
+            'matieres' =>
+            Matiere::query()
+                ->orderBy('libelle')
+                ->get(),
+
+            'enseignants' =>
+            Enseignant::query()
+                ->where(
+                    'etablissement_id',
+                    $user->etablissement_id
+                )
+                ->orderBy('nom')
+                ->orderBy('prenoms')
+                ->get(),
+
+            'affectations' =>
+            Affectation::query()
+                ->where(
+                    'etablissement_id',
+                    $user->etablissement_id
+                )
+                ->where('actif', true)
+                ->get([
+                    'id',
+                    'etablissement_id',
+                    'annee_scolaire_id',
+                    'classe_id',
+                    'matiere_id',
+                    'enseignant_id',
                 ]),
         ]);
     }
-
     /**
      * Enregistrer une nouvelle évaluation.
      */
     public function store(Request $request)
     {
+        $user = auth()->user();
+
+        /*
+    |--------------------------------------------------------------------------
+    | ANNÉE SCOLAIRE ACTIVE
+    |--------------------------------------------------------------------------
+    */
+
+        $anneeScolaireActive = AnneeScolaire::query()
+            ->orderByDesc('date_debut')
+            ->first();
+
+        if (!$anneeScolaireActive) {
+            abort(422, "Aucune année scolaire n'est définie.");
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | VALIDATION
+    |--------------------------------------------------------------------------
+    */
+
         $validated = $request->validate([
             'etablissement_id' => [
                 'required',
+                'integer',
                 'exists:etablissements,id',
             ],
 
             'annee_scolaire_id' => [
                 'required',
+                'integer',
                 'exists:annee_scolaires,id',
             ],
 
             'classe_id' => [
                 'required',
+                'integer',
                 'exists:classes,id',
             ],
 
             'matiere_id' => [
                 'required',
+                'integer',
                 'exists:matieres,id',
             ],
 
             'enseignant_id' => [
                 'required',
+                'integer',
                 'exists:enseignants,id',
             ],
 
@@ -111,103 +659,296 @@ class EvaluationController extends Controller
 
             'type' => [
                 'required',
-                'in:Interrogation,Devoir,Composition,Examen,Autre',
+                'string',
+                'in:Devoir,Interrogation,Composition,Examen',
             ],
 
             'numero' => [
-                'nullable',
+                'required',
                 'integer',
                 'min:1',
             ],
 
-            'date_evaluation' => [
+            'date' => [
                 'required',
                 'date',
             ],
 
             'bareme' => [
                 'required',
-                'integer',
-                'in:10,20,30,40,50,60,70,80,90,100',
+                'numeric',
+                'min:1',
             ],
 
             'coefficient' => [
                 'required',
                 'numeric',
-                'in:0.5,1,1.5,2,2.5,3,3.5,4,4.5,5',
+                'min:0.1',
             ],
 
             'periode' => [
                 'required',
+                'string',
                 'in:Trimestre 1,Trimestre 2,Trimestre 3',
             ],
 
-            'active' => [
-                'nullable',
+            'actif' => [
                 'boolean',
             ],
         ]);
 
         /*
+    |--------------------------------------------------------------------------
+    | PROFESSEUR
+    |--------------------------------------------------------------------------
+    */
+
+        if ($this->estProfesseur($user)) {
+
+            $this->verifierCompteProfesseur($user);
+
+            /*
         |--------------------------------------------------------------------------
-        | Vérification de cohérence
+        | Le professeur ne peut pas choisir une autre année.
+        | Le serveur impose toujours l'année active.
         |--------------------------------------------------------------------------
         */
 
-        $classe = Classe::findOrFail($validated['classe_id']);
+            $validated['annee_scolaire_id'] =
+                $anneeScolaireActive->id;
 
-        if ((int) $classe->etablissement_id !== (int) $validated['etablissement_id']) {
-            return back()
-                ->withErrors([
-                    'classe_id' =>
-                    "La classe sélectionnée n'appartient pas à l'établissement choisi.",
-                ])
-                ->withInput();
+            /*
+        |--------------------------------------------------------------------------
+        | Le professeur ne peut pas choisir un autre établissement.
+        |--------------------------------------------------------------------------
+        */
+
+            if (
+                (int) $validated['etablissement_id']
+                !== (int) $user->etablissement_id
+            ) {
+                abort(403);
+            }
+
+            $validated['etablissement_id'] =
+                $user->etablissement_id;
+
+            /*
+        |--------------------------------------------------------------------------
+        | Le professeur ne peut pas choisir un autre enseignant.
+        |--------------------------------------------------------------------------
+        */
+
+            if (
+                (int) $validated['enseignant_id']
+                !== (int) $user->enseignant_id
+            ) {
+                abort(403);
+            }
+
+            $validated['enseignant_id'] =
+                $user->enseignant_id;
+
+            /*
+        |--------------------------------------------------------------------------
+        | Vérification de l'affectation
+        |--------------------------------------------------------------------------
+        */
+
+            $affectation = Affectation::query()
+                ->where('etablissement_id', $user->etablissement_id)
+                ->where(
+                    'annee_scolaire_id',
+                    $anneeScolaireActive->id
+                )
+                ->where('classe_id', $validated['classe_id'])
+                ->where('matiere_id', $validated['matiere_id'])
+                ->where('enseignant_id', $user->enseignant_id)
+                ->where('actif', true)
+                ->first();
+
+            if (!$affectation) {
+
+                return back()
+                    ->withErrors([
+                        'classe_id' =>
+                        "Vous n'êtes pas affecté à cette classe et cette matière pour l'année scolaire active.",
+                    ])
+                    ->withInput();
+            }
         }
 
-        if (
-            isset($classe->annee_scolaire_id) &&
-            (int) $classe->annee_scolaire_id !== (int) $validated['annee_scolaire_id']
-        ) {
-            return back()
-                ->withErrors([
-                    'classe_id' =>
-                    "La classe sélectionnée n'appartient pas à l'année scolaire choisie.",
-                ])
-                ->withInput();
-        }
+        /*
+    |--------------------------------------------------------------------------
+    | VÉRIFICATION DE L'ÉTABLISSEMENT
+    |--------------------------------------------------------------------------
+    */
 
-        $affectation = Affectation::where('etablissement_id', $validated['etablissement_id'])
-            ->where('annee_scolaire_id', $validated['annee_scolaire_id'])
-            ->where('classe_id', $validated['classe_id'])
-            ->where('matiere_id', $validated['matiere_id'])
-            ->where('enseignant_id', $validated['enseignant_id'])
-            ->where('actif', 1)
+        $etablissement = Etablissement::query()
+            ->where('id', $validated['etablissement_id'])
+            ->where('actif', true)
             ->first();
 
-        if (!$affectation) {
+        if (!$etablissement) {
             return back()
                 ->withErrors([
-                    'enseignant_id' =>
-                    "Cet enseignant n'est pas affecté à cette classe et cette matière pour l'année scolaire sélectionnée.",
+                    'etablissement_id' =>
+                    "L'établissement sélectionné n'est pas valide.",
                 ])
                 ->withInput();
         }
 
         /*
-        |--------------------------------------------------------------------------
-        | Création
-        |--------------------------------------------------------------------------
-        */
+    |--------------------------------------------------------------------------
+    | VÉRIFICATION DE LA CLASSE
+    |--------------------------------------------------------------------------
+    */
+
+        $classe = Classe::query()
+            ->where('id', $validated['classe_id'])
+            ->where(
+                'etablissement_id',
+                $validated['etablissement_id']
+            )
+            ->where(
+                'annee_scolaire_id',
+                $validated['annee_scolaire_id']
+            )
+            ->first();
+
+        if (!$classe) {
+
+            return back()
+                ->withErrors([
+                    'classe_id' =>
+                    "La classe sélectionnée ne correspond pas à l'établissement ou à l'année scolaire.",
+                ])
+                ->withInput();
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | VÉRIFICATION DE L'ENSEIGNANT
+    |--------------------------------------------------------------------------
+    */
+
+        $enseignant = Enseignant::query()
+            ->where('id', $validated['enseignant_id'])
+            ->where(
+                'etablissement_id',
+                $validated['etablissement_id']
+            )
+            ->first();
+
+        if (!$enseignant) {
+
+            return back()
+                ->withErrors([
+                    'enseignant_id' =>
+                    "L'enseignant sélectionné n'appartient pas à cet établissement.",
+                ])
+                ->withInput();
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | VÉRIFICATION DE L'AFFECTATION
+    |--------------------------------------------------------------------------
+    */
+
+        $affectation = Affectation::query()
+            ->where(
+                'etablissement_id',
+                $validated['etablissement_id']
+            )
+            ->where(
+                'annee_scolaire_id',
+                $validated['annee_scolaire_id']
+            )
+            ->where(
+                'classe_id',
+                $validated['classe_id']
+            )
+            ->where(
+                'matiere_id',
+                $validated['matiere_id']
+            )
+            ->where(
+                'enseignant_id',
+                $validated['enseignant_id']
+            )
+            ->where('actif', true)
+            ->first();
+
+        if (!$affectation) {
+
+            return back()
+                ->withErrors([
+                    'matiere_id' =>
+                    "Aucune affectation pédagogique active ne correspond à la classe, à la matière et à l'enseignant sélectionnés.",
+                ])
+                ->withInput();
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | CRÉATION DE L'ÉVALUATION
+    |--------------------------------------------------------------------------
+    */
 
         $evaluation = Evaluation::create([
-            ...$validated,
-            'active' => $validated['active'] ?? true,
+            'etablissement_id' =>
+            $validated['etablissement_id'],
+
+            'annee_scolaire_id' =>
+            $validated['annee_scolaire_id'],
+
+            'classe_id' =>
+            $validated['classe_id'],
+
+            'matiere_id' =>
+            $validated['matiere_id'],
+
+            'enseignant_id' =>
+            $validated['enseignant_id'],
+
+            'libelle' =>
+            $validated['libelle'],
+
+            'type' =>
+            $validated['type'],
+
+            'numero' =>
+            $validated['numero'],
+
+            'date_evaluation' =>
+            $validated['date'],
+
+            'bareme' =>
+            $validated['bareme'],
+
+            'coefficient' =>
+            $validated['coefficient'],
+
+            'periode' =>
+            $validated['periode'],
+
+            'actif' =>
+            $validated['actif'] ?? true,
         ]);
+
+        /*
+    |--------------------------------------------------------------------------
+    | REDIRECTION APRÈS CRÉATION
+    |--------------------------------------------------------------------------
+    */
 
         return redirect()
             ->route('evaluations.index')
-            ->with('success', 'Évaluation enregistrée avec succès.');
+            ->with(
+                'success',
+                'L’évaluation a été créée avec succès.'
+            );
     }
 
     /**
@@ -215,6 +956,13 @@ class EvaluationController extends Controller
      */
     public function show(Evaluation $evaluation)
     {
+        $user = auth()->user();
+
+        $this->verifierAccesEvaluation(
+            $user,
+            $evaluation
+        );
+
         $evaluation->load([
             'etablissement',
             'anneeScolaire',
@@ -224,46 +972,45 @@ class EvaluationController extends Controller
             'notes.eleve',
         ]);
 
-        return Inertia::render('Evaluations/Show', [
-            'evaluation' => $evaluation,
-            'notes' => $evaluation->notes,
-        ]);
+        return Inertia::render(
+            'Evaluations/Show',
+            [
+                'evaluation' => $evaluation,
+                'notes' => $evaluation->notes,
+            ]
+        );
     }
 
     /**
-     * Afficher le formulaire de modification.
+     * Formulaire de modification.
      */
     public function edit(Evaluation $evaluation)
     {
-        $evaluation->load([
-            'etablissement',
-            'anneeScolaire',
-            'classe',
-            'matiere',
-            'enseignant',
-        ]);
+        $user = auth()->user();
 
-        return Inertia::render('Evaluations/Edit', [
-            'evaluation' => $evaluation,
+        $this->verifierAccesEvaluation(
+            $user,
+            $evaluation
+        );
 
-            'etablissements' => Etablissement::orderBy('nom')->get(),
+        /*
+        |--------------------------------------------------------------------------
+        | PROFESSEUR
+        |--------------------------------------------------------------------------
+        */
 
-            'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
+        if ($this->estProfesseur($user)) {
 
-            'classes' => Classe::with([
-                'etablissement',
-                'anneeScolaire',
-            ])
-                ->orderBy('libelle')
-                ->get(),
-
-            'matieres' => Matiere::orderBy('libelle')->get(),
-
-            'enseignants' => Enseignant::orderBy('nom')
-                ->orderBy('prenoms')
-                ->get(),
-
-            'affectations' => Affectation::where('actif', 1)
+            $affectations = Affectation::query()
+                ->where(
+                    'etablissement_id',
+                    $user->etablissement_id
+                )
+                ->where(
+                    'enseignant_id',
+                    $user->enseignant_id
+                )
+                ->where('actif', true)
                 ->get([
                     'id',
                     'etablissement_id',
@@ -271,18 +1018,224 @@ class EvaluationController extends Controller
                     'classe_id',
                     'matiere_id',
                     'enseignant_id',
-                    'coefficient',
-                    'actif',
+                ]);
+
+            $classeIds = $affectations
+                ->pluck('classe_id')
+                ->unique();
+
+            $matiereIds = $affectations
+                ->pluck('matiere_id')
+                ->unique();
+
+            $anneeIds = $affectations
+                ->pluck('annee_scolaire_id')
+                ->unique();
+
+            return Inertia::render(
+                'Evaluations/Edit',
+                [
+
+                    'evaluation' =>
+                    $evaluation->load([
+                        'etablissement',
+                        'anneeScolaire',
+                        'classe',
+                        'matiere',
+                        'enseignant',
+                    ]),
+
+                    'etablissements' =>
+                    Etablissement::where(
+                        'id',
+                        $user->etablissement_id
+                    )->get(),
+
+                    'annees' =>
+                    AnneeScolaire::whereIn(
+                        'id',
+                        $anneeIds
+                    )
+                        ->orderByDesc('date_debut')
+                        ->get(),
+
+                    'classes' =>
+                    Classe::with([
+                        'etablissement',
+                        'anneeScolaire',
+                    ])
+                        ->where(
+                            'etablissement_id',
+                            $user->etablissement_id
+                        )
+                        ->whereIn('id', $classeIds)
+                        ->whereIn(
+                            'annee_scolaire_id',
+                            $anneeIds
+                        )
+                        ->orderBy('libelle')
+                        ->get(),
+
+                    'matieres' =>
+                    Matiere::whereIn(
+                        'id',
+                        $matiereIds
+                    )
+                        ->orderBy('libelle')
+                        ->get(),
+
+                    'enseignants' =>
+                    Enseignant::where(
+                        'id',
+                        $user->enseignant_id
+                    )->get(),
+
+                    'affectations' =>
+                    $affectations,
+                ]
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | SUPERADMIN
+        |--------------------------------------------------------------------------
+        */
+
+        if ($this->estSuperAdmin($user)) {
+
+            return Inertia::render(
+                'Evaluations/Edit',
+                [
+
+                    'evaluation' =>
+                    $evaluation->load([
+                        'etablissement',
+                        'anneeScolaire',
+                        'classe',
+                        'matiere',
+                        'enseignant',
+                    ]),
+
+                    'etablissements' =>
+                    Etablissement::orderBy('nom')->get(),
+
+                    'annees' =>
+                    AnneeScolaire::orderByDesc(
+                        'date_debut'
+                    )->get(),
+
+                    'classes' =>
+                    Classe::with([
+                        'etablissement',
+                        'anneeScolaire',
+                    ])
+                        ->orderBy('libelle')
+                        ->get(),
+
+                    'matieres' =>
+                    Matiere::orderBy('libelle')->get(),
+
+                    'enseignants' =>
+                    Enseignant::orderBy('nom')
+                        ->orderBy('prenoms')
+                        ->get(),
+
+                    'affectations' =>
+                    Affectation::where(
+                        'actif',
+                        true
+                    )->get([
+                        'id',
+                        'etablissement_id',
+                        'annee_scolaire_id',
+                        'classe_id',
+                        'matiere_id',
+                        'enseignant_id',
+                    ]),
+                ]
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | AUTRES UTILISATEURS
+        |--------------------------------------------------------------------------
+        */
+
+        return Inertia::render(
+            'Evaluations/Edit',
+            [
+
+                'evaluation' =>
+                $evaluation->load([
+                    'etablissement',
+                    'anneeScolaire',
+                    'classe',
+                    'matiere',
+                    'enseignant',
                 ]),
-        ]);
+
+                'etablissements' =>
+                Etablissement::where(
+                    'id',
+                    $user->etablissement_id
+                )->get(),
+
+                'annees' =>
+                AnneeScolaire::orderByDesc(
+                    'date_debut'
+                )->get(),
+
+                'classes' =>
+                Classe::with([
+                    'etablissement',
+                    'anneeScolaire',
+                ])
+                    ->where(
+                        'etablissement_id',
+                        $user->etablissement_id
+                    )
+                    ->orderBy('libelle')
+                    ->get(),
+
+                'matieres' =>
+                Matiere::orderBy('libelle')->get(),
+
+                'enseignants' =>
+                Enseignant::where(
+                    'etablissement_id',
+                    $user->etablissement_id
+                )
+                    ->orderBy('nom')
+                    ->orderBy('prenoms')
+                    ->get(),
+            ]
+        );
     }
 
     /**
      * Mettre à jour une évaluation.
      */
-    public function update(Request $request, Evaluation $evaluation)
-    {
+    public function update(
+        Request $request,
+        Evaluation $evaluation
+    ) {
+        $user = auth()->user();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Sécurité
+        |--------------------------------------------------------------------------
+        */
+
+        $this->verifierAccesEvaluation(
+            $user,
+            $evaluation
+        );
+
         $validated = $request->validate([
+
             'etablissement_id' => [
                 'required',
                 'exists:etablissements,id',
@@ -344,7 +1297,7 @@ class EvaluationController extends Controller
 
             'periode' => [
                 'required',
-                'in:Trimestre 1,Trimestre 2,Trimestre 3',
+                'in:Trimestre 1,Trimestre 2,Trimestre3',
             ],
 
             'active' => [
@@ -355,64 +1308,135 @@ class EvaluationController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Vérification de cohérence
+        | PROFESSEUR
         |--------------------------------------------------------------------------
         */
 
-        $classe = Classe::findOrFail($validated['classe_id']);
+        if ($this->estProfesseur($user)) {
 
-        if ((int) $classe->etablissement_id !== (int) $validated['etablissement_id']) {
-            return back()
-                ->withErrors([
-                    'classe_id' =>
-                    "La classe sélectionnée n'appartient pas à l'établissement choisi.",
-                ])
-                ->withInput();
+            $this->verifierCompteProfesseur($user);
+
+            /*
+            | Impossible de changer d'établissement.
+            */
+
+            abort_unless(
+                (int) $validated['etablissement_id'] ===
+                    (int) $user->etablissement_id,
+                403
+            );
+
+            /*
+            | Impossible de changer d'enseignant.
+            */
+
+            abort_unless(
+                (int) $validated['enseignant_id'] ===
+                    (int) $user->enseignant_id,
+                403
+            );
+
+            /*
+            | La nouvelle classe/matière doit également
+            | faire partie de ses affectations.
+            */
+
+            $affectation = Affectation::query()
+                ->where(
+                    'etablissement_id',
+                    $validated['etablissement_id']
+                )
+                ->where(
+                    'annee_scolaire_id',
+                    $validated['annee_scolaire_id']
+                )
+                ->where(
+                    'classe_id',
+                    $validated['classe_id']
+                )
+                ->where(
+                    'matiere_id',
+                    $validated['matiere_id']
+                )
+                ->where(
+                    'enseignant_id',
+                    $user->enseignant_id
+                )
+                ->where('actif', true)
+                ->exists();
+
+            abort_unless(
+                $affectation,
+                403,
+                'Vous n\'êtes pas affecté à cette classe et à cette matière.'
+            );
         }
 
-        if (
-            isset($classe->annee_scolaire_id) &&
-            (int) $classe->annee_scolaire_id !== (int) $validated['annee_scolaire_id']
-        ) {
-            return back()
-                ->withErrors([
-                    'classe_id' =>
-                    "La classe sélectionnée n'appartient pas à l'année scolaire choisie.",
-                ])
-                ->withInput();
-        }
+        /*
+        |--------------------------------------------------------------------------
+        | Vérification classe
+        |--------------------------------------------------------------------------
+        */
 
-        $affectation = Affectation::where(
-            'etablissement_id',
-            $validated['etablissement_id']
-        )
+        $classe = Classe::findOrFail(
+            $validated['classe_id']
+        );
+
+        abort_unless(
+            (int) $classe->etablissement_id ===
+                (int) $validated['etablissement_id'],
+            422
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Vérification année
+        |--------------------------------------------------------------------------
+        */
+
+        abort_unless(
+            !isset($classe->annee_scolaire_id) ||
+                (int) $classe->annee_scolaire_id ===
+                (int) $validated['annee_scolaire_id'],
+            422
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Vérification affectation
+        |--------------------------------------------------------------------------
+        */
+
+        $affectation = Affectation::query()
+            ->where(
+                'etablissement_id',
+                $validated['etablissement_id']
+            )
             ->where(
                 'annee_scolaire_id',
                 $validated['annee_scolaire_id']
             )
-            ->where('classe_id', $validated['classe_id'])
-            ->where('matiere_id', $validated['matiere_id'])
-            ->where('enseignant_id', $validated['enseignant_id'])
-            ->where('actif', 1)
-            ->first();
+            ->where(
+                'classe_id',
+                $validated['classe_id']
+            )
+            ->where(
+                'matiere_id',
+                $validated['matiere_id']
+            )
+            ->where(
+                'enseignant_id',
+                $validated['enseignant_id']
+            )
+            ->where('actif', true)
+            ->exists();
 
-        if (!$affectation) {
-            return back()
-                ->withErrors([
-                    'enseignant_id' =>
-                    "Cet enseignant n'est pas affecté à cette classe et cette matière pour l'année scolaire sélectionnée.",
-                ])
-                ->withInput();
-        }
+        abort_unless(
+            $affectation,
+            422,
+            'Cet enseignant n\'est pas affecté à cette classe et cette matière.'
+        );
 
-        /*
-|--------------------------------------------------------------------------
-| Le coefficient vient obligatoirement de l'affectation
-|--------------------------------------------------------------------------
-*/
-
-        $validated['coefficient'] = $affectation->coefficient;
-      
         /*
         |--------------------------------------------------------------------------
         | Mise à jour
@@ -426,7 +1450,10 @@ class EvaluationController extends Controller
 
         return redirect()
             ->route('evaluations.index')
-            ->with('success', 'Évaluation modifiée avec succès.');
+            ->with(
+                'success',
+                'Évaluation modifiée avec succès.'
+            );
     }
 
     /**
@@ -434,6 +1461,23 @@ class EvaluationController extends Controller
      */
     public function statistiques(Evaluation $evaluation)
     {
+        $user = auth()->user();
+
+        /*
+        |--------------------------------------------------------------------------
+        | SÉCURITÉ
+        |--------------------------------------------------------------------------
+        |
+        | Un professeur ne peut même pas consulter directement
+        | les statistiques d'une évaluation qui ne lui appartient pas.
+        |
+        */
+
+        $this->verifierAccesEvaluation(
+            $user,
+            $evaluation
+        );
+
         $evaluation->load([
             'etablissement',
             'anneeScolaire',
@@ -446,27 +1490,23 @@ class EvaluationController extends Controller
         $notes = $evaluation->notes;
 
         /*
-    |--------------------------------------------------------------------------
-    | Notes valides
-    |--------------------------------------------------------------------------
-    |
-    | On exclut :
-    | - les absents ;
-    | - les notes nulles.
-    |
-    */
+        |--------------------------------------------------------------------------
+        | Notes valides
+        |--------------------------------------------------------------------------
+        */
 
         $notesSaisies = $notes
             ->filter(function ($note) {
-                return !$note->absent && $note->note !== null;
+                return !$note->absent &&
+                    $note->note !== null;
             })
             ->values();
 
         /*
-    |--------------------------------------------------------------------------
-    | Absents
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Absents
+        |--------------------------------------------------------------------------
+        */
 
         $absents = $notes
             ->filter(function ($note) {
@@ -475,22 +1515,23 @@ class EvaluationController extends Controller
             ->values();
 
         /*
-    |--------------------------------------------------------------------------
-    | Notes non saisies
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Notes non saisies
+        |--------------------------------------------------------------------------
+        */
 
         $nonNotes = $notes
             ->filter(function ($note) {
-                return !$note->absent && $note->note === null;
+                return !$note->absent &&
+                    $note->note === null;
             })
             ->values();
 
         /*
-    |--------------------------------------------------------------------------
-    | Valeurs numériques
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Valeurs numériques
+        |--------------------------------------------------------------------------
+        */
 
         $valeurs = $notesSaisies
             ->map(function ($note) {
@@ -502,26 +1543,29 @@ class EvaluationController extends Controller
         $nombreNotes = $valeurs->count();
 
         /*
-    |--------------------------------------------------------------------------
-    | Moyenne
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Moyenne
+        |--------------------------------------------------------------------------
+        */
 
         $moyenne = $nombreNotes > 0
             ? $valeurs->avg()
             : null;
 
         /*
-    |--------------------------------------------------------------------------
-    | Médiane
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Médiane
+        |--------------------------------------------------------------------------
+        */
 
         $mediane = null;
 
         if ($nombreNotes > 0) {
 
-            $milieu = intdiv($nombreNotes, 2);
+            $milieu = intdiv(
+                $nombreNotes,
+                2
+            );
 
             if ($nombreNotes % 2 === 0) {
 
@@ -531,15 +1575,16 @@ class EvaluationController extends Controller
                 ) / 2;
             } else {
 
-                $mediane = $valeurs[$milieu];
+                $mediane =
+                    $valeurs[$milieu];
             }
         }
 
         /*
-    |--------------------------------------------------------------------------
-    | Meilleure et plus faible note
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Meilleure / plus faible
+        |--------------------------------------------------------------------------
+        */
 
         $meilleureNote = $nombreNotes > 0
             ? $valeurs->max()
@@ -550,87 +1595,110 @@ class EvaluationController extends Controller
             : null;
 
         /*
-    |--------------------------------------------------------------------------
-    | Écart-type
-    |--------------------------------------------------------------------------
-    |
-    | Écart-type populationnel :
-    |
-    | sqrt(Σ(x - moyenne)² / N)
-    |
-    */
+        |--------------------------------------------------------------------------
+        | Écart-type
+        |--------------------------------------------------------------------------
+        */
 
         $ecartType = null;
 
-        if ($nombreNotes > 0 && $moyenne !== null) {
+        if (
+            $nombreNotes > 0 &&
+            $moyenne !== null
+        ) {
 
-            $sommeCarres = $valeurs->reduce(
-                function ($total, $valeur) use ($moyenne) {
-                    return $total + pow($valeur - $moyenne, 2);
-                },
-                0
-            );
+            $sommeCarres =
+                $valeurs->reduce(
+                    function (
+                        $total,
+                        $valeur
+                    ) use ($moyenne) {
 
-            $variance = $sommeCarres / $nombreNotes;
+                        return $total +
+                            pow(
+                                $valeur - $moyenne,
+                                2
+                            );
+                    },
+                    0
+                );
 
-            $ecartType = sqrt($variance);
+            $variance =
+                $sommeCarres /
+                $nombreNotes;
+
+            $ecartType =
+                sqrt($variance);
         }
 
         /*
-    |--------------------------------------------------------------------------
-    | Normalisation sur 20
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Normalisation sur 20
+        |--------------------------------------------------------------------------
+        */
 
-        $bareme = (float) $evaluation->bareme;
+        $bareme =
+            (float) $evaluation->bareme;
 
-        $normaliserSur20 = function ($note) use ($bareme) {
+        $normaliserSur20 =
+            function ($note) use ($bareme) {
 
-            if ($bareme <= 0) {
-                return 0;
-            }
+                if ($bareme <= 0) {
+                    return 0;
+                }
 
-            return ((float) $note / $bareme) * 20;
-        };
+                return (
+                    (float) $note /
+                    $bareme
+                ) * 20;
+            };
 
         /*
-    |--------------------------------------------------------------------------
-    | Taux de réussite
-    |--------------------------------------------------------------------------
-    |
-    | Un élève est considéré comme ayant réussi si sa note
-    | normalisée est >= 10/20.
-    |
-    */
+        |--------------------------------------------------------------------------
+        | Réussites
+        |--------------------------------------------------------------------------
+        */
 
         $reussites = $notesSaisies
-            ->filter(function ($note) use ($normaliserSur20) {
+            ->filter(function ($note)
+            use ($normaliserSur20) {
 
-                return $normaliserSur20($note->note) >= 10;
+                return $normaliserSur20(
+                    $note->note
+                ) >= 10;
             })
             ->count();
 
-        $tauxReussite = $nombreNotes > 0
-            ? ($reussites / $nombreNotes) * 100
+        $tauxReussite =
+            $nombreNotes > 0
+            ? (
+                $reussites /
+                $nombreNotes
+            ) * 100
             : 0;
 
         /*
-    |--------------------------------------------------------------------------
-    | Taux d'absence
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Taux d'absence
+        |--------------------------------------------------------------------------
+        */
 
-        $totalEleves = $notes->count();
+        $totalEleves =
+            $notes->count();
 
-        $tauxAbsence = $totalEleves > 0
-            ? ($absents->count() / $totalEleves) * 100
+        $tauxAbsence =
+            $totalEleves > 0
+            ? (
+                $absents->count() /
+                $totalEleves
+            ) * 100
             : 0;
 
         /*
-    |--------------------------------------------------------------------------
-    | Répartition des appréciations
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Répartition des appréciations
+        |--------------------------------------------------------------------------
+        */
 
         $categories = [
             'Excellent' => 0,
@@ -646,7 +1714,10 @@ class EvaluationController extends Controller
 
         foreach ($notesSaisies as $note) {
 
-            $noteSur20 = $normaliserSur20($note->note);
+            $noteSur20 =
+                $normaliserSur20(
+                    $note->note
+                );
 
             if ($noteSur20 >= 18) {
                 $categories['Excellent']++;
@@ -669,109 +1740,193 @@ class EvaluationController extends Controller
             }
         }
 
-        /*
-    |--------------------------------------------------------------------------
-    | Répartition détaillée
-    |--------------------------------------------------------------------------
-    */
+        $repartition =
+            collect($categories)
+            ->map(
+                function (
+                    $nombre,
+                    $appreciation
+                ) use ($nombreNotes) {
 
-        $repartition = collect($categories)
-            ->map(function ($nombre, $appreciation) use ($nombreNotes) {
+                    return [
+                        'appreciation' =>
+                        $appreciation,
 
-                return [
-                    'appreciation' => $appreciation,
-                    'nombre' => $nombre,
-                    'pourcentage' => $nombreNotes > 0
-                        ? ($nombre / $nombreNotes) * 100
-                        : 0,
-                ];
-            })
+                        'nombre' =>
+                        $nombre,
+
+                        'pourcentage' =>
+                        $nombreNotes > 0
+                            ? (
+                                $nombre /
+                                $nombreNotes
+                            ) * 100
+                            : 0,
+                    ];
+                }
+            )
             ->values();
 
         /*
-    |--------------------------------------------------------------------------
-    | Notes normalisées
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | Résultats
+        |--------------------------------------------------------------------------
+        */
 
-        $resultats = $notes
-            ->map(function ($note) use ($normaliserSur20) {
+        $resultats =
+            $notes
+            ->map(
+                function ($note)
+                use ($normaliserSur20) {
 
-                return [
-                    'id' => $note->id,
-                    'eleve_id' => $note->eleve_id,
+                    return [
+                        'id' =>
+                        $note->id,
 
-                    'eleve' => $note->eleve,
+                        'eleve_id' =>
+                        $note->eleve_id,
 
-                    'note' => $note->note !== null
-                        ? (float) $note->note
-                        : null,
+                        'eleve' =>
+                        $note->eleve,
 
-                    'note_sur_20' => $note->note !== null
-                        ? round($normaliserSur20($note->note), 2)
-                        : null,
+                        'note' =>
+                        $note->note !== null
+                            ? (float) $note->note
+                            : null,
 
-                    'absent' => (bool) $note->absent,
+                        'note_sur_20' =>
+                        $note->note !== null
+                            ? round(
+                                $normaliserSur20(
+                                    $note->note
+                                ),
+                                2
+                            )
+                            : null,
 
-                    'appreciation' => $note->appreciation,
-                    'observation' => $note->observation,
-                ];
-            })
+                        'absent' =>
+                        (bool) $note->absent,
+
+                        'appreciation' =>
+                        $note->appreciation,
+
+                        'observation' =>
+                        $note->observation,
+                    ];
+                }
+            )
             ->values();
 
-        return Inertia::render('Evaluations/Statistiques', [
-            'evaluation' => $evaluation,
+        return Inertia::render(
+            'Evaluations/Statistiques',
+            [
 
-            'statistiques' => [
-                'total_eleves' => $totalEleves,
-                'notes_saisies' => $nombreNotes,
-                'absents' => $absents->count(),
-                'non_notes' => $nonNotes->count(),
+                'evaluation' =>
+                $evaluation,
 
-                'moyenne' => $moyenne !== null
-                    ? round($moyenne, 2)
-                    : null,
+                'statistiques' => [
 
-                'mediane' => $mediane !== null
-                    ? round($mediane, 2)
-                    : null,
+                    'total_eleves' =>
+                    $totalEleves,
 
-                'meilleure_note' => $meilleureNote !== null
-                    ? round($meilleureNote, 2)
-                    : null,
+                    'notes_saisies' =>
+                    $nombreNotes,
 
-                'plus_faible_note' => $plusFaibleNote !== null
-                    ? round($plusFaibleNote, 2)
-                    : null,
+                    'absents' =>
+                    $absents->count(),
 
-                'ecart_type' => $ecartType !== null
-                    ? round($ecartType, 2)
-                    : null,
+                    'non_notes' =>
+                    $nonNotes->count(),
 
-                'reussites' => $reussites,
+                    'moyenne' =>
+                    $moyenne !== null
+                        ? round($moyenne, 2)
+                        : null,
 
-                'echecs' => $nombreNotes - $reussites,
+                    'mediane' =>
+                    $mediane !== null
+                        ? round($mediane, 2)
+                        : null,
 
-                'taux_reussite' => round($tauxReussite, 2),
+                    'meilleure_note' =>
+                    $meilleureNote !== null
+                        ? round(
+                            $meilleureNote,
+                            2
+                        )
+                        : null,
 
-                'taux_absence' => round($tauxAbsence, 2),
-            ],
+                    'plus_faible_note' =>
+                    $plusFaibleNote !== null
+                        ? round(
+                            $plusFaibleNote,
+                            2
+                        )
+                        : null,
 
-            'repartition' => $repartition,
+                    'ecart_type' =>
+                    $ecartType !== null
+                        ? round(
+                            $ecartType,
+                            2
+                        )
+                        : null,
 
-            'resultats' => $resultats,
-        ]);
+                    'reussites' =>
+                    $reussites,
+
+                    'echecs' =>
+                    $nombreNotes -
+                        $reussites,
+
+                    'taux_reussite' =>
+                    round(
+                        $tauxReussite,
+                        2
+                    ),
+
+                    'taux_absence' =>
+                    round(
+                        $tauxAbsence,
+                        2
+                    ),
+                ],
+
+                'repartition' =>
+                $repartition,
+
+                'resultats' =>
+                $resultats,
+            ]
+        );
     }
 
     /**
      * Supprimer une évaluation.
      */
-    public function destroy(Evaluation $evaluation)
-    {
+    public function destroy(
+        Evaluation $evaluation
+    ) {
+        $user = auth()->user();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Sécurité
+        |--------------------------------------------------------------------------
+        */
+
+        $this->verifierAccesEvaluation(
+            $user,
+            $evaluation
+        );
+
         $evaluation->delete();
 
         return redirect()
             ->route('evaluations.index')
-            ->with('success', 'Évaluation supprimée avec succès.');
+            ->with(
+                'success',
+                'Évaluation supprimée avec succès.'
+            );
     }
 }

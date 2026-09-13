@@ -12,14 +12,33 @@ class AdminUserSeeder extends Seeder
     {
         $admin = User::firstOrCreate(
             [
-                'email' => 'admin@stateval.ci'
+                'email' => 'admin@stateval.ci',
             ],
             [
                 'name' => 'Administrateur',
+                'fonction' => 'Administrateur de l’établissement',
                 'password' => Hash::make('Admin@2026'),
             ]
         );
 
-        $admin->assignRole('Administrateur');
+        /*
+        |--------------------------------------------------------------------------
+        | Mise à jour du profil
+        |--------------------------------------------------------------------------
+        */
+
+        $admin->update([
+            'fonction' => 'Administrateur de l’établissement',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Rôle Spatie
+        |--------------------------------------------------------------------------
+        */
+
+        $admin->syncRoles([
+            'Administrateur',
+        ]);
     }
 }

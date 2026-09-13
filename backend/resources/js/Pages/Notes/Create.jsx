@@ -1,4 +1,5 @@
 import AdminLayout from "@/Layouts/AdminLayout";
+import ResponsiveTable from "@/Components/ResponsiveTable";
 import { Head, Link, useForm } from "@inertiajs/react";
 
 export default function Create({ evaluation, eleves, notes }) {
@@ -764,8 +765,8 @@ export default function Create({ evaluation, eleves, notes }) {
                     </div>
 
                     <form onSubmit={submit}>
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
+                        <div className="bg-white rounded-xl shadow">
+                            <ResponsiveTable minWidth="1200px">
                                 <thead className="bg-gray-100">
                                     <tr>
                                         <th className="px-4 py-4 text-left">
@@ -967,7 +968,7 @@ export default function Create({ evaluation, eleves, notes }) {
                                         })
                                     )}
                                 </tbody>
-                            </table>
+                            </ResponsiveTable>
                         </div>
 
                         {/* Erreurs générales */}

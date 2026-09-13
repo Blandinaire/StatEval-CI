@@ -1,8 +1,18 @@
 import AdminLayout from "@/Layouts/AdminLayout";
-import { Head, Link, router } from "@inertiajs/react";
+import ResponsiveTable from "@/Components/ResponsiveTable";
+import { Head, Link, router, usePage } from "@inertiajs/react";
+import { Pencil, Trash2 } from "lucide-react";
+
 import DataTable from "@/Components/DataTable/DataTable";
 
 export default function Index({ matieres }) {
+    const { auth } = usePage().props;
+
+    const user = auth?.user;
+
+    const role = user?.roles?.[0]?.name ?? user?.role ?? "Utilisateur";
+
+    const isSuperAdmin = role === "SuperAdmin";
 
     function supprimer(id) {
         if (confirm("Voulez-vous supprimer cette matière ?")) {
@@ -17,7 +27,9 @@ export default function Index({ matieres }) {
             render: (row) => (
                 <div
                     className="w-8 h-8 rounded-full border"
-                    style={{ backgroundColor: row.couleur }}
+                    style={{
+                        backgroundColor: row.couleur,
+                    }}
                 />
             ),
         },
@@ -26,12 +38,13 @@ export default function Index({ matieres }) {
             label: "Libellé",
         },
         {
-            key: "code",
-            label: "Code",
+            key: "parent",
+            label: "Matière principale",
+            render: (row) => row.parent?.libelle ?? "—",
         },
         {
-            key: "coefficient",
-            label: "Coefficient",
+            key: "code",
+            label: "Code",
         },
         {
             key: "active",
@@ -47,42 +60,55 @@ export default function Index({ matieres }) {
                     </span>
                 ),
         },
-        {
+    ];
+
+    if (isSuperAdmin) {
+        columns.push({
             key: "actions",
             label: "Actions",
             render: (row) => (
                 <div className="flex gap-2">
                     <Link
                         href={route("matieres.edit", row.id)}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                        aria-label="Modifier la matière"
+                        title="Modifier la matière"
+                        className="inline-flex items-center justify-center rounded-lg bg-blue-600 p-2 text-white hover:bg-blue-700 md:gap-1 md:px-4 md:py-2"
                     >
-                        Modifier
+                        <Pencil size={16} />
+                        <span className="hidden md:inline">Modifier</span>
                     </Link>
 
                     <button
+                        type="button"
                         onClick={() => supprimer(row.id)}
-                        className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+                        aria-label="Supprimer la matière"
+                        title="Supprimer la matière"
+                        className="inline-flex items-center justify-center rounded-lg bg-red-600 p-2 text-white hover:bg-red-700 md:gap-1 md:px-4 md:py-2"
                     >
-                        Supprimer
+                        <Trash2 size={16} />
+                        <span className="hidden md:inline">Supprimer</span>
                     </button>
                 </div>
             ),
-        },
-    ];
+        });
+    }
 
     return (
         <AdminLayout>
-
             <Head title="Matières" />
-
-            <DataTable
-                title="Matières"
-                columns={columns}
-                data={matieres}
-                createLink={route("matieres.create")}
-                createLabel="Nouvelle matière"
-            />
-
+            <div className="bg-white rounded-xl shadow">
+                <ResponsiveTable minWidth="800px">
+                    <DataTable
+                        title="Matières"
+                        columns={columns}
+                        data={matieres}
+                        createLink={
+                            isSuperAdmin ? route("matieres.create") : null
+                        }
+                        createLabel="Nouvelle matière"
+                    />
+                </ResponsiveTable>
+            </div>
         </AdminLayout>
     );
 }

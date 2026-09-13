@@ -24,20 +24,48 @@ class StoreAffectationRequest extends FormRequest
 
         return [
 
+            /*
+            |--------------------------------------------------------------------------
+            | Établissement
+            |--------------------------------------------------------------------------
+            */
+
             'etablissement_id' => [
                 'required',
                 'exists:etablissements,id',
             ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Année scolaire
+            |--------------------------------------------------------------------------
+            |
+            | Les années scolaires sont actuellement globales.
+            | La table annee_scolaires ne contient PAS etablissement_id.
+            |
+            */
 
             'annee_scolaire_id' => [
                 'required',
                 'exists:annee_scolaires,id',
             ],
 
+            /*
+            |--------------------------------------------------------------------------
+            | Classe
+            |--------------------------------------------------------------------------
+            */
+
             'classe_id' => [
                 'required',
                 'exists:classes,id',
             ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Matière
+            |--------------------------------------------------------------------------
+            */
 
             'matiere_id' => [
 
@@ -46,22 +74,42 @@ class StoreAffectationRequest extends FormRequest
                 'exists:matieres,id',
 
                 Rule::unique('affectations')
-                    ->where(fn ($query) => $query
+                    ->where(function ($query) {
 
-                        ->where('annee_scolaire_id', $this->annee_scolaire_id)
-
-                        ->where('classe_id', $this->classe_id)
-
-                    )
-
+                        $query
+                            ->where(
+                                'etablissement_id',
+                                $this->etablissement_id
+                            )
+                            ->where(
+                                'annee_scolaire_id',
+                                $this->annee_scolaire_id
+                            )
+                            ->where(
+                                'classe_id',
+                                $this->classe_id
+                            );
+                    })
                     ->ignore($affectation),
 
             ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Enseignant
+            |--------------------------------------------------------------------------
+            */
 
             'enseignant_id' => [
                 'required',
                 'exists:enseignants,id',
             ],
+
+            /*
+            |--------------------------------------------------------------------------
+            | Paramètres
+            |--------------------------------------------------------------------------
+            */
 
             'coefficient' => [
                 'required',
@@ -90,7 +138,7 @@ class StoreAffectationRequest extends FormRequest
         return [
 
             'matiere_id.unique' =>
-                'Cette matière est déjà affectée à cette classe pour cette année scolaire.',
+            'Cette matière est déjà affectée à cette classe pour cette année scolaire dans cet établissement.',
 
         ];
     }

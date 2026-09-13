@@ -5,70 +5,272 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreEtablissementRequest;
 use App\Http\Requests\UpdateEtablissementRequest;
 use App\Models\Etablissement;
-use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 
 class EtablissementController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | LISTE / FICHE ÉTABLISSEMENT
+    |--------------------------------------------------------------------------
+    */
+
     public function index()
     {
-        return Inertia::render('Etablissements/Index', [
-            'etablissements' => Etablissement::orderBy('nom')->get(),
-        ]);
+        $user = Auth::user();
+
+        /*
+        |--------------------------------------------------------------------------
+        | SUPERADMIN
+        |--------------------------------------------------------------------------
+        */
+
+        if ($user->hasRole('SuperAdmin')) {
+
+            return Inertia::render(
+                'Etablissements/Index',
+                [
+                    'mode' => 'superadmin',
+
+                    'etablissements' =>
+                    Etablissement::orderBy('nom')
+                        ->get(),
+                ]
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | UTILISATEUR D'ÉTABLISSEMENT
+        |--------------------------------------------------------------------------
+        */
+
+        if (!$user->etablissement_id) {
+
+            abort(
+                403,
+                "Aucun établissement n'est associé à votre compte."
+            );
+        }
+
+        $etablissement = Etablissement::with([
+            'responsables',
+            'responsablePrincipal',
+        ])->findOrFail(
+            $user->etablissement_id
+        );
+
+        return Inertia::render(
+            'Etablissements/Index',
+            [
+                'mode' => 'etablissement',
+
+                'etablissement' => $etablissement,
+            ]
+        );
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | CRÉATION
+    |--------------------------------------------------------------------------
+    */
+
     public function create()
     {
-        return Inertia::render('Etablissements/Create');
+        abort_unless(
+            Auth::user()->hasRole('SuperAdmin'),
+            403
+        );
+
+        return Inertia::render(
+            'Etablissements/Create'
+        );
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(StoreEtablissementRequest $request)
-{
-    Etablissement::create($request->validated());
+    /*
+    |--------------------------------------------------------------------------
+    | ENREGISTREMENT
+    |--------------------------------------------------------------------------
+    */
 
-    return redirect()
-        ->route('etablissements.index')
-        ->with('success', 'Établissement créé avec succès.');
-}
+    public function store(
+        StoreEtablissementRequest $request
+    ) {
+        abort_unless(
+            Auth::user()->hasRole('SuperAdmin'),
+            403
+        );
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
+        $data = $request->validated();
+
+        if ($request->hasFile('logo')) {
+
+            $data['logo'] =
+                $request
+                ->file('logo')
+                ->store(
+                    'etablissements/logos',
+                    'public'
+                );
+        }
+
+        Etablissement::create($data);
+
+        return redirect()
+            ->route('etablissements.index')
+            ->with(
+                'success',
+                'Établissement créé avec succès.'
+            );
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
+    /*
+    |--------------------------------------------------------------------------
+    | AFFICHER UN ÉTABLISSEMENT
+    |--------------------------------------------------------------------------
+    */
+
+    public function show(
+        Etablissement $etablissement
+    ) {
+        $user = Auth::user();
+
+        if (
+            !$user->hasRole('SuperAdmin') &&
+            $user->etablissement_id !== $etablissement->id
+        ) {
+            abort(403);
+        }
+
+        return Inertia::render(
+            'Etablissements/Show',
+            [
+                'etablissement' =>
+                $etablissement->load(
+                    'responsables'
+                ),
+            ]
+        );
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
+    /*
+    |--------------------------------------------------------------------------
+    | FORMULAIRE MODIFICATION
+    |--------------------------------------------------------------------------
+    */
+
+    public function edit(
+        Etablissement $etablissement
+    ) {
+        $user = Auth::user();
+
+        if (
+            !$user->hasRole('SuperAdmin') &&
+            $user->etablissement_id !== $etablissement->id
+        ) {
+            abort(403);
+        }
+
+        return Inertia::render(
+            'Etablissements/Edit',
+            [
+                'etablissement' => $etablissement,
+            ]
+        );
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+    /*
+    |--------------------------------------------------------------------------
+    | MISE À JOUR
+    |--------------------------------------------------------------------------
+    */
+
+    public function update(
+        UpdateEtablissementRequest $request,
+        Etablissement $etablissement
+    ) {
+        $user = Auth::user();
+
+        if (
+            !$user->hasRole('SuperAdmin') &&
+            $user->etablissement_id !== $etablissement->id
+        ) {
+            abort(403);
+        }
+
+        $data = $request->validated();
+
+        /*
+        |--------------------------------------------------------------------------
+        | LOGO
+        |--------------------------------------------------------------------------
+        */
+
+        if ($request->hasFile('logo')) {
+
+            if (
+                $etablissement->logo &&
+                Storage::disk('public')->exists(
+                    $etablissement->logo
+                )
+            ) {
+                Storage::disk('public')->delete(
+                    $etablissement->logo
+                );
+            }
+
+            $data['logo'] =
+                $request
+                ->file('logo')
+                ->store(
+                    'etablissements/logos',
+                    'public'
+                );
+        }
+
+        $etablissement->update($data);
+
+        return redirect()
+            ->route(
+                'etablissements.index'
+            )
+            ->with(
+                'success',
+                "La fiche de l'établissement a été mise à jour avec succès."
+            );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SUPPRESSION
+    |--------------------------------------------------------------------------
+    */
+
+    public function destroy(
+        Etablissement $etablissement
+    ) {
+        abort_unless(
+            Auth::user()->hasRole('SuperAdmin'),
+            403
+        );
+
+        if ($etablissement->logo) {
+
+            Storage::disk('public')->delete(
+                $etablissement->logo
+            );
+        }
+
+        $etablissement->delete();
+
+        return redirect()
+            ->route('etablissements.index')
+            ->with(
+                'success',
+                'Établissement supprimé avec succès.'
+            );
     }
 }

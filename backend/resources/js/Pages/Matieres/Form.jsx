@@ -7,14 +7,12 @@ export default function Form({
     processing,
     submit,
     submitLabel = "Enregistrer",
+    matieresParents = [],
 }) {
     return (
         <form onSubmit={submit} className="space-y-6">
-
             <div>
-                <label className="block font-semibold mb-2">
-                    Libellé
-                </label>
+                <label className="block font-semibold mb-2">Libellé</label>
 
                 <input
                     type="text"
@@ -31,12 +29,37 @@ export default function Form({
                 )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label className="mb-2 block font-semibold">
+                    Matière parente (facultatif)
+                </label>
 
+                <select
+                    value={data.matiere_parent_id}
+                    onChange={(e) =>
+                        setData("matiere_parent_id", e.target.value)
+                    }
+                    className="w-full rounded-lg border p-3"
+                >
+                    <option value="">Matière principale</option>
+
+                    {matieresParents.map((matiere) => (
+                        <option key={matiere.id} value={matiere.id}>
+                            {matiere.libelle}
+                        </option>
+                    ))}
+                </select>
+
+                {errors.matiere_parent_id && (
+                    <p className="mt-1 text-sm text-red-600">
+                        {errors.matiere_parent_id}
+                    </p>
+                )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <label className="block font-semibold mb-2">
-                        Code
-                    </label>
+                    <label className="block font-semibold mb-2">Code</label>
 
                     <input
                         type="text"
@@ -52,16 +75,11 @@ export default function Form({
                         </p>
                     )}
                 </div>
-
-
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-
                 <div>
-                    <label className="block font-semibold mb-2">
-                        Couleur
-                    </label>
+                    <label className="block font-semibold mb-2">Couleur</label>
 
                     <input
                         type="color"
@@ -72,9 +90,7 @@ export default function Form({
                 </div>
 
                 <div className="flex items-end">
-
                     <label className="flex items-center gap-3">
-
                         <input
                             type="checkbox"
                             checked={data.active}
@@ -82,17 +98,12 @@ export default function Form({
                                 setData("active", e.target.checked)
                             }
                         />
-
                         Matière active
-
                     </label>
-
                 </div>
-
             </div>
 
             <div className="flex justify-end gap-4">
-
                 <Link
                     href={route("matieres.index")}
                     className="rounded-lg border px-6 py-3"
@@ -107,9 +118,7 @@ export default function Form({
                 >
                     {submitLabel}
                 </button>
-
             </div>
-
         </form>
     );
 }

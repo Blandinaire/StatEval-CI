@@ -80,24 +80,7 @@ class UpdateAbsenceRequest extends FormRequest
                 'max:2000',
             ],
 
-            'numero_billet' => [
-                'nullable',
-                'string',
-                'max:255',
-                Rule::unique('absences', 'numero_billet')
-                    ->ignore($absenceId),
-            ],
-
-            'billet_edite' => [
-                'required',
-                'boolean',
-            ],
-
-            'billet_edite_le' => [
-                'nullable',
-                'date',
-            ],
-
+            
             'observation' => [
                 'nullable',
                 'string',

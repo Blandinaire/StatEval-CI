@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\User;
 
 class Enseignant extends Model
 {
@@ -48,6 +49,11 @@ class Enseignant extends Model
         return $this->belongsTo(Etablissement::class);
     }
 
+    public function user()
+    {
+        return $this->hasOne(User::class);
+    }
+
     public function matierePrincipale()
     {
         return $this->belongsTo(
@@ -66,5 +72,17 @@ class Enseignant extends Model
     public function affectations()
     {
         return $this->hasMany(Affectation::class);
+    }
+    protected static function booted()
+    {
+        static::creating(function ($enseignant) {
+            $enseignant->nom = mb_strtoupper(trim($enseignant->nom), 'UTF-8');
+            $enseignant->prenoms = mb_strtoupper(trim($enseignant->prenoms), 'UTF-8');
+        });
+
+        static::updating(function ($enseignant) {
+            $enseignant->nom = mb_strtoupper(trim($enseignant->nom), 'UTF-8');
+            $enseignant->prenoms = mb_strtoupper(trim($enseignant->prenoms), 'UTF-8');
+        });
     }
 }

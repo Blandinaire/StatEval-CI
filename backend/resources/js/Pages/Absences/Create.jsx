@@ -3,12 +3,19 @@ import { Head, useForm } from "@inertiajs/react";
 import Form from "./Form";
 
 export default function Create({
-    eleves,
-    educateurs,
-    anneesScolaires,
-    classes,
+    eleves = [],
+    educateurs = [],
+    anneesScolaires = [],
+    classes = [],
+    etablissements = [],
+    isSuperAdmin = false,
+    isEducateur = false,
+    etablissementId = "",
 }) {
     const { data, setData, post, processing, errors } = useForm({
+        // Établissement
+        etablissement_id: isSuperAdmin ? "" : (etablissementId ?? ""),
+
         // Informations principales
         eleve_id: "",
         educateur_id: "",
@@ -57,6 +64,9 @@ export default function Create({
                         educateurs={educateurs}
                         anneesScolaires={anneesScolaires}
                         classes={classes}
+                        etablissements={etablissements}
+                        isSuperAdmin={isSuperAdmin}
+                        isEducateur={isEducateur}
                         errors={errors}
                         processing={processing}
                         submit={submit}

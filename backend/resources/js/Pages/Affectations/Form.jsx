@@ -11,39 +11,42 @@ export default function Form({
     classes,
     matieres,
     enseignants,
+    isSuperAdmin,
+    etablissementId,
     errors,
     processing,
     submit,
     submitLabel = "Enregistrer",
 }) {
-
     const [enseignantsFiltres, setEnseignantsFiltres] = useState([]);
 
     useEffect(() => {
+        if (!isSuperAdmin && etablissementId && !data.etablissement_id) {
+            setData("etablissement_id", String(etablissementId));
+        }
+    }, [isSuperAdmin, etablissementId, data.etablissement_id]);
 
-    if (!data.matiere_id) {
-        setEnseignantsFiltres([]);
-        return;
-    }
+    useEffect(() => {
+        if (!data.matiere_id) {
+            setEnseignantsFiltres([]);
+            return;
+        }
 
-    axios
-        .get(route("api.enseignants.matiere", data.matiere_id))
-        .then((response) => {
-
-            setEnseignantsFiltres(response.data);
-
-        })
-        .catch((error) => {
-
-            console.error(error);
-
-        });
-
-}, [data.matiere_id]);
-
+        axios
+            .get(route("api.enseignants.matiere", data.matiere_id), {
+                params: {
+                    etablissement_id: data.etablissement_id,
+                },
+            })
+            .then((response) => {
+                setEnseignantsFiltres(response.data);
+            })
+            .catch((error) => {
+                console.error(error);
+            });
+    }, [data.matiere_id, data.etablissement_id]);
     return (
         <form onSubmit={submit} className="space-y-8">
-
             {/* Affectation */}
             <div className="rounded-xl border bg-white shadow-sm">
                 <div className="border-b bg-slate-50 px-6 py-4">
@@ -53,7 +56,6 @@ export default function Form({
                 </div>
 
                 <div className="grid grid-cols-2 gap-6 p-6">
-
                     {/* Etablissement */}
                     <div>
                         <label className="block font-semibold mb-2">
@@ -62,10 +64,17 @@ export default function Form({
 
                         <select
                             value={data.etablissement_id}
-                            onChange={(e) =>
-                                setData("etablissement_id", e.target.value)
-                            }
-                            className="w-full rounded-lg border p-3"
+                            onChange={(e) => {
+                                if (!isSuperAdmin) return;
+
+                                setData("etablissement_id", e.target.value);
+                            }}
+                            disabled={!isSuperAdmin}
+                            className={`w-full rounded-lg border p-3 ${
+                                !isSuperAdmin
+                                    ? "bg-gray-100 cursor-not-allowed"
+                                    : "bg-white"
+                            }`}
                         >
                             <option value="">Sélectionner...</option>
 
@@ -76,8 +85,15 @@ export default function Form({
                             ))}
                         </select>
 
+                        {!isSuperAdmin && (
+                            <p className="mt-1 text-sm text-gray-500">
+                                Votre établissement est sélectionné
+                                automatiquement.
+                            </p>
+                        )}
+
                         {errors.etablissement_id && (
-                            <p className="text-red-600 text-sm">
+                            <p className="mt-1 text-red-600 text-sm">
                                 {errors.etablissement_id}
                             </p>
                         )}
@@ -186,7 +202,10 @@ export default function Form({
                             <option value="">Sélectionner...</option>
 
                             {enseignantsFiltres.map((enseignant) => (
-                                <option key={enseignant.id} value={enseignant.id}>
+                                <option
+                                    key={enseignant.id}
+                                    value={enseignant.id}
+                                >
                                     {enseignant.nom} {enseignant.prenoms}
                                 </option>
                             ))}
@@ -198,20 +217,16 @@ export default function Form({
                             </p>
                         )}
                     </div>
-
                 </div>
             </div>
 
             {/* Paramètres */}
             <div className="rounded-xl border bg-white shadow-sm">
                 <div className="border-b bg-slate-50 px-6 py-4">
-                    <h2 className="text-xl font-bold">
-                        Paramètres
-                    </h2>
+                    <h2 className="text-xl font-bold">Paramètres</h2>
                 </div>
 
                 <div className="grid grid-cols-2 gap-6 p-6">
-
                     <div>
                         <label className="block font-semibold mb-2">
                             Coefficient
@@ -252,16 +267,13 @@ export default function Form({
                                     setData("actif", e.target.checked)
                                 }
                             />
-
                             Affectation active
                         </label>
                     </div>
-
                 </div>
             </div>
 
             <div className="flex justify-end gap-4">
-
                 <Link
                     href={route("affectations.index")}
                     className="rounded-lg border px-6 py-3"
@@ -276,10 +288,7 @@ export default function Form({
                 >
                     {submitLabel}
                 </button>
-
             </div>
-
         </form>
     );
-
 }

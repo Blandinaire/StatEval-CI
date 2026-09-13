@@ -4,6 +4,7 @@ export default function Form({
     data,
     setData,
     etablissements,
+    isSuperAdmin,
     errors,
     processing,
     submit,
@@ -23,9 +24,7 @@ export default function Form({
 
                 <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
                     <div>
-                        <label className="mb-2 block font-semibold">
-                            Nom
-                        </label>
+                        <label className="mb-2 block font-semibold">Nom</label>
 
                         <input
                             type="text"
@@ -49,9 +48,7 @@ export default function Form({
                         <input
                             type="text"
                             value={data.prenoms}
-                            onChange={(e) =>
-                                setData("prenoms", e.target.value)
-                            }
+                            onChange={(e) => setData("prenoms", e.target.value)}
                             className="w-full rounded-lg border p-3"
                         />
 
@@ -63,9 +60,7 @@ export default function Form({
                     </div>
 
                     <div>
-                        <label className="mb-2 block font-semibold">
-                            Sexe
-                        </label>
+                        <label className="mb-2 block font-semibold">Sexe</label>
 
                         <select
                             value={data.sexe}
@@ -142,9 +137,7 @@ export default function Form({
             ============================ */}
             <div className="rounded-xl border bg-white shadow-sm">
                 <div className="border-b bg-slate-50 px-6 py-4">
-                    <h2 className="text-xl font-bold">
-                        Coordonnées
-                    </h2>
+                    <h2 className="text-xl font-bold">Coordonnées</h2>
                 </div>
 
                 <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
@@ -190,9 +183,7 @@ export default function Form({
                         <textarea
                             rows="3"
                             value={data.adresse}
-                            onChange={(e) =>
-                                setData("adresse", e.target.value)
-                            }
+                            onChange={(e) => setData("adresse", e.target.value)}
                             className="w-full rounded-lg border p-3"
                         />
                     </div>
@@ -210,39 +201,38 @@ export default function Form({
                 </div>
 
                 <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
-                    <div>
-                        <label className="mb-2 block font-semibold">
-                            Établissement
-                        </label>
+                    {isSuperAdmin && (
+                        <div>
+                            <label className="mb-2 block font-semibold">
+                                Établissement
+                            </label>
 
-                        <select
-                            value={data.etablissement_id}
-                            onChange={(e) =>
-                                setData(
-                                    "etablissement_id",
-                                    e.target.value
-                                )
-                            }
-                            className="w-full rounded-lg border p-3"
-                        >
-                            <option value="">Sélectionner...</option>
+                            <select
+                                value={data.etablissement_id}
+                                onChange={(e) =>
+                                    setData("etablissement_id", e.target.value)
+                                }
+                                className="w-full rounded-lg border p-3"
+                            >
+                                <option value="">Sélectionner...</option>
 
-                            {etablissements.map((etablissement) => (
-                                <option
-                                    key={etablissement.id}
-                                    value={etablissement.id}
-                                >
-                                    {etablissement.nom}
-                                </option>
-                            ))}
-                        </select>
+                                {etablissements.map((etablissement) => (
+                                    <option
+                                        key={etablissement.id}
+                                        value={etablissement.id}
+                                    >
+                                        {etablissement.nom}
+                                    </option>
+                                ))}
+                            </select>
 
-                        {errors.etablissement_id && (
-                            <p className="mt-1 text-sm text-red-600">
-                                {errors.etablissement_id}
-                            </p>
-                        )}
-                    </div>
+                            {errors.etablissement_id && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    {errors.etablissement_id}
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     <div>
                         <label className="mb-2 block font-semibold">
@@ -251,18 +241,15 @@ export default function Form({
 
                         <input
                             type="text"
-                            value={data.matricule}
-                            onChange={(e) =>
-                                setData("matricule", e.target.value)
-                            }
-                            className="w-full rounded-lg border p-3"
+                            value={data.matricule || "Généré automatiquement"}
+                            readOnly
+                            className="w-full cursor-not-allowed rounded-lg border bg-gray-100 p-3 text-gray-500"
                         />
 
-                        {errors.matricule && (
-                            <p className="mt-1 text-sm text-red-600">
-                                {errors.matricule}
-                            </p>
-                        )}
+                        <p className="mt-1 text-xs text-gray-500">
+                            Le matricule interne est généré automatiquement par
+                            SchoolManager après l'enregistrement.
+                        </p>
                     </div>
 
                     <div>
@@ -276,9 +263,7 @@ export default function Form({
                             className="w-full rounded-lg border p-3"
                         >
                             <option value="Permanent">Permanent</option>
-                            <option value="Contractuel">
-                                Contractuel
-                            </option>
+                            <option value="Contractuel">Contractuel</option>
                         </select>
                     </div>
 
@@ -290,9 +275,7 @@ export default function Form({
                         <input
                             type="text"
                             value={data.grade}
-                            onChange={(e) =>
-                                setData("grade", e.target.value)
-                            }
+                            onChange={(e) => setData("grade", e.target.value)}
                             className="w-full rounded-lg border p-3"
                         />
                     </div>
@@ -305,9 +288,7 @@ export default function Form({
                         <input
                             type="text"
                             value={data.diplome}
-                            onChange={(e) =>
-                                setData("diplome", e.target.value)
-                            }
+                            onChange={(e) => setData("diplome", e.target.value)}
                             className="w-full rounded-lg border p-3"
                         />
                     </div>
@@ -349,10 +330,7 @@ export default function Form({
                             type="date"
                             value={data.date_prise_service}
                             onChange={(e) =>
-                                setData(
-                                    "date_prise_service",
-                                    e.target.value
-                                )
+                                setData("date_prise_service", e.target.value)
                             }
                             className="w-full rounded-lg border p-3"
                         />
@@ -365,9 +343,7 @@ export default function Form({
 
                         <select
                             value={data.statut}
-                            onChange={(e) =>
-                                setData("statut", e.target.value)
-                            }
+                            onChange={(e) => setData("statut", e.target.value)}
                             className="w-full rounded-lg border p-3"
                         >
                             <option value="Actif">Actif</option>

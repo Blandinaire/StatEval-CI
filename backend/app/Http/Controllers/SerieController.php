@@ -9,6 +9,21 @@ use Inertia\Inertia;
 
 class SerieController extends Controller
 {
+    /**
+     * Vérifie que l'utilisateur connecté est SuperAdmin.
+     */
+    private function verifierSuperAdmin(): void
+    {
+        if (!auth()->user()->hasRole('SuperAdmin')) {
+            abort(403);
+        }
+    }
+
+    /**
+     * Liste des séries.
+     *
+     * Accessible aux utilisateurs autorisés.
+     */
     public function index()
     {
         $series = Serie::with('cycle')
@@ -20,45 +35,101 @@ class SerieController extends Controller
         ]);
     }
 
+    /**
+     * Formulaire de création.
+     *
+     * SuperAdmin uniquement.
+     */
     public function create()
     {
+        $this->verifierSuperAdmin();
+
         return Inertia::render('Series/Create', [
             'cycles' => Cycle::orderBy('ordre')->get(),
         ]);
     }
 
+    /**
+     * Enregistrement.
+     *
+     * SuperAdmin uniquement.
+     */
     public function store(StoreSerieRequest $request)
     {
-        Serie::create($request->validated());
+        $this->verifierSuperAdmin();
+
+        Serie::create(
+            $request->validated()
+        );
 
         return redirect()
             ->route('series.index')
-            ->with('success', 'Série créée avec succès.');
+            ->with(
+                'success',
+                'Série créée avec succès.'
+            );
     }
 
-    public function edit(Serie $series)
+    /**
+     * Formulaire de modification.
+     *
+     * SuperAdmin uniquement.
+     */
+    public function edit($serie)
     {
+        $this->verifierSuperAdmin();
+
+        $serie = Serie::findOrFail($serie);
+
         return Inertia::render('Series/Edit', [
-            'serie' => $series,
+            'serie' => $serie,
             'cycles' => Cycle::orderBy('ordre')->get(),
         ]);
     }
 
-    public function update(StoreSerieRequest $request, Serie $series)
-    {
-        $series->update($request->validated());
+    /**
+     * Mise à jour.
+     *
+     * SuperAdmin uniquement.
+     */
+    public function update(
+        StoreSerieRequest $request,
+        $serie
+    ) {
+        $this->verifierSuperAdmin();
+
+        $serie = Serie::findOrFail($serie);
+
+        $serie->update(
+            $request->validated()
+        );
 
         return redirect()
             ->route('series.index')
-            ->with('success', 'Série modifiée avec succès.');
+            ->with(
+                'success',
+                'Série modifiée avec succès.'
+            );
     }
 
-    public function destroy(Serie $series)
+    /**
+     * Suppression.
+     *
+     * SuperAdmin uniquement.
+     */
+    public function destroy($serie)
     {
-        $series->delete();
+        $this->verifierSuperAdmin();
+
+        $serie = Serie::findOrFail($serie);
+
+        $serie->delete();
 
         return redirect()
             ->route('series.index')
-            ->with('success', 'Série supprimée.');
+            ->with(
+                'success',
+                'Série supprimée avec succès.'
+            );
     }
 }

@@ -6,7 +6,7 @@ import {
     PrimaryButton,
 } from "@/Components";
 
-import { useForm } from "@inertiajs/react";
+import { Link, useForm } from "@inertiajs/react";
 
 export default function Form({
     etablissements,
@@ -24,14 +24,14 @@ export default function Form({
         libelle: "",
     });
     const submit = (e) => {
-    e.preventDefault();
+        e.preventDefault();
 
-    console.log("SUBMIT OK");
-    console.log("Route :", route("maquettes.store"));
-    console.log("Données :", data);
+        console.log("SUBMIT OK");
+        console.log("Route :", route("maquettes.store"));
+        console.log("Données :", data);
 
-    post(route("maquettes.store"));
-};
+        post(route("maquettes.store"));
+    };
     return (
         <div className="space-y-6">
             <PageHeader
@@ -125,7 +125,14 @@ export default function Form({
                         />
                     </div>
 
-                    <div className="mt-6">
+                    <div className="mt-6 flex items-center gap-3">
+                        <Link
+                            href={route("maquettes.index")}
+                            className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                            Annuler
+                        </Link>
+
                         <PrimaryButton type="submit" disabled={processing}>
                             {processing ? "Enregistrement..." : "Enregistrer"}
                         </PrimaryButton>

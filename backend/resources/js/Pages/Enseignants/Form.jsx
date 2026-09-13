@@ -4,6 +4,7 @@ export default function Form({
     data,
     setData,
     etablissements,
+    isSuperAdmin,
     matieres,
     errors,
     processing,
@@ -30,8 +31,10 @@ export default function Form({
                         <input
                             type="text"
                             value={data.nom}
-                            onChange={(e) => setData("nom", e.target.value)}
-                            className="w-full rounded-lg border p-3"
+                            onChange={(e) =>
+                                setData("nom", e.target.value.toUpperCase())
+                            }
+                            className="w-full rounded-lg border p-3 uppercase"
                         />
 
                         {errors.nom && (
@@ -47,8 +50,10 @@ export default function Form({
                         <input
                             type="text"
                             value={data.prenoms}
-                            onChange={(e) => setData("prenoms", e.target.value)}
-                            className="w-full rounded-lg border p-3"
+                            onChange={(e) =>
+                                setData("prenoms", e.target.value.toUpperCase())
+                            }
+                            className="w-full rounded-lg border p-3 uppercase"
                         />
 
                         {errors.prenoms && (
@@ -200,36 +205,38 @@ export default function Form({
                 </div>
 
                 <div className="grid grid-cols-2 gap-6 p-6">
-                    <div>
-                        <label className="block font-semibold mb-2">
-                            Établissement
-                        </label>
+                    {isSuperAdmin && (
+                        <div>
+                            <label className="block font-semibold mb-2">
+                                Établissement
+                            </label>
 
-                        <select
-                            value={data.etablissement_id}
-                            onChange={(e) =>
-                                setData("etablissement_id", e.target.value)
-                            }
-                            className="w-full rounded-lg border p-3"
-                        >
-                            <option value="">Sélectionner...</option>
+                            <select
+                                value={data.etablissement_id}
+                                onChange={(e) =>
+                                    setData("etablissement_id", e.target.value)
+                                }
+                                className="w-full rounded-lg border p-3"
+                            >
+                                <option value="">Sélectionner...</option>
 
-                            {etablissements.map((etablissement) => (
-                                <option
-                                    key={etablissement.id}
-                                    value={etablissement.id}
-                                >
-                                    {etablissement.nom}
-                                </option>
-                            ))}
-                        </select>
+                                {etablissements.map((etablissement) => (
+                                    <option
+                                        key={etablissement.id}
+                                        value={etablissement.id}
+                                    >
+                                        {etablissement.nom}
+                                    </option>
+                                ))}
+                            </select>
 
-                        {errors.etablissement_id && (
-                            <p className="text-red-600 text-sm">
-                                {errors.etablissement_id}
-                            </p>
-                        )}
-                    </div>
+                            {errors.etablissement_id && (
+                                <p className="text-red-600 text-sm">
+                                    {errors.etablissement_id}
+                                </p>
+                            )}
+                        </div>
+                    )}
 
                     <div>
                         <label className="block font-semibold mb-2">
@@ -238,12 +245,15 @@ export default function Form({
 
                         <input
                             type="text"
-                            value={data.matricule}
-                            onChange={(e) =>
-                                setData("matricule", e.target.value)
-                            }
-                            className="w-full rounded-lg border p-3"
+                            value={data.matricule || "Généré automatiquement"}
+                            readOnly
+                            className="w-full rounded-lg border bg-gray-100 p-3 text-gray-600"
                         />
+
+                        <p className="mt-1 text-xs text-gray-500">
+                            Le matricule interne est généré automatiquement par
+                            SchoolManager.
+                        </p>
 
                         {errors.matricule && (
                             <p className="text-red-600 text-sm">
@@ -306,12 +316,32 @@ export default function Form({
                             Diplôme
                         </label>
 
-                        <input
-                            type="text"
+                        <select
                             value={data.diplome}
                             onChange={(e) => setData("diplome", e.target.value)}
                             className="w-full rounded-lg border p-3"
-                        />
+                        >
+                            <option value="">Sélectionner...</option>
+                            <option value="BEPC">BEPC</option>
+                            <option value="BAC">BAC</option>
+                            <option value="DEUG">DEUG</option>
+                            <option value="BTS">BTS</option>
+                            <option value="DUT">DUT</option>
+                            <option value="Licence">Licence</option>
+                            <option value="Maîtrise">Maîtrise</option>
+                            <option value="Master">Master</option>
+                            <option value="CAPES">CAPES</option>
+                            <option value="CAP-CEG">CAP-CEG</option>
+                            <option value="CAES">CAES</option>
+                            <option value="Doctorat">Doctorat</option>
+                            <option value="Autre">Autre</option>
+                        </select>
+
+                        {errors.diplome && (
+                            <p className="text-red-600 text-sm">
+                                {errors.diplome}
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>

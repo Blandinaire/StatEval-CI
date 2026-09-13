@@ -1,4 +1,5 @@
 import AdminLayout from "@/Layouts/AdminLayout";
+import ResponsiveTable from "@/Components/ResponsiveTable";
 import { Head, Link } from "@inertiajs/react";
 
 export default function Index({ evaluations = [] }) {
@@ -7,15 +8,12 @@ export default function Index({ evaluations = [] }) {
             <Head title="Saisie des notes" />
 
             <div className="mx-auto max-w-7xl space-y-6">
-
                 {/* =====================================================
                     EN-TÊTE
                 ===================================================== */}
 
                 <div className="rounded-xl bg-white p-8 shadow">
-
                     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-
                         <div>
                             <h1 className="text-3xl font-bold text-gray-800">
                                 Saisie des notes
@@ -33,9 +31,7 @@ export default function Index({ evaluations = [] }) {
                         >
                             Voir les évaluations
                         </Link>
-
                     </div>
-
                 </div>
 
                 {/* =====================================================
@@ -43,9 +39,7 @@ export default function Index({ evaluations = [] }) {
                 ===================================================== */}
 
                 <div className="overflow-hidden rounded-xl bg-white shadow">
-
                     <div className="border-b bg-slate-50 px-6 py-5">
-
                         <h2 className="text-xl font-bold text-gray-800">
                             Évaluations disponibles
                         </h2>
@@ -55,24 +49,19 @@ export default function Index({ evaluations = [] }) {
                             {evaluations.length > 1 ? "s" : ""} disponible
                             {evaluations.length > 1 ? "s" : ""}
                         </p>
-
                     </div>
 
                     {evaluations.length === 0 ? (
-
                         <div className="p-12 text-center">
-
-                            <div className="text-5xl">
-                                📝
-                            </div>
+                            <div className="text-5xl">📝</div>
 
                             <h3 className="mt-4 text-lg font-semibold text-gray-800">
                                 Aucune évaluation disponible
                             </h3>
 
                             <p className="mt-2 text-gray-500">
-                                Créez d'abord une évaluation avant de saisir
-                                les notes.
+                                Créez d'abord une évaluation avant de saisir les
+                                notes.
                             </p>
 
                             <Link
@@ -81,19 +70,12 @@ export default function Index({ evaluations = [] }) {
                             >
                                 + Nouvelle évaluation
                             </Link>
-
                         </div>
-
                     ) : (
-
-                        <div className="overflow-x-auto">
-
-                            <table className="w-full">
-
+                        <div className="bg-white rounded-xl shadow">
+                            <ResponsiveTable minWidth="1200px">
                                 <thead className="bg-gray-100">
-
                                     <tr>
-
                                         <th className="px-5 py-4 text-left">
                                             Date
                                         </th>
@@ -125,15 +107,11 @@ export default function Index({ evaluations = [] }) {
                                         <th className="px-5 py-4 text-center">
                                             Action
                                         </th>
-
                                     </tr>
-
                                 </thead>
 
                                 <tbody>
-
                                     {evaluations.map((evaluation) => {
-
                                         const totalEleves =
                                             evaluation.notes?.length ?? 0;
 
@@ -141,7 +119,7 @@ export default function Index({ evaluations = [] }) {
                                             evaluation.notes?.filter(
                                                 (note) =>
                                                     !note.absent &&
-                                                    note.note !== null
+                                                    note.note !== null,
                                             ).length ?? 0;
 
                                         return (
@@ -149,25 +127,21 @@ export default function Index({ evaluations = [] }) {
                                                 key={evaluation.id}
                                                 className="border-t hover:bg-gray-50"
                                             >
-
                                                 {/* DATE */}
 
                                                 <td className="px-5 py-4">
-
                                                     {evaluation.date_evaluation
                                                         ? new Date(
-                                                              evaluation.date_evaluation
+                                                              evaluation.date_evaluation,
                                                           ).toLocaleDateString(
-                                                              "fr-FR"
+                                                              "fr-FR",
                                                           )
                                                         : "—"}
-
                                                 </td>
 
                                                 {/* ÉVALUATION */}
 
                                                 <td className="px-5 py-4">
-
                                                     <div className="font-semibold text-gray-800">
                                                         {evaluation.libelle}
                                                     </div>
@@ -178,57 +152,45 @@ export default function Index({ evaluations = [] }) {
                                                             ? ` n°${evaluation.numero}`
                                                             : ""}
                                                     </div>
-
                                                 </td>
 
                                                 {/* CLASSE */}
 
                                                 <td className="px-5 py-4">
-
                                                     <span className="font-medium">
                                                         {evaluation.classe
                                                             ?.libelle ?? "—"}
                                                     </span>
-
                                                 </td>
 
                                                 {/* MATIÈRE */}
 
                                                 <td className="px-5 py-4">
-
                                                     {evaluation.matiere
                                                         ?.libelle ?? "—"}
-
                                                 </td>
 
                                                 {/* ENSEIGNANT */}
 
                                                 <td className="px-5 py-4">
-
                                                     {evaluation.enseignant
                                                         ? `${evaluation.enseignant.nom ?? ""} ${evaluation.enseignant.prenoms ?? ""}`
                                                         : "—"}
-
                                                 </td>
 
                                                 {/* BARÈME */}
 
                                                 <td className="px-5 py-4 text-center">
-
                                                     <span className="font-semibold text-blue-600">
                                                         /{evaluation.bareme}
                                                     </span>
-
                                                 </td>
 
                                                 {/* NOTES */}
 
                                                 <td className="px-5 py-4 text-center">
-
                                                     {totalEleves > 0 ? (
-
                                                         <div>
-
                                                             <div className="font-semibold text-gray-800">
                                                                 {notesSaisies}
                                                                 {" / "}
@@ -238,49 +200,35 @@ export default function Index({ evaluations = [] }) {
                                                             <div className="mt-1 text-xs text-gray-500">
                                                                 notes saisies
                                                             </div>
-
                                                         </div>
-
                                                     ) : (
-
                                                         <span className="text-gray-400">
                                                             Aucune
                                                         </span>
-
                                                     )}
-
                                                 </td>
 
                                                 {/* ACTION */}
 
                                                 <td className="px-5 py-4 text-center">
-
                                                     <Link
                                                         href={route(
                                                             "notes.create",
-                                                            evaluation.id
+                                                            evaluation.id,
                                                         )}
                                                         className="inline-flex rounded-lg bg-green-600 px-4 py-2 font-semibold text-white hover:bg-green-700"
                                                     >
                                                         📝 Saisir les notes
                                                     </Link>
-
                                                 </td>
-
                                             </tr>
                                         );
                                     })}
-
                                 </tbody>
-
-                            </table>
-
+                            </ResponsiveTable>
                         </div>
-
                     )}
-
                 </div>
-
             </div>
         </AdminLayout>
     );

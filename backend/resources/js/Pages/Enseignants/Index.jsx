@@ -1,7 +1,14 @@
 import AdminLayout from "@/Layouts/AdminLayout";
 import { Head, Link } from "@inertiajs/react";
+import ResponsiveTable from "@/Components/ResponsiveTable";
+import StatistiquesEnseignants from "./StatistiquesEnseignants";
 
-export default function Index({ enseignants }) {
+export default function Index({
+    enseignants,
+    statistiques,
+    etablissements = [],
+    etablissementSelectionne = null,
+}) {
     return (
         <AdminLayout>
             <Head title="Enseignants" />
@@ -9,13 +16,9 @@ export default function Index({ enseignants }) {
             <div className="space-y-6">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold">
-                            Enseignants
-                        </h1>
+                        <h1 className="text-3xl font-bold">Enseignants</h1>
 
-                        <p className="text-gray-500">
-                            Gestion des enseignants
-                        </p>
+                        <p className="text-gray-500">Gestion des enseignants</p>
                     </div>
 
                     <Link
@@ -26,8 +29,8 @@ export default function Index({ enseignants }) {
                     </Link>
                 </div>
 
-                <div className="overflow-hidden rounded-xl border bg-white">
-                    <table className="w-full">
+                <div className="bg-white rounded-xl shadow">
+    <ResponsiveTable minWidth="900px">
                         <thead className="bg-gray-100">
                             <tr>
                                 <th className="p-3 text-left">Nom</th>
@@ -50,7 +53,10 @@ export default function Index({ enseignants }) {
                                 </tr>
                             ) : (
                                 enseignants.map((enseignant) => (
-                                    <tr key={enseignant.id} className="border-t">
+                                    <tr
+                                        key={enseignant.id}
+                                        className="border-t"
+                                    >
                                         <td className="p-3">
                                             {enseignant.nom}
                                         </td>
@@ -71,7 +77,7 @@ export default function Index({ enseignants }) {
                                             <Link
                                                 href={route(
                                                     "enseignants.edit",
-                                                    enseignant.id
+                                                    enseignant.id,
                                                 )}
                                                 className="rounded bg-blue-600 px-3 py-1 text-white"
                                             >
@@ -82,8 +88,11 @@ export default function Index({ enseignants }) {
                                 ))
                             )}
                         </tbody>
-                    </table>
+                    </ResponsiveTable>
                 </div>
+
+                {/* STATISTIQUES */}
+                <StatistiquesEnseignants statistiques={statistiques} />
             </div>
         </AdminLayout>
     );

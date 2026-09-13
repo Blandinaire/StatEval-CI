@@ -2,107 +2,477 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Etablissement;
-use App\Models\Cycle;
-use App\Models\Serie;
-use App\Models\Maquette;
 use App\Http\Requests\StoreClasseRequest;
 use App\Models\AnneeScolaire;
+use App\Models\Affectation;
 use App\Models\Classe;
+use App\Models\Cycle;
+use App\Models\Etablissement;
+use App\Models\Maquette;
 use App\Models\Niveau;
+use App\Models\Serie;
+use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
 
 class ClasseController extends Controller
 {
     /**
+     * Vérifie si l'utilisateur connecté est SuperAdmin.
+     */
+    private function estSuperAdmin($user): bool
+    {
+        return $user->hasRole('SuperAdmin');
+    }
+
+    /**
+     * Vérifie si l'utilisateur est professeur.
+     */
+    private function estProfesseur($user): bool
+    {
+        return $user->hasRole('Professeur');
+    }
+
+    /**
+     * Vérifie si l'utilisateur est éducateur.
+     */
+    private function estEducateur($user): bool
+    {
+        return $user->hasRole('Educateur');
+    }
+
+    /**
+     * Retourne les IDs des classes auxquelles un professeur
+     * est actuellement affecté.
+     */
+    private function classesDuProfesseur($user)
+    {
+        if (!$this->estProfesseur($user)) {
+            return collect();
+        }
+
+        abort_unless(
+            $user->enseignant_id,
+            403,
+            'Votre compte professeur n’est pas correctement rattaché à un enseignant.'
+        );
+
+        $anneeActiveId = AnneeScolaire::activeId();
+
+        return Affectation::query()
+            ->where('enseignant_id', $user->enseignant_id)
+            ->where('annee_scolaire_id', $anneeActiveId)
+            ->where('actif', true)
+            ->pluck('classe_id')
+            ->unique()
+            ->values();
+    }
+
+    /**
+     * Retourne les IDs des classes actuellement affectées à un éducateur.
+     */
+    private function classesDeLEducateur($user)
+    {
+        abort_unless(
+            $user->educateur_id,
+            403,
+            'Votre compte éducateur n’est pas correctement rattaché à un éducateur.'
+        );
+
+        return Classe::query()
+            ->whereHas('affectationsEducateurs', function ($query) use ($user) {
+                $query
+                    ->where('educateur_id', $user->educateur_id)
+                    ->where('annee_scolaire_id', AnneeScolaire::activeId())
+                    ->where('actif', true);
+            })
+            ->pluck('id')
+            ->unique()
+            ->values();
+    }
+
+    /**
+     * Vérifie qu'un utilisateur peut accéder à une classe.
+     *
+     * SuperAdmin :
+     *     toutes les classes.
+     *
+     * Professeur :
+     *     uniquement ses classes affectées.
+     *
+     * Autres utilisateurs :
+     *     uniquement les classes de leur établissement.
+     */
+    private function verifierAccesClasse($user, Classe $classe): void
+    {
+        /*
+        |--------------------------------------------------------------------------
+        | SUPER ADMIN
+        |--------------------------------------------------------------------------
+        */
+
+        if ($this->estSuperAdmin($user)) {
+            return;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | PROFESSEUR
+        |--------------------------------------------------------------------------
+        */
+
+        if ($this->estProfesseur($user)) {
+            $classesAutorisees = $this->classesDuProfesseur($user);
+
+            abort_unless(
+                $classesAutorisees->contains((int) $classe->id),
+                403,
+                'Vous n’êtes pas affecté à cette classe.'
+            );
+
+            return;
+        }
+
+        if ($this->estEducateur($user)) {
+            $classesAutorisees = $this->classesDeLEducateur($user);
+
+            abort_unless(
+                $classesAutorisees->contains((int) $classe->id),
+                403,
+                'Vous n’êtes pas affecté à cette classe.'
+            );
+
+            return;
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | AUTRES UTILISATEURS
+        |--------------------------------------------------------------------------
+        */
+
+        abort_unless(
+            $user->etablissement_id &&
+                (int) $classe->etablissement_id ===
+                (int) $user->etablissement_id,
+            403
+        );
+    }
+
+    /**
      * Liste des classes.
      */
     public function index()
-{
-    $classes = Classe::with([
-        'etablissement',
-        'anneeScolaire',
-        'cycle',
-        'niveau',
-        'serie',
-        'maquette',
-    ])
-    ->orderBy('libelle')
-    ->get();
+    {
+        $user = Auth::user();
 
-    return Inertia::render('Classes/Index', [
-        'classes' => $classes,
-    ]);
-}
+        $query = Classe::with([
+            'etablissement',
+            'anneeScolaire',
+            'cycle',
+            'niveau',
+            'serie',
+            'maquette',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | PROFESSEUR
+        |--------------------------------------------------------------------------
+        |
+        | Un professeur ne voit QUE ses classes affectées.
+        |
+        */
+
+        if ($this->estProfesseur($user)) {
+
+            $classesAutorisees =
+                $this->classesDuProfesseur($user);
+
+            $query->whereIn(
+                'id',
+                $classesAutorisees
+            );
+
+            /*
+        |--------------------------------------------------------------------------
+        | ÉDUCATEUR
+        |--------------------------------------------------------------------------
+        */
+        } elseif ($this->estEducateur($user)) {
+            $query->whereIn(
+                'id',
+                $this->classesDeLEducateur($user)
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | AUTRES UTILISATEURS
+        |--------------------------------------------------------------------------
+        */ elseif (!$this->estSuperAdmin($user)) {
+
+            $query->where(
+                'etablissement_id',
+                $user->etablissement_id
+            );
+        }
+
+        $classes = $query
+            ->orderBy('libelle')
+            ->get();
+
+        return Inertia::render('Classes/Index', [
+            'classes' => $classes,
+        ]);
+    }
 
     /**
      * Formulaire de création.
+     *
+     * Un professeur ne peut pas créer de classe.
      */
     public function create()
-{
-    return Inertia::render('Classes/Create', [
+    {
+        $user = Auth::user();
 
-        'etablissements' => Etablissement::orderBy('nom')->get(),
+        abort_unless(
+            !$this->estProfesseur($user),
+            403,
+            'Les professeurs ne peuvent pas créer de classe.'
+        );
 
-        'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
+        $anneeActive = AnneeScolaire::active();
 
-        'cycles' => Cycle::orderBy('libelle')->get(),
+        return Inertia::render('Classes/Create', [
 
-        'niveaux' => Niveau::orderBy('ordre')->get(),
+            'etablissements' => $this->estSuperAdmin($user)
+                ? Etablissement::orderBy('nom')->get()
+                : Etablissement::where(
+                    'id',
+                    $user->etablissement_id
+                )->get(),
 
-        'series' => Serie::orderBy('libelle')->get(),
+            'etablissementUtilisateur' =>
+            $user->etablissement,
 
-        'maquettes' => Maquette::orderBy('libelle')->get(),
+            'estSuperAdmin' =>
+            $this->estSuperAdmin($user),
 
-    ]);
-}
+            'anneeActive' =>
+            $anneeActive,
+
+            'cycles' =>
+            Cycle::orderBy('libelle')->get(),
+
+            'niveaux' =>
+            Niveau::orderBy('ordre')->get(),
+
+            'series' =>
+            Serie::where('actif', true)
+                ->orderBy('ordre')
+                ->get(),
+
+            'maquettes' =>
+            Maquette::where('active', true)->get(),
+        ]);
+    }
 
     /**
-     * Enregistrement.
+     * Enregistrement d'une classe.
      */
     public function store(StoreClasseRequest $request)
     {
-        Classe::create($request->validated());
+        $user = Auth::user();
+
+        /*
+        |--------------------------------------------------------------------------
+        | PROFESSEUR INTERDIT
+        |--------------------------------------------------------------------------
+        */
+
+        abort_unless(
+            !$this->estProfesseur($user),
+            403,
+            'Les professeurs ne peuvent pas créer de classe.'
+        );
+
+        $data = $request->validated();
+
+        /*
+        |--------------------------------------------------------------------------
+        | ANNÉE SCOLAIRE ACTIVE
+        |--------------------------------------------------------------------------
+        */
+
+        $data['annee_scolaire_id'] =
+            AnneeScolaire::activeId();
+
+        /*
+        |--------------------------------------------------------------------------
+        | ÉTABLISSEMENT
+        |--------------------------------------------------------------------------
+        */
+
+        if (!$this->estSuperAdmin($user)) {
+
+            $data['etablissement_id'] =
+                $user->etablissement_id;
+        }
+
+        Classe::create($data);
 
         return redirect()
             ->route('classes.index')
-            ->with('success', 'Classe créée avec succès.');
+            ->with(
+                'success',
+                'Classe créée avec succès.'
+            );
     }
 
     /**
      * Formulaire de modification.
      */
     public function edit(Classe $classe)
-{
-    return Inertia::render('Classes/Edit', [
+    {
+        $user = Auth::user();
 
-        'classe' => $classe,
+        /*
+        |--------------------------------------------------------------------------
+        | VÉRIFICATION D'ACCÈS
+        |--------------------------------------------------------------------------
+        */
 
-        'etablissements' => Etablissement::orderBy('nom')->get(),
+        $this->verifierAccesClasse(
+            $user,
+            $classe
+        );
 
-        'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
+        /*
+        |--------------------------------------------------------------------------
+        | PROFESSEUR : consultation uniquement
+        |--------------------------------------------------------------------------
+        */
 
-        'cycles' => Cycle::orderBy('libelle')->get(),
+        abort_unless(
+            !$this->estProfesseur($user),
+            403,
+            'Les professeurs ne peuvent pas modifier une classe.'
+        );
 
-        'niveaux' => Niveau::orderBy('ordre')->get(),
+        $etablissements = Etablissement::query()
+            ->when(
+                !$this->estSuperAdmin($user),
+                function ($query) use ($user) {
 
-        'series' => Serie::orderBy('libelle')->get(),
+                    $query->where(
+                        'id',
+                        $user->etablissement_id
+                    );
+                }
+            )
+            ->orderBy('nom')
+            ->get();
 
-        'maquettes' => Maquette::orderBy('libelle')->get(),
+        $anneeActive =
+            AnneeScolaire::active();
 
-    ]);
-}
+        return Inertia::render('Classes/Edit', [
+
+            'classe' =>
+            $classe,
+
+            'etablissements' =>
+            $etablissements,
+
+            'etablissementUtilisateur' =>
+            $user->etablissement,
+
+            'estSuperAdmin' =>
+            $this->estSuperAdmin($user),
+
+            'anneeActive' =>
+            $anneeActive,
+
+            'cycles' =>
+            Cycle::orderBy('libelle')->get(),
+
+            'niveaux' =>
+            Niveau::orderBy('ordre')->get(),
+
+            'series' =>
+            Serie::where('actif', true)
+                ->orderBy('ordre')
+                ->get(),
+
+            'maquettes' =>
+            Maquette::where('active', true)->get(),
+        ]);
+    }
 
     /**
      * Mise à jour.
      */
-    public function update(StoreClasseRequest $request, Classe $classe)
-    {
-        $classe->update($request->validated());
+    public function update(
+        StoreClasseRequest $request,
+        Classe $classe
+    ) {
+        $user = Auth::user();
+
+        /*
+        |--------------------------------------------------------------------------
+        | VÉRIFICATION D'ACCÈS
+        |--------------------------------------------------------------------------
+        */
+
+        $this->verifierAccesClasse(
+            $user,
+            $classe
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | PROFESSEUR INTERDIT
+        |--------------------------------------------------------------------------
+        */
+
+        abort_unless(
+            !$this->estProfesseur($user),
+            403,
+            'Les professeurs ne peuvent pas modifier une classe.'
+        );
+
+        $validated =
+            $request->validated();
+
+        /*
+        |--------------------------------------------------------------------------
+        | ANNÉE SCOLAIRE
+        |--------------------------------------------------------------------------
+        */
+
+        $validated['annee_scolaire_id'] =
+            $classe->annee_scolaire_id;
+
+        /*
+        |--------------------------------------------------------------------------
+        | ÉTABLISSEMENT
+        |--------------------------------------------------------------------------
+        */
+
+        if (!$this->estSuperAdmin($user)) {
+
+            $validated['etablissement_id'] =
+                $user->etablissement_id;
+        }
+
+        $classe->update($validated);
 
         return redirect()
             ->route('classes.index')
-            ->with('success', 'Classe modifiée avec succès.');
+            ->with(
+                'success',
+                'Classe modifiée avec succès.'
+            );
     }
 
     /**
@@ -110,10 +480,38 @@ class ClasseController extends Controller
      */
     public function destroy(Classe $classe)
     {
+        $user = Auth::user();
+
+        /*
+        |--------------------------------------------------------------------------
+        | VÉRIFICATION D'ACCÈS
+        |--------------------------------------------------------------------------
+        */
+
+        $this->verifierAccesClasse(
+            $user,
+            $classe
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | PROFESSEUR INTERDIT
+        |--------------------------------------------------------------------------
+        */
+
+        abort_unless(
+            !$this->estProfesseur($user),
+            403,
+            'Les professeurs ne peuvent pas supprimer une classe.'
+        );
+
         $classe->delete();
 
         return redirect()
             ->route('classes.index')
-            ->with('success', 'Classe supprimée avec succès.');
+            ->with(
+                'success',
+                'Classe supprimée avec succès.'
+            );
     }
 }

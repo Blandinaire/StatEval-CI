@@ -16,17 +16,36 @@ class HandleInertiaRequests extends Middleware
 
     public function share(Request $request): array
     {
-        return [
-            ...parent::share($request),
+        $user = $request->user();
+
+        $userData = null;
+
+        if ($user) {
+            // Charger le rôle Spatie
+            $user->load(['roles', 'etablissement']);
+
+            // Transformer le modèle en tableau
+            // afin de ne PAS ajouter "role" au modèle Eloquent
+            $userData = $user->toArray();
+
+            // Ajouter le rôle uniquement aux données
+            // envoyées à React
+            $userData['role'] = $user->getRoleNames()->first();
+        }
+
+        return array_merge(parent::share($request), [
 
             'auth' => [
-                'user' => $request->user(),
+                'user' => $userData,
             ],
 
             'flash' => [
-                'success' => fn () => $request->session()->get('success'),
-                'error' => fn () => $request->session()->get('error'),
+                'success' => fn() =>
+                    $request->session()->get('success'),
+
+                'import_error' => fn() =>
+                    $request->session()->get('import_error'),
             ],
-        ];
+        ]);
     }
 }

@@ -1,7 +1,8 @@
 import AdminLayout from "@/Layouts/AdminLayout";
+import ResponsiveTable from "@/Components/ResponsiveTable";
 import { Head, Link } from "@inertiajs/react";
 
-export default function Index({ educateurs }) {
+export default function Index({ educateurs, isSuperAdmin }) {
     return (
         <AdminLayout>
             <Head title="Éducateurs" />
@@ -9,13 +10,9 @@ export default function Index({ educateurs }) {
             <div className="space-y-6">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold">
-                            Éducateurs
-                        </h1>
+                        <h1 className="text-3xl font-bold">Éducateurs</h1>
 
-                        <p className="text-gray-500">
-                            Gestion des éducateurs de l'établissement
-                        </p>
+                        <p className="text-gray-500">Gestion des éducateurs</p>
                     </div>
 
                     <Link
@@ -26,15 +23,26 @@ export default function Index({ educateurs }) {
                     </Link>
                 </div>
 
-                <div className="overflow-hidden rounded-xl border bg-white">
-                    <table className="w-full">
+                <div className="bg-white rounded-xl shadow">
+                    <ResponsiveTable minWidth="850px">
                         <thead className="bg-gray-100">
                             <tr>
                                 <th className="p-3 text-left">Matricule</th>
+
                                 <th className="p-3 text-left">Nom</th>
+
                                 <th className="p-3 text-left">Prénoms</th>
+
+                                {isSuperAdmin && (
+                                    <th className="p-3 text-left">
+                                        Établissement
+                                    </th>
+                                )}
+
                                 <th className="p-3 text-left">Téléphone</th>
+
                                 <th className="p-3 text-left">Statut</th>
+
                                 <th className="p-3 text-center">Actions</th>
                             </tr>
                         </thead>
@@ -43,7 +51,7 @@ export default function Index({ educateurs }) {
                             {educateurs.length === 0 ? (
                                 <tr>
                                     <td
-                                        colSpan="6"
+                                        colSpan={isSuperAdmin ? 7 : 6}
                                         className="p-6 text-center text-gray-500"
                                     >
                                         Aucun éducateur enregistré.
@@ -51,21 +59,23 @@ export default function Index({ educateurs }) {
                                 </tr>
                             ) : (
                                 educateurs.map((educateur) => (
-                                    <tr
-                                        key={educateur.id}
-                                        className="border-t"
-                                    >
+                                    <tr key={educateur.id} className="border-t">
                                         <td className="p-3">
                                             {educateur.matricule}
                                         </td>
 
-                                        <td className="p-3">
-                                            {educateur.nom}
-                                        </td>
+                                        <td className="p-3">{educateur.nom}</td>
 
                                         <td className="p-3">
                                             {educateur.prenoms}
                                         </td>
+
+                                        {isSuperAdmin && (
+                                            <td className="p-3">
+                                                {educateur.etablissement?.nom ??
+                                                    "-"}
+                                            </td>
+                                        )}
 
                                         <td className="p-3">
                                             {educateur.telephone || "-"}
@@ -79,7 +89,7 @@ export default function Index({ educateurs }) {
                                             <Link
                                                 href={route(
                                                     "educateurs.edit",
-                                                    educateur.id
+                                                    educateur.id,
                                                 )}
                                                 className="rounded bg-blue-600 px-3 py-1 text-white hover:bg-blue-700"
                                             >
@@ -90,7 +100,7 @@ export default function Index({ educateurs }) {
                                 ))
                             )}
                         </tbody>
-                    </table>
+                    </ResponsiveTable>
                 </div>
             </div>
         </AdminLayout>

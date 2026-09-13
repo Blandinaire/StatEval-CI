@@ -72,23 +72,7 @@ class StoreAbsenceRequest extends FormRequest
                 'max:2000',
             ],
 
-            'numero_billet' => [
-                'nullable',
-                'string',
-                'max:255',
-                'unique:absences,numero_billet',
-            ],
-
-            'billet_edite' => [
-                'required',
-                'boolean',
-            ],
-
-            'billet_edite_le' => [
-                'nullable',
-                'date',
-            ],
-
+           
             'observation' => [
                 'nullable',
                 'string',

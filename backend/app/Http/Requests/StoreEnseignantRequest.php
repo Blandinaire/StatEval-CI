@@ -94,11 +94,11 @@ class StoreEnseignantRequest extends FormRequest
             ],
 
             'matricule' => [
-                'required',
+                'nullable',
                 'string',
                 'max:50',
                 Rule::unique('enseignants', 'matricule')
-        ->ignore($this->route('enseignant')),
+                    ->ignore($this->route('enseignant')),
             ],
 
             'matricule_fonction_publique' => [

@@ -10,6 +10,17 @@ use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
+
+
+Route::get('/change-password', function () {
+    return Inertia::render('Auth/ChangePassword');
+})->middleware('auth')->name('password.change');
+
+Route::get('/login/personnel-options', [
+    AuthenticatedSessionController::class,
+    'personnelOptions',
+])->name('login.personnel-options');
 
 Route::middleware('guest')->group(function () {
     Route::get('register', [RegisteredUserController::class, 'create'])

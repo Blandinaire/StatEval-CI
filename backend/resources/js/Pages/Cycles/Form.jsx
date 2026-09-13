@@ -1,7 +1,6 @@
-import { useForm } from "@inertiajs/react";
+import { Link, useForm } from "@inertiajs/react";
 
 export default function Form({ cycle = null }) {
-
     const { data, setData, post, put, processing, errors } = useForm({
         code: cycle?.code ?? "",
         libelle: cycle?.libelle ?? "",
@@ -21,11 +20,8 @@ export default function Form({ cycle = null }) {
 
     return (
         <form onSubmit={submit} className="space-y-6">
-
             <div>
-                <label className="block mb-2 font-semibold">
-                    Code
-                </label>
+                <label className="block mb-2 font-semibold">Code</label>
 
                 <input
                     type="text"
@@ -35,16 +31,12 @@ export default function Form({ cycle = null }) {
                 />
 
                 {errors.code && (
-                    <p className="text-red-600 text-sm mt-1">
-                        {errors.code}
-                    </p>
+                    <p className="text-red-600 text-sm mt-1">{errors.code}</p>
                 )}
             </div>
 
             <div>
-                <label className="block mb-2 font-semibold">
-                    Libellé
-                </label>
+                <label className="block mb-2 font-semibold">Libellé</label>
 
                 <input
                     type="text"
@@ -61,9 +53,7 @@ export default function Form({ cycle = null }) {
             </div>
 
             <div>
-                <label className="block mb-2 font-semibold">
-                    Ordre
-                </label>
+                <label className="block mb-2 font-semibold">Ordre</label>
 
                 <input
                     type="number"
@@ -73,14 +63,11 @@ export default function Form({ cycle = null }) {
                 />
 
                 {errors.ordre && (
-                    <p className="text-red-600 text-sm mt-1">
-                        {errors.ordre}
-                    </p>
+                    <p className="text-red-600 text-sm mt-1">{errors.ordre}</p>
                 )}
             </div>
 
             <div className="flex items-center gap-2">
-
                 <input
                     id="actif"
                     type="checkbox"
@@ -88,20 +75,29 @@ export default function Form({ cycle = null }) {
                     onChange={(e) => setData("actif", e.target.checked)}
                 />
 
-                <label htmlFor="actif">
-                    Cycle actif
-                </label>
-
+                <label htmlFor="actif">Cycle actif</label>
             </div>
 
-            <button
-                type="submit"
-                disabled={processing}
-                className="rounded-lg bg-blue-600 px-6 py-3 text-white hover:bg-blue-700"
-            >
-                {cycle ? "Mettre à jour" : "Créer le cycle"}
-            </button>
+            <div className="flex justify-end gap-4 border-t pt-6">
+                <Link
+                    href={route("cycles.index")}
+                    className="rounded-lg border border-gray-300 bg-white px-6 py-3 text-gray-700 hover:bg-gray-50"
+                >
+                    Annuler
+                </Link>
 
+                <button
+                    type="submit"
+                    disabled={processing}
+                    className="rounded-lg bg-blue-600 px-6 py-3 text-white hover:bg-blue-700 disabled:opacity-50"
+                >
+                    {processing
+                        ? "Enregistrement..."
+                        : cycle
+                          ? "Mettre à jour"
+                          : "Créer le cycle"}
+                </button>
+            </div>
         </form>
     );
 }

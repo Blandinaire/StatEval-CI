@@ -4,117 +4,299 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\StoreAnneeScolaireRequest;
 use App\Models\AnneeScolaire;
-use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 
 class AnneeScolaireController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Vérifie si l'utilisateur connecté est SuperAdmin.
      */
-    public function index()
-{
-    $annees = AnneeScolaire::orderByDesc('date_debut')
-        ->get()
-        ->map(function ($annee) {
-            return [
-                'id' => $annee->id,
-                'libelle' => $annee->libelle,
-                'date_debut' => $annee->date_debut->format('d/m/Y'),
-                'date_fin' => $annee->date_fin->format('d/m/Y'),
-                'active' => $annee->active,
-            ];
-        });
+    private function estSuperAdmin($user): bool
+    {
+        return $user->hasRole('SuperAdmin');
+    }
 
-    return inertia('AnneeScolaires/Index', [
-        'annees' => $annees,
-    ]);
-}
 
     /**
-     * Show the form for creating a new resource.
+     * Afficher la liste des années scolaires.
+     *
+     * Accessible en consultation aux utilisateurs autorisés.
+     */
+    public function index()
+    {
+        $user = Auth::user();
+
+        $annees = AnneeScolaire::orderByDesc('date_debut')
+            ->get()
+            ->map(function ($annee) {
+                return [
+                    'id' => $annee->id,
+                    'libelle' => $annee->libelle,
+                    'date_debut' =>
+                        $annee->date_debut->format('d/m/Y'),
+                    'date_fin' =>
+                        $annee->date_fin->format('d/m/Y'),
+                    'active' => $annee->active,
+                ];
+            });
+
+        return Inertia::render('AnneeScolaires/Index', [
+            'annees' => $annees,
+
+            /*
+            |----------------------------------------------------------
+            | Permet au frontend de savoir si les boutons
+            | de gestion doivent être affichés.
+            |----------------------------------------------------------
+            */
+
+            'estSuperAdmin' =>
+                $this->estSuperAdmin($user),
+        ]);
+    }
+
+
+    /**
+     * Afficher une année scolaire.
+     *
+     * Consultation autorisée.
+     */
+    public function show(AnneeScolaire $anneeScolaire)
+    {
+        $user = Auth::user();
+
+        return Inertia::render('AnneeScolaires/Show', [
+            'annee' => $anneeScolaire,
+
+            'estSuperAdmin' =>
+                $this->estSuperAdmin($user),
+        ]);
+    }
+
+
+    /**
+     * Afficher le formulaire de création.
+     *
+     * Exclusivement SuperAdmin.
      */
     public function create()
     {
-        return Inertia::render('AnneeScolaires/Create');
+        $user = Auth::user();
+
+        if (!$this->estSuperAdmin($user)) {
+            abort(403);
+        }
+
+        return Inertia::render(
+            'AnneeScolaires/Create'
+        );
     }
 
+
     /**
-     * Store a newly created resource in storage.
+     * Enregistrer une nouvelle année scolaire.
+     *
+     * Exclusivement SuperAdmin.
      */
     public function store(StoreAnneeScolaireRequest $request)
-{
-    $data = $request->validated();
-
-    // Si cette année est activée,
-    // désactiver toutes les autres.
-    if (!empty($data['active']) && $data['active']) {
-        AnneeScolaire::query()->update([
-            'active' => false,
-        ]);
-    }
-
-    AnneeScolaire::create($data);
-
-    return redirect()
-        ->route('annee-scolaires.index')
-        ->with('success', 'Année scolaire créée avec succès.');
-}
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
     {
-        //
+        $user = Auth::user();
+
+        if (!$this->estSuperAdmin($user)) {
+            abort(403);
+        }
+
+        $data = $request->validated();
+
+        DB::transaction(function () use ($data) {
+
+            /*
+            |----------------------------------------------------------
+            | Une seule année scolaire peut être active
+            |----------------------------------------------------------
+            */
+
+            if (!empty($data['active'])) {
+
+                AnneeScolaire::query()->update([
+                    'active' => false,
+                ]);
+            }
+
+
+            /*
+            |----------------------------------------------------------
+            | Création
+            |----------------------------------------------------------
+            */
+
+            AnneeScolaire::create([
+                'libelle' =>
+                    $data['libelle'],
+
+                'date_debut' =>
+                    $data['date_debut'],
+
+                'date_fin' =>
+                    $data['date_fin'],
+
+                'active' =>
+                    !empty($data['active']),
+            ]);
+        });
+
+        return redirect()
+            ->route('annee-scolaires.index')
+            ->with(
+                'success',
+                'Année scolaire créée avec succès.'
+            );
     }
 
+
     /**
-     * Show the form for editing the specified resource.
+     * Afficher le formulaire de modification.
+     *
+     * Exclusivement SuperAdmin.
      */
     public function edit(AnneeScolaire $anneeScolaire)
     {
-        return Inertia('AnneeScolaires/Edit', [
-            'annee' => $anneeScolaire,
-        ]);
-    }
-        //
+        $user = Auth::user();
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(StoreAnneeScolaireRequest $request, AnneeScolaire $anneeScolaire)
-{
+        if (!$this->estSuperAdmin($user)) {
+            abort(403);
+        }
 
-    if ($request->active) {
-        AnneeScolaire::query()->update([
-            'active' => false,
-        ]);
+        return Inertia::render(
+            'AnneeScolaires/Edit',
+            [
+                'annee' =>
+                    $anneeScolaire,
+            ]
+        );
     }
 
-    $anneeScolaire->update($request->validated());
-
-    return redirect()
-        ->route('annee-scolaires.index')
-        ->with('success', 'Année scolaire modifiée avec succès.');
-}
 
     /**
-     * Remove the specified resource from storage.
+     * Mettre à jour une année scolaire.
+     *
+     * Exclusivement SuperAdmin.
      */
-    public function destroy(AnneeScolaire $anneeScolaire)
-{
-    // Empêcher la suppression de l'année active
-    if ($anneeScolaire->active) {
+    public function update(
+        StoreAnneeScolaireRequest $request,
+        AnneeScolaire $anneeScolaire
+    ) {
+        $user = Auth::user();
+
+        if (!$this->estSuperAdmin($user)) {
+            abort(403);
+        }
+
+        $data = $request->validated();
+
+        DB::transaction(
+            function () use (
+                $data,
+                $anneeScolaire
+            ) {
+
+                /*
+                |------------------------------------------------------
+                | Si cette année devient active,
+                | désactiver toutes les autres.
+                |------------------------------------------------------
+                */
+
+                if (!empty($data['active'])) {
+
+                    AnneeScolaire::where(
+                        'id',
+                        '!=',
+                        $anneeScolaire->id
+                    )->update([
+                        'active' => false,
+                    ]);
+                }
+
+
+                /*
+                |------------------------------------------------------
+                | Mise à jour
+                |------------------------------------------------------
+                */
+
+                $anneeScolaire->update([
+                    'libelle' =>
+                        $data['libelle'],
+
+                    'date_debut' =>
+                        $data['date_debut'],
+
+                    'date_fin' =>
+                        $data['date_fin'],
+
+                    'active' =>
+                        !empty($data['active']),
+                ]);
+            }
+        );
+
         return redirect()
-            ->back()
-            ->with('error', "Impossible de supprimer l'année scolaire active.");
+            ->route('annee-scolaires.index')
+            ->with(
+                'success',
+                'Année scolaire modifiée avec succès.'
+            );
     }
 
-    $anneeScolaire->delete();
 
-    return redirect()
-        ->route('annee-scolaires.index')
-        ->with('success', 'Année scolaire supprimée avec succès.');
-}
+    /**
+     * Supprimer une année scolaire.
+     *
+     * Exclusivement SuperAdmin.
+     */
+    public function destroy(
+        AnneeScolaire $anneeScolaire
+    ) {
+        $user = Auth::user();
+
+        if (!$this->estSuperAdmin($user)) {
+            abort(403);
+        }
+
+
+        /*
+        |--------------------------------------------------------------
+        | Protection de l'année active
+        |--------------------------------------------------------------
+        */
+
+        if ($anneeScolaire->active) {
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    "Impossible de supprimer l'année scolaire active."
+                );
+        }
+
+
+        /*
+        |--------------------------------------------------------------
+        | Suppression
+        |--------------------------------------------------------------
+        */
+
+        $anneeScolaire->delete();
+
+        return redirect()
+            ->route('annee-scolaires.index')
+            ->with(
+                'success',
+                'Année scolaire supprimée avec succès.'
+            );
+    }
 }

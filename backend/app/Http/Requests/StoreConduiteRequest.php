@@ -14,16 +14,11 @@ class StoreConduiteRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'eleve_id' => [
+
+            'etablissement_id' => [
                 'required',
                 'integer',
-                'exists:eleves,id',
-            ],
-
-            'educateur_id' => [
-                'nullable',
-                'integer',
-                'exists:educateurs,id',
+                'exists:etablissements,id',
             ],
 
             'annee_scolaire_id' => [
@@ -33,29 +28,75 @@ class StoreConduiteRequest extends FormRequest
             ],
 
             'classe_id' => [
-                'nullable',
+                'required',
                 'integer',
                 'exists:classes,id',
             ],
 
-            'evaluation_id' => [
+            'educateur_id' => [
                 'nullable',
                 'integer',
-                'exists:evaluations,id',
+                'exists:educateurs,id',
             ],
 
-            'note' => [
+            'periode' => [
                 'required',
+                'string',
+                'in:trimestre_1,trimestre_2,trimestre_3,semestre_1,semestre_2',
+            ],
+
+            'notes' => [
+                'required',
+                'array',
+                'min:1',
+            ],
+
+            'notes.*.eleve_id' => [
+                'required',
+                'integer',
+                'exists:eleves,id',
+            ],
+
+            'notes.*.note' => [
+                'nullable',
                 'numeric',
                 'min:0',
                 'max:20',
             ],
 
-            'observation' => [
+            'notes.*.observation' => [
                 'nullable',
                 'string',
                 'max:2000',
             ],
+
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+
+            'etablissement_id.required' =>
+                'Veuillez sélectionner un établissement.',
+
+            'annee_scolaire_id.required' =>
+                'Veuillez sélectionner une année scolaire.',
+
+            'classe_id.required' =>
+                'Veuillez sélectionner une classe.',
+
+            'periode.required' =>
+                'Veuillez sélectionner une période.',
+
+            'notes.required' =>
+                'Aucun élève à enregistrer.',
+
+            'notes.*.note.max' =>
+                'La note ne peut pas dépasser 20.',
+
+            'notes.*.note.min' =>
+                'La note ne peut pas être inférieure à 0.',
         ];
     }
 }

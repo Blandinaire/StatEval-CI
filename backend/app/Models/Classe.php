@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Classe extends Model
 {
@@ -59,5 +60,10 @@ class Classe extends Model
     public function maquette()
     {
         return $this->belongsTo(Maquette::class);
+    }
+
+    public function affectationsEducateurs(): HasMany
+    {
+        return $this->hasMany(EducateurClasse::class);
     }
 }

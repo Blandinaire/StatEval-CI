@@ -1,4 +1,5 @@
 import AdminLayout from "@/Layouts/AdminLayout";
+import ResponsiveTable from "@/Components/ResponsiveTable";
 import { Head, Link, useForm } from "@inertiajs/react";
 
 export default function Create({ evaluation, eleves, notes }) {
@@ -431,8 +432,8 @@ export default function Create({ evaluation, eleves, notes }) {
 
                                 <p className="mt-1 text-sm text-gray-500">
                                     {listeEleves.length} élève
-                                    {listeEleves.length > 1 ? "s" : ""} dans cette
-                                    classe
+                                    {listeEleves.length > 1 ? "s" : ""} dans
+                                    cette classe
                                 </p>
                             </div>
 
@@ -443,8 +444,8 @@ export default function Create({ evaluation, eleves, notes }) {
                     </div>
 
                     <form onSubmit={submit}>
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
+                        <div className="bg-white rounded-xl shadow">
+                            <ResponsiveTable minWidth="2000px">
                                 <thead className="bg-gray-100">
                                     <tr>
                                         <th className="px-4 py-4 text-left">
@@ -679,7 +680,7 @@ export default function Create({ evaluation, eleves, notes }) {
                                         })
                                     )}
                                 </tbody>
-                            </table>
+                            </ResponsiveTable>
                         </div>
 
                         {/* =================================================
@@ -706,7 +707,9 @@ export default function Create({ evaluation, eleves, notes }) {
 
                             <button
                                 type="submit"
-                                disabled={processing || listeEleves.length === 0}
+                                disabled={
+                                    processing || listeEleves.length === 0
+                                }
                                 className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {processing

@@ -4,7 +4,13 @@ import Form from "./Form";
 
 export default function Create() {
 
-    const { data, setData, post, processing, errors } = useForm({
+    const {
+        data,
+        setData,
+        post,
+        processing,
+        errors
+    } = useForm({
         libelle: "",
         date_debut: "",
         date_fin: "",
@@ -26,7 +32,7 @@ export default function Create() {
 
                 <div className="bg-white rounded-xl shadow p-8">
 
-                    <h1 className="text-3xl font-bold mb-8">
+                    <h1 className="text-3xl font-bold mb-8 text-gray-800">
                         Nouvelle année scolaire
                     </h1>
 

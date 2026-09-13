@@ -5,6 +5,7 @@ import {
     SelectField,
     PrimaryButton,
 } from "@/Components";
+import { Link } from "@inertiajs/react";
 
 export default function Form({
     maquette,
@@ -15,10 +16,10 @@ export default function Form({
     processing,
     submit,
     submitLabel,
+    showCancel = false,
 }) {
     return (
         <div className="space-y-6">
-
             <PageHeader
                 title={
                     submitLabel === "Créer"
@@ -29,33 +30,23 @@ export default function Form({
             />
 
             <FormCard>
-
                 <form onSubmit={submit} className="space-y-5">
-
                     <SelectField
                         label="Matière"
                         value={data.matiere_id}
                         error={errors.matiere_id}
-                        onChange={(e) =>
-                            setData("matiere_id", e.target.value)
-                        }
+                        onChange={(e) => setData("matiere_id", e.target.value)}
                     >
-                        <option value="">
-                            Choisir une matière
-                        </option>
+                        <option value="">Choisir une matière</option>
 
                         {matieres.map((matiere) => (
-                            <option
-                                key={matiere.id}
-                                value={matiere.id}
-                            >
+                            <option key={matiere.id} value={matiere.id}>
                                 {matiere.libelle}
                             </option>
                         ))}
                     </SelectField>
 
                     <div className="grid grid-cols-2 gap-4">
-
                         <TextField
                             label="Coefficient"
                             type="number"
@@ -63,10 +54,7 @@ export default function Form({
                             value={data.coefficient}
                             error={errors.coefficient}
                             onChange={(e) =>
-                                setData(
-                                    "coefficient",
-                                    e.target.value
-                                )
+                                setData("coefficient", e.target.value)
                             }
                         />
 
@@ -77,52 +65,36 @@ export default function Form({
                             value={data.volume_horaire}
                             error={errors.volume_horaire}
                             onChange={(e) =>
-                                setData(
-                                    "volume_horaire",
-                                    e.target.value
-                                )
+                                setData("volume_horaire", e.target.value)
                             }
                         />
-
-                        
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
-
                         <label className="flex items-center gap-2">
-
                             <input
                                 type="checkbox"
                                 checked={data.obligatoire}
                                 onChange={(e) =>
-                                    setData(
-                                        "obligatoire",
-                                        e.target.checked
-                                    )
+                                    setData("obligatoire", e.target.checked)
                                 }
                             />
-
                             Obligatoire
-
                         </label>
 
                         <label className="flex items-center gap-2">
-
                             <input
                                 type="checkbox"
                                 checked={data.prise_en_compte_moyenne}
                                 onChange={(e) =>
                                     setData(
                                         "prise_en_compte_moyenne",
-                                        e.target.checked
+                                        e.target.checked,
                                     )
                                 }
                             />
-
                             Compter dans la moyenne
-
                         </label>
-
                     </div>
 
                     <TextField
@@ -130,27 +102,28 @@ export default function Form({
                         type="number"
                         value={data.note_sur}
                         error={errors.note_sur}
-                        onChange={(e) =>
-                            setData(
-                                "note_sur",
-                                e.target.value
-                            )
-                        }
+                        onChange={(e) => setData("note_sur", e.target.value)}
                     />
 
-                    <PrimaryButton
-                        type="submit"
-                        disabled={processing}
-                    >
-                        {processing
-                            ? "Enregistrement..."
-                            : submitLabel}
-                    </PrimaryButton>
+                    <div className="flex items-center gap-3">
+                        {showCancel && (
+                            <Link
+                                href={route(
+                                    "maquettes.matieres.index",
+                                    maquette.id,
+                                )}
+                                className="inline-flex items-center rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 hover:bg-gray-50"
+                            >
+                                Annuler
+                            </Link>
+                        )}
 
+                        <PrimaryButton type="submit" disabled={processing}>
+                            {processing ? "Enregistrement..." : submitLabel}
+                        </PrimaryButton>
+                    </div>
                 </form>
-
             </FormCard>
-
         </div>
     );
 }

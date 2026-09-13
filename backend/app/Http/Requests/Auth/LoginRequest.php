@@ -6,61 +6,107 @@ use Illuminate\Auth\Events\Lockout;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class LoginRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         return [
-            'email' => ['required', 'string', 'email'],
-            'password' => ['required', 'string'],
+            'mode' => ['required', 'in:superadmin,personnel'],
+
+            'email' => [
+                'required_if:mode,superadmin',
+                'nullable',
+                'email',
+            ],
+
+            'etablissement_id' => [
+                'required_if:mode,personnel',
+                'nullable',
+                'integer',
+                'exists:etablissements,id',
+            ],
+
+            'role' => [
+                'required_if:mode,personnel',
+                'nullable',
+                'string',
+                'in:Administrateur,Direction,Professeur,Educateur',
+            ],
+
+            'user_id' => [
+                'required_if:mode,personnel',
+                'nullable',
+                'integer',
+                'exists:users,id',
+            ],
+
+            'password' => [
+                'required',
+                'string',
+            ],
+
+            'remember' => [
+                'boolean',
+            ],
         ];
     }
 
-    /**
-     * Attempt to authenticate the request's credentials.
-     *
-     * @throws ValidationException
-     */
     public function authenticate(): void
     {
         $this->ensureIsNotRateLimited();
 
-        if (! Auth::attempt($this->only('email', 'password'), $this->boolean('remember'))) {
-            RateLimiter::hit($this->throttleKey());
+        if ($this->mode === 'superadmin') {
+            $success = Auth::attempt([
+                'email' => $this->email,
+                'password' => $this->password,
+                'actif' => true,
+            ], $this->boolean('remember'));
 
-            throw ValidationException::withMessages([
-                'email' => trans('auth.failed'),
-            ]);
+            if (!$success) {
+                RateLimiter::hit($this->throttleKey());
+
+                throw ValidationException::withMessages([
+                    'email' => 'Identifiants incorrects.',
+                ]);
+            }
+        } else {
+            $user = \App\Models\User::with('roles')
+                ->where('id', $this->user_id)
+                ->where('etablissement_id', $this->etablissement_id)
+                ->where('actif', true)
+                ->first();
+
+            if (
+                !$user ||
+                !$user->hasRole($this->role) ||
+                !Hash::check($this->password, $user->password)
+            ) {
+                RateLimiter::hit($this->throttleKey());
+
+                throw ValidationException::withMessages([
+                    'user_id' => 'Identifiants incorrects.',
+                ]);
+            }
+
+            Auth::login($user, $this->boolean('remember'));
         }
 
         RateLimiter::clear($this->throttleKey());
     }
 
-    /**
-     * Ensure the login request is not rate limited.
-     *
-     * @throws ValidationException
-     */
     public function ensureIsNotRateLimited(): void
     {
-        if (! RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
+        if (!RateLimiter::tooManyAttempts($this->throttleKey(), 5)) {
             return;
         }
 
@@ -69,18 +115,24 @@ class LoginRequest extends FormRequest
         $seconds = RateLimiter::availableIn($this->throttleKey());
 
         throw ValidationException::withMessages([
-            'email' => trans('auth.throttle', [
-                'seconds' => $seconds,
-                'minutes' => ceil($seconds / 60),
-            ]),
+            'password' => "Trop de tentatives. Réessayez dans {$seconds} secondes.",
         ]);
     }
 
-    /**
-     * Get the rate limiting throttle key for the request.
-     */
     public function throttleKey(): string
     {
-        return Str::transliterate(Str::lower($this->string('email')).'|'.$this->ip());
+        if ($this->mode === 'superadmin') {
+            return Str::transliterate(
+                Str::lower($this->email) . '|' . $this->ip()
+            );
+        }
+
+        return implode('|', [
+            'personnel',
+            $this->etablissement_id,
+            $this->role,
+            $this->user_id,
+            $this->ip(),
+        ]);
     }
 }

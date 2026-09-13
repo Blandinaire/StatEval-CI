@@ -5,6 +5,7 @@ export default function MenuItem({
     icon: Icon,
     children,
     activeMatch = null,
+    onClick,
 }) {
     const { url } = usePage();
 
@@ -12,19 +13,25 @@ export default function MenuItem({
         ? activeMatch.some((prefix) => url.startsWith(prefix))
         : url === href || url.startsWith(`${href}/`);
 
+    const handleClick = () => {
+        if (onClick) {
+            onClick();
+        }
+    };
+
     return (
         <Link
             href={href}
-            className={`flex items-center gap-3 rounded-lg px-4 py-3 transition
-                ${
-                    active
-                        ? "bg-blue-600 text-white"
-                        : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                }`}
+            onClick={handleClick}
+            className={`flex items-center gap-3 rounded-lg px-4 py-3 transition ${
+                active
+                    ? "bg-blue-600 text-white"
+                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+            }`}
         >
-            <Icon size={20} />
+            <Icon size={20} className="shrink-0" />
 
-            <span>{children}</span>
+            <span className="truncate">{children}</span>
         </Link>
     );
 }

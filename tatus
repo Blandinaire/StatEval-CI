@@ -1,0 +1,56 @@
+warning: in the working copy of 'backend/app/Services/MaquetteMatiereService.php', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'backend/resources/js/Components/Header.jsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'backend/resources/js/Components/Sidebar.jsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'backend/resources/js/Pages/Eleves/Create.jsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'backend/resources/js/Pages/Eleves/Edit.jsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'backend/resources/js/Pages/Eleves/Form.jsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'backend/resources/js/Pages/Evaluations/Create.jsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'backend/resources/js/Pages/Evaluations/Edit.jsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'backend/resources/js/Pages/Maquettes/Index.jsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'backend/resources/js/Pages/Maquettes/Show.jsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'backend/resources/js/Pages/MaquettesMatieres/Create.jsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'backend/resources/js/Pages/MaquettesMatieres/Edit.jsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'backend/resources/js/Pages/MaquettesMatieres/Form.jsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'backend/resources/js/Pages/MaquettesMatieres/Index.jsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'backend/resources/js/Pages/Notes/Create.jsx', CRLF will be replaced by LF the next time Git touches it
+warning: in the working copy of 'backend/resources/js/Pages/Statistiques/Index.jsx', CRLF will be replaced by LF the next time Git touches it
+ CHANGELOG.md                                       |   43 [32m+[m
+ .../app/Http/Controllers/DashboardController.php   |  130 [32m+[m[31m-[m
+ backend/app/Http/Controllers/EleveController.php   |  224 [32m+++[m[31m-[m
+ .../app/Http/Controllers/EvaluationController.php  |   45 [32m+[m
+ .../app/Http/Controllers/MaquetteController.php    |    2 [32m+[m[31m-[m
+ .../Http/Controllers/MaquetteMatiereController.php |  114 [32m+[m[31m-[m
+ .../app/Http/Controllers/StatistiqueController.php |    9 [32m+[m[31m-[m
+ backend/app/Http/Requests/StoreEleveRequest.php    |  300 [32m++++[m[31m-[m
+ .../Http/Requests/StoreMaquetteMatiereRequest.php  |   96 [32m+[m[31m-[m
+ backend/app/Models/Eleve.php                       |  119 [32m+[m[31m-[m
+ backend/app/Models/Enseignant.php                  |    6 [32m+[m[31m-[m
+ backend/app/Models/Matiere.php                     |   46 [32m+[m[31m-[m
+ backend/app/Models/User.php                        |   14 [32m+[m[31m-[m
+ backend/app/Services/MaquetteMatiereService.php    |  109 [32m+[m[31m-[m
+ backend/composer.json                              |    1 [32m+[m
+ backend/composer.lock                              |  590 [32m+++++++++[m[31m-[m
+ .../0001_01_01_000000_create_users_table.php       |    7 [32m+[m[31m-[m
+ backend/database/seeders/CycleSeeder.php           |   15 [32m+[m[31m-[m
+ backend/database/seeders/DatabaseSeeder.php        |    4 [32m+[m[31m-[m
+ backend/database/seeders/RoleSeeder.php            |    3 [32m+[m[31m-[m
+ backend/database/seeders/SerieSeeder.php           |   33 [32m+[m[31m-[m
+ backend/resources/js/Components/Header.jsx         |   27 [32m+[m[31m-[m
+ backend/resources/js/Components/Sidebar.jsx        |  133 [32m+[m[31m--[m
+ backend/resources/js/Pages/Dashboard.jsx           |  315 [32m+++[m[31m--[m
+ backend/resources/js/Pages/Eleves/Create.jsx       |  124 [32m+[m[31m-[m
+ backend/resources/js/Pages/Eleves/Edit.jsx         |  153 [32m++[m[31m-[m
+ backend/resources/js/Pages/Eleves/Form.jsx         |  391 [32m+++++[m[31m-[m
+ backend/resources/js/Pages/Evaluations/Create.jsx  | 1245 [32m+++++++++++[m[31m---------[m
+ backend/resources/js/Pages/Evaluations/Edit.jsx    |  527 [32m++++++[m[31m---[m
+ backend/resources/js/Pages/Maquettes/Index.jsx     |  250 [32m++[m[31m--[m
+ backend/resources/js/Pages/Maquettes/Show.jsx      |  132 [32m++[m[31m-[m
+ .../js/Pages/MaquettesMatieres/Create.jsx          |    2 [31m-[m
+ .../resources/js/Pages/MaquettesMatieres/Edit.jsx  |    2 [31m-[m
+ .../resources/js/Pages/MaquettesMatieres/Form.jsx  |   16 [32m+[m[31m-[m
+ .../resources/js/Pages/MaquettesMatieres/Index.jsx |  336 [32m++++[m[31m--[m
+ backend/resources/js/Pages/Notes/Create.jsx        |  510 [32m+++++[m[31m---[m
+ backend/resources/js/Pages/Statistiques/Index.jsx  |    1 [31m-[m
+ backend/resources/js/app.jsx                       |   38 [32m+[m[31m-[m
+ backend/routes/web.php                             |   32 [32m+[m
+ 39 files changed, 4498 insertions(+), 1646 deletions(-)
