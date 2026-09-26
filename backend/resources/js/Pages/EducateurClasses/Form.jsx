@@ -1,5 +1,5 @@
 import { Link, useForm } from "@inertiajs/react";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 
 export default function Form({
     affectation = null,
@@ -31,6 +31,33 @@ export default function Form({
             actif:
                 affectation?.actif ?? true,
         });
+
+    /*
+     * Lors d'une navigation Inertia avec conservation d'Ã©tat, les props
+     * peuvent arriver aprÃ¨s l'initialisation de useForm. On resynchronise
+     * alors les valeurs de la ligne Ã  modifier.
+     */
+    useEffect(() => {
+        if (!affectation) {
+            return;
+        }
+
+        setData({
+            etablissement_id: String(affectation.etablissement_id ?? ""),
+            annee_scolaire_id: String(affectation.annee_scolaire_id ?? ""),
+            educateur_id: String(affectation.educateur_id ?? ""),
+            classe_id: String(affectation.classe_id ?? ""),
+            actif: Boolean(affectation.actif),
+        });
+    }, [
+        affectation?.id,
+        affectation?.etablissement_id,
+        affectation?.annee_scolaire_id,
+        affectation?.educateur_id,
+        affectation?.classe_id,
+        affectation?.actif,
+        setData,
+    ]);
 
     /*
      * Éducateurs correspondant à l'établissement.

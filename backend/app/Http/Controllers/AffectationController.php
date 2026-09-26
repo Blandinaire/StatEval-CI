@@ -8,50 +8,101 @@ use App\Models\AnneeScolaire;
 use App\Models\Classe;
 use App\Models\Etablissement;
 use App\Models\Enseignant;
+use App\Models\Evaluation;
 use App\Models\Matiere;
+use App\Models\Niveau;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 
 class AffectationController extends Controller
 {
+    /**
+     * Vérifie que l'utilisateur peut gérer les affectations.
+     */
+    private function ensureCanManageAffectations(): void
+    {
+        $user = auth()->user();
 
+        abort_unless(
+            $user &&
+                $user->hasAnyRole([
+                    'SuperAdmin',
+                    'Administrateur',
+                    'Direction',
+                ]),
+            403
+        );
+    }
 
     /**
-     * Applique automatiquement la restriction
-     * par établissement uniquement si la table
-     * possède réellement la colonne etablissement_id.
+     * Synchronise les enseignants des évaluations
+     * programmées par l'administration.
+     */
+    private function synchroniserEvaluationsProgrammees(
+        Affectation $affectation
+    ): void {
+        $evaluations = Evaluation::query()
+            ->where('origine', 'administration')
+            ->where(
+                'etablissement_id',
+                $affectation->etablissement_id
+            )
+            ->where(
+                'annee_scolaire_id',
+                $affectation->annee_scolaire_id
+            )
+            ->where(
+                'matiere_id',
+                $affectation->matiere_id
+            )
+            ->whereHas('classes', function ($query) use ($affectation) {
+                $query->where(
+                    'classes.id',
+                    $affectation->classe_id
+                );
+            })
+            ->get();
+
+        foreach ($evaluations as $evaluation) {
+            $enseignantId = $affectation->actif
+                ? $affectation->enseignant_id
+                : null;
+
+            $evaluation->classes()->updateExistingPivot(
+                $affectation->classe_id,
+                [
+                    'enseignant_id' => $enseignantId,
+                ]
+            );
+
+            if (
+                (int) $evaluation->classe_id ===
+                (int) $affectation->classe_id
+            ) {
+                $evaluation->update([
+                    'enseignant_id' => $enseignantId,
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Restriction automatique à l'établissement courant
+     * lorsque la table possède réellement cette colonne.
      */
     private function restrictToCurrentEtablissement(
         Builder $query,
         string $modelClass
     ): Builder {
-        /*
-        |--------------------------------------------------------------------------
-        | SuperAdmin
-        |--------------------------------------------------------------------------
-        |
-        | Le SuperAdmin voit toutes les données.
-        |
-        */
-
         if ($this->isSuperAdmin()) {
             return $query;
         }
 
-        $etablissementId = $this->currentEtablissementId();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Vérification de la colonne
-        |--------------------------------------------------------------------------
-        |
-        | Certaines tables, comme annee_scolaires,
-        | sont actuellement globales et ne possèdent
-        | pas etablissement_id.
-        |
-        */
+        $etablissementId =
+            $this->currentEtablissementId();
 
         $model = new $modelClass;
 
@@ -74,12 +125,14 @@ class AffectationController extends Controller
     }
 
     /**
-     * Vérifie que l'utilisateur peut accéder
-     * à une affectation.
+     * Vérifie qu'une affectation appartient
+     * à l'établissement accessible.
      */
     private function ensureCanAccessAffectation(
         Affectation $affectation
     ): void {
+        $this->ensureCanManageAffectations();
+
         if ($this->isSuperAdmin()) {
             return;
         }
@@ -87,49 +140,324 @@ class AffectationController extends Controller
         $etablissementId =
             $this->currentEtablissementId();
 
-        if (
-            (int) $affectation->etablissement_id
-            !==
-            (int) $etablissementId
-        ) {
-            abort(403);
-        }
+        abort_unless(
+            (int) $affectation->etablissement_id ===
+                (int) $etablissementId,
+            403
+        );
     }
 
     /**
      * Liste des affectations.
      */
-    public function index()
+    public function index(Request $request)
     {
-        $query = Affectation::with([
-            'etablissement',
-            'anneeScolaire',
-            'classe',
-            'matiere',
-            'enseignant',
-        ]);
+        $this->ensureCanManageAffectations();
+
+        $isSuperAdmin =
+            $this->isSuperAdmin();
+
+        $etablissementId =
+            $this->currentEtablissementId();
 
         /*
         |--------------------------------------------------------------------------
-        | Restriction établissement
+        | QUERY PRINCIPALE
         |--------------------------------------------------------------------------
         */
 
-        if (! $this->isSuperAdmin()) {
+        $query = Affectation::query()
+            ->with([
+                'etablissement',
+                'anneeScolaire',
+                'classe.niveau',
+                'matiere',
+                'enseignant',
+            ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | ÉTABLISSEMENT
+        |--------------------------------------------------------------------------
+        */
+
+        if (! $isSuperAdmin) {
             $query->where(
                 'etablissement_id',
-                $this->currentEtablissementId()
+                $etablissementId
+            );
+        } elseif ($request->filled('etablissement_id')) {
+            $query->where(
+                'etablissement_id',
+                $request->integer('etablissement_id')
             );
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | ANNÉE SCOLAIRE
+        |--------------------------------------------------------------------------
+        */
+
+        if ($request->filled('annee_scolaire_id')) {
+            $query->where(
+                'annee_scolaire_id',
+                $request->integer('annee_scolaire_id')
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | NIVEAU
+        |--------------------------------------------------------------------------
+        */
+
+        if ($request->filled('niveau_id')) {
+            $query->whereHas(
+                'classe',
+                function ($q) use ($request) {
+                    $q->where(
+                        'niveau_id',
+                        $request->integer('niveau_id')
+                    );
+                }
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | CLASSE
+        |--------------------------------------------------------------------------
+        */
+
+        if ($request->filled('classe_id')) {
+            $query->where(
+                'classe_id',
+                $request->integer('classe_id')
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | MATIÈRE
+        |--------------------------------------------------------------------------
+        */
+
+        if ($request->filled('matiere_id')) {
+            $query->where(
+                'matiere_id',
+                $request->integer('matiere_id')
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | ENSEIGNANT
+        |--------------------------------------------------------------------------
+        */
+
+        if ($request->filled('enseignant_id')) {
+            $query->where(
+                'enseignant_id',
+                $request->integer('enseignant_id')
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | STATUT
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $request->has('actif') &&
+            $request->input('actif') !== ''
+        ) {
+            $query->where(
+                'actif',
+                $request->input('actif') === '1'
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | RÉSULTATS
+        |--------------------------------------------------------------------------
+        */
 
         $affectations = $query
             ->orderByDesc('id')
             ->get();
 
+        /*
+        |--------------------------------------------------------------------------
+        | DONNÉES POUR LES FILTRES
+        |--------------------------------------------------------------------------
+        */
+
+        /*
+        | Établissements
+        */
+
+        $etablissementsQuery =
+            Etablissement::query();
+
+        if (! $isSuperAdmin) {
+            $etablissementsQuery->where(
+                'id',
+                $etablissementId
+            );
+        }
+
+        $etablissements =
+            $etablissementsQuery
+            ->orderBy('nom')
+            ->get();
+
+        /*
+        | Années scolaires
+        */
+
+        $annees = AnneeScolaire::query()
+            ->orderByDesc('date_debut')
+            ->get();
+
+        /*
+        | Niveaux
+        */
+
+        $niveaux = Niveau::query()
+            ->orderBy('ordre')
+            ->get();
+
+        /*
+        | Classes
+        */
+
+        $classesQuery = Classe::query()
+            ->with('niveau');
+
+        if (! $isSuperAdmin) {
+            $classesQuery->where(
+                'etablissement_id',
+                $etablissementId
+            );
+        }
+
+        $classes = $classesQuery
+            ->orderBy('libelle')
+            ->get();
+
+        /*
+        | Matières
+        */
+
+        $matieres =
+            $this->restrictToCurrentEtablissement(
+                Matiere::query(),
+                Matiere::class
+            )
+            ->orderBy('libelle')
+            ->get();
+
+        /*
+        | Enseignants
+        */
+
+        $enseignantsQuery = Enseignant::query()
+            ->where('actif', true);
+
+        if (! $isSuperAdmin) {
+            $enseignantsQuery->where(
+                'etablissement_id',
+                $etablissementId
+            );
+        }
+
+        $enseignants = $enseignantsQuery
+            ->orderBy('nom')
+            ->orderBy('prenoms')
+            ->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | RÉPONSE INERTIA
+        |--------------------------------------------------------------------------
+        */
+
         return Inertia::render(
             'Affectations/Index',
             [
-                'affectations' => $affectations,
+                'affectations' =>
+                $affectations,
+
+                'filtres' => [
+                    'etablissement_id' =>
+                    $request->input(
+                        'etablissement_id',
+                        ''
+                    ),
+
+                    'annee_scolaire_id' =>
+                    $request->input(
+                        'annee_scolaire_id',
+                        ''
+                    ),
+
+                    'niveau_id' =>
+                    $request->input(
+                        'niveau_id',
+                        ''
+                    ),
+
+                    'classe_id' =>
+                    $request->input(
+                        'classe_id',
+                        ''
+                    ),
+
+                    'matiere_id' =>
+                    $request->input(
+                        'matiere_id',
+                        ''
+                    ),
+
+                    'enseignant_id' =>
+                    $request->input(
+                        'enseignant_id',
+                        ''
+                    ),
+
+                    'actif' =>
+                    $request->input(
+                        'actif',
+                        '1'
+                    ),
+                ],
+
+                'etablissements' =>
+                $etablissements,
+
+                'annees' =>
+                $annees,
+
+                'niveaux' =>
+                $niveaux,
+
+                'classes' =>
+                $classes,
+
+                'matieres' =>
+                $matieres,
+
+                'enseignants' =>
+                $enseignants,
+
+                'isSuperAdmin' =>
+                $isSuperAdmin,
+
+                'canManage' =>
+                true,
             ]
         );
     }
@@ -139,6 +467,8 @@ class AffectationController extends Controller
      */
     public function create()
     {
+        $this->ensureCanManageAffectations();
+
         $isSuperAdmin =
             $this->isSuperAdmin();
 
@@ -168,33 +498,36 @@ class AffectationController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | ANNÉES SCOLAIRES
+        | ANNÉES
         |--------------------------------------------------------------------------
-        |
-        | Restriction appliquée seulement si
-        | la table possède etablissement_id.
-        |
         */
 
         $annees =
-            $this->restrictToCurrentEtablissement(
-                AnneeScolaire::query(),
-                AnneeScolaire::class
-            )
+            AnneeScolaire::query()
             ->orderByDesc('date_debut')
             ->get();
 
         /*
         |--------------------------------------------------------------------------
-        | CLASSES
+        | CLASSES + MAQUETTES
         |--------------------------------------------------------------------------
         */
 
+        $classesQuery =
+            Classe::query()
+            ->with([
+                'maquette.lignes.matiere.enfants',
+            ]);
+
+        if (! $isSuperAdmin) {
+            $classesQuery->where(
+                'etablissement_id',
+                $etablissementId
+            );
+        }
+
         $classes =
-            $this->restrictToCurrentEtablissement(
-                Classe::query(),
-                Classe::class
-            )
+            $classesQuery
             ->orderBy('libelle')
             ->get();
 
@@ -218,28 +551,78 @@ class AffectationController extends Controller
         |--------------------------------------------------------------------------
         */
 
+        $enseignantsQuery =
+            Enseignant::query()
+            ->where('actif', true);
+
+        if (! $isSuperAdmin) {
+            $enseignantsQuery->where(
+                'etablissement_id',
+                $etablissementId
+            );
+        }
+
         $enseignants =
-            $this->restrictToCurrentEtablissement(
-                Enseignant::query(),
-                Enseignant::class
-            )
+            $enseignantsQuery
             ->orderBy('nom')
             ->orderBy('prenoms')
             ->get();
 
+        /*
+        |--------------------------------------------------------------------------
+        | AFFECTATIONS EXISTANTES
+        |--------------------------------------------------------------------------
+        */
+
+        $affectationsExistantesQuery =
+            Affectation::query()
+            ->with('enseignant')
+            ->whereIn(
+                'classe_id',
+                $classes->pluck('id')
+            );
+
+        if (! $isSuperAdmin) {
+            $affectationsExistantesQuery->where(
+                'etablissement_id',
+                $etablissementId
+            );
+        }
+
+        $affectationsExistantes =
+            $affectationsExistantesQuery
+            ->get([
+                'id',
+                'etablissement_id',
+                'annee_scolaire_id',
+                'classe_id',
+                'matiere_id',
+                'enseignant_id',
+                'coefficient',
+                'volume_horaire',
+                'actif',
+            ]);
+
         return Inertia::render(
             'Affectations/Create',
             [
+                'etablissements' =>
+                $etablissements,
 
-                'etablissements' => $etablissements,
+                'annees' =>
+                $annees,
 
-                'annees' => $annees,
+                'classes' =>
+                $classes,
 
-                'classes' => $classes,
+                'matieres' =>
+                $matieres,
 
-                'matieres' => $matieres,
+                'enseignants' =>
+                $enseignants,
 
-                'enseignants' => $enseignants,
+                'affectationsExistantes' =>
+                $affectationsExistantes,
 
                 'isSuperAdmin' =>
                 $isSuperAdmin,
@@ -248,28 +631,71 @@ class AffectationController extends Controller
                 $isSuperAdmin
                     ? null
                     : $etablissementId,
-
             ]
         );
     }
 
     /**
-     * Enregistrement d'une affectation.
+     * Enregistrement groupé des affectations
+     * pour une même classe.
      */
-    public function store(
-        StoreAffectationRequest $request
-    ) {
-        $data = $request->validated();
+    public function storeBulk(Request $request)
+    {
+        $this->ensureCanManageAffectations();
 
         /*
         |--------------------------------------------------------------------------
-        | Sécurité établissement
+        | VALIDATION
         |--------------------------------------------------------------------------
         |
-        | Un utilisateur autre que SuperAdmin
-        | ne peut jamais créer une affectation
-        | dans un autre établissement.
+        | IMPORTANT :
+        | Le coefficient et le volume horaire ne viennent plus
+        | du navigateur. Ils sont récupérés depuis la maquette.
         |
+        */
+
+        $data = $request->validate([
+            'etablissement_id' => [
+                'required',
+                'exists:etablissements,id',
+            ],
+
+            'annee_scolaire_id' => [
+                'required',
+                'exists:annee_scolaires,id',
+            ],
+
+            'classe_id' => [
+                'required',
+                'exists:classes,id',
+            ],
+
+            'affectations' => [
+                'required',
+                'array',
+                'min:1',
+            ],
+
+            'affectations.*.matiere_id' => [
+                'required',
+                'exists:matieres,id',
+            ],
+
+            'affectations.*.enseignant_id' => [
+                'required',
+                'exists:enseignants,id',
+            ],
+
+            'affectations.*.actif' => [
+                'nullable',
+                'boolean',
+            ],
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | ÉTABLISSEMENT
+        |--------------------------------------------------------------------------
         */
 
         if (! $this->isSuperAdmin()) {
@@ -277,7 +703,250 @@ class AffectationController extends Controller
                 $this->currentEtablissementId();
         }
 
-        Affectation::create($data);
+        /*
+        |--------------------------------------------------------------------------
+        | CLASSE
+        |--------------------------------------------------------------------------
+        */
+
+        $classe = Classe::query()
+            ->with([
+                'maquette.lignes',
+            ])
+            ->where(
+                'id',
+                $data['classe_id']
+            )
+            ->where(
+                'etablissement_id',
+                $data['etablissement_id']
+            )
+            ->where(
+                'annee_scolaire_id',
+                $data['annee_scolaire_id']
+            )
+            ->firstOrFail();
+
+        /*
+        |--------------------------------------------------------------------------
+        | MAQUETTE
+        |--------------------------------------------------------------------------
+        */
+
+        abort_unless(
+            $classe->maquette,
+            422,
+            'Cette classe ne possède aucune maquette pédagogique.'
+        );
+
+        $lignesMaquette =
+            $classe->maquette
+            ->lignes
+            ->where('active', true)
+            ->keyBy('matiere_id');
+
+        abort_unless(
+            $lignesMaquette->count() > 0,
+            422,
+            'La maquette de cette classe ne contient aucune matière active.'
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | MATIÈRES ENVOYÉES
+        |--------------------------------------------------------------------------
+        */
+
+        $matieresEnvoyees =
+            collect($data['affectations'])
+            ->pluck('matiere_id')
+            ->map(
+                fn($id) => (int) $id
+            );
+
+        /*
+        | Pas de doublons
+        */
+
+        abort_unless(
+            $matieresEnvoyees->unique()->count() ===
+                $matieresEnvoyees->count(),
+            422,
+            'Une même matière ne peut pas être affectée plusieurs fois à cette classe.'
+        );
+
+        /*
+        | Toutes les matières de la maquette doivent être présentes.
+        */
+
+        $matieresMaquette =
+            $lignesMaquette
+            ->keys()
+            ->map(
+                fn($id) => (int) $id
+            );
+
+        abort_unless(
+            $matieresMaquette
+                ->diff($matieresEnvoyees)
+                ->isEmpty(),
+            422,
+            'Toutes les matières actives de la maquette doivent être affectées.'
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | VÉRIFICATION ENSEIGNANTS
+        |--------------------------------------------------------------------------
+        */
+
+        foreach ($data['affectations'] as $ligne) {
+            $matiereId =
+                (int) $ligne['matiere_id'];
+
+            $enseignantId =
+                (int) $ligne['enseignant_id'];
+
+            abort_unless(
+                $lignesMaquette->has($matiereId),
+                422,
+                'Une matière sélectionnée ne correspond pas à la maquette de la classe.'
+            );
+
+            $matiere = Matiere::findOrFail($matiereId);
+
+            $matiereParentId = $matiere->matiere_parent_id;
+
+            $enseignantExiste = Enseignant::query()
+                ->whereKey($enseignantId)
+                ->where('etablissement_id', $data['etablissement_id'])
+                ->where('actif', true)
+                ->where(function ($query) use (
+                    $matiereId,
+                    $matiereParentId
+                ) {
+                    $query
+                        ->where('matiere_principale_id', $matiereId)
+                        ->orWhere('matiere_secondaire_id', $matiereId);
+
+                    if ($matiereParentId) {
+                        $query
+                            ->orWhere(
+                                'matiere_principale_id',
+                                $matiereParentId
+                            )
+                            ->orWhere(
+                                'matiere_secondaire_id',
+                                $matiereParentId
+                            );
+                    }
+                })
+                ->exists();
+
+            abort_unless(
+                $enseignantExiste,
+                422,
+                'L’enseignant sélectionné n’est pas habilité à enseigner cette matière ou sa matière principale.'
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | ENREGISTREMENT TRANSACTIONNEL
+        |--------------------------------------------------------------------------
+        */
+
+        DB::transaction(function () use (
+            $data,
+            $lignesMaquette
+        ) {
+            foreach (
+                $data['affectations']
+                as $ligne
+            ) {
+                $matiereId =
+                    (int) $ligne['matiere_id'];
+
+                $ligneMaquette =
+                    $lignesMaquette->get(
+                        $matiereId
+                    );
+
+                /*
+                | Le coefficient et le volume
+                | viennent EXCLUSIVEMENT de la maquette.
+                */
+
+                $affectation =
+                    Affectation::updateOrCreate(
+                        [
+                            'etablissement_id' =>
+                            $data['etablissement_id'],
+
+                            'annee_scolaire_id' =>
+                            $data['annee_scolaire_id'],
+
+                            'classe_id' =>
+                            $data['classe_id'],
+
+                            'matiere_id' =>
+                            $matiereId,
+                        ],
+                        [
+                            'enseignant_id' =>
+                            $ligne['enseignant_id'],
+
+                            'coefficient' =>
+                            $ligneMaquette->coefficient,
+
+                            'volume_horaire' =>
+                            $ligneMaquette->volume_horaire,
+
+                            'actif' =>
+                            $ligne['actif'] ?? true,
+                        ]
+                    );
+
+                /*
+                | Synchronisation avec les évaluations
+                | institutionnelles déjà programmées.
+                */
+
+                $this->synchroniserEvaluationsProgrammees(
+                    $affectation
+                );
+            }
+        });
+
+        return redirect()
+            ->route('affectations.index')
+            ->with(
+                'success',
+                'Les affectations de la classe ont été enregistrées avec succès.'
+            );
+    }
+
+    /**
+     * Enregistrement d'une affectation individuelle.
+     */
+    public function store(
+        StoreAffectationRequest $request
+    ) {
+        $this->ensureCanManageAffectations();
+
+        $data = $request->validated();
+
+        if (! $this->isSuperAdmin()) {
+            $data['etablissement_id'] =
+                $this->currentEtablissementId();
+        }
+
+        $affectation =
+            Affectation::create($data);
+
+        $this->synchroniserEvaluationsProgrammees(
+            $affectation
+        );
 
         return redirect()
             ->route('affectations.index')
@@ -293,12 +962,6 @@ class AffectationController extends Controller
     public function edit(
         Affectation $affectation
     ) {
-        /*
-        |--------------------------------------------------------------------------
-        | Sécurité accès
-        |--------------------------------------------------------------------------
-        */
-
         $this->ensureCanAccessAffectation(
             $affectation
         );
@@ -308,12 +971,6 @@ class AffectationController extends Controller
 
         $etablissementId =
             $this->currentEtablissementId();
-
-        /*
-        |--------------------------------------------------------------------------
-        | ÉTABLISSEMENTS
-        |--------------------------------------------------------------------------
-        */
 
         $etablissementsQuery =
             Etablissement::query();
@@ -330,39 +987,19 @@ class AffectationController extends Controller
             ->orderBy('nom')
             ->get();
 
-        /*
-        |--------------------------------------------------------------------------
-        | ANNÉES SCOLAIRES
-        |--------------------------------------------------------------------------
-        */
-
         $annees =
-            $this->restrictToCurrentEtablissement(
-                AnneeScolaire::query(),
-                AnneeScolaire::class
-            )
+            AnneeScolaire::query()
             ->orderByDesc('date_debut')
             ->get();
-
-        /*
-        |--------------------------------------------------------------------------
-        | CLASSES
-        |--------------------------------------------------------------------------
-        */
 
         $classes =
             $this->restrictToCurrentEtablissement(
                 Classe::query(),
                 Classe::class
             )
+            ->with('maquette.lignes.matiere')
             ->orderBy('libelle')
             ->get();
-
-        /*
-        |--------------------------------------------------------------------------
-        | MATIÈRES
-        |--------------------------------------------------------------------------
-        */
 
         $matieres =
             $this->restrictToCurrentEtablissement(
@@ -372,17 +1009,19 @@ class AffectationController extends Controller
             ->orderBy('libelle')
             ->get();
 
-        /*
-        |--------------------------------------------------------------------------
-        | ENSEIGNANTS
-        |--------------------------------------------------------------------------
-        */
+        $enseignantsQuery =
+            Enseignant::query()
+            ->where('actif', true);
+
+        if (! $isSuperAdmin) {
+            $enseignantsQuery->where(
+                'etablissement_id',
+                $etablissementId
+            );
+        }
 
         $enseignants =
-            $this->restrictToCurrentEtablissement(
-                Enseignant::query(),
-                Enseignant::class
-            )
+            $enseignantsQuery
             ->orderBy('nom')
             ->orderBy('prenoms')
             ->get();
@@ -390,7 +1029,6 @@ class AffectationController extends Controller
         return Inertia::render(
             'Affectations/Edit',
             [
-
                 'affectation' =>
                 $affectation,
 
@@ -416,35 +1054,23 @@ class AffectationController extends Controller
                 $isSuperAdmin
                     ? null
                     : $etablissementId,
-
             ]
         );
     }
 
     /**
-     * Mise à jour d'une affectation.
+     * Mise à jour.
      */
     public function update(
         StoreAffectationRequest $request,
         Affectation $affectation
     ) {
-        /*
-        |--------------------------------------------------------------------------
-        | Sécurité accès
-        |--------------------------------------------------------------------------
-        */
-
         $this->ensureCanAccessAffectation(
             $affectation
         );
 
-        $data = $request->validated();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Sécurité établissement
-        |--------------------------------------------------------------------------
-        */
+        $data =
+            $request->validated();
 
         if (! $this->isSuperAdmin()) {
             $data['etablissement_id'] =
@@ -452,6 +1078,10 @@ class AffectationController extends Controller
         }
 
         $affectation->update($data);
+
+        $this->synchroniserEvaluationsProgrammees(
+            $affectation->fresh()
+        );
 
         return redirect()
             ->route('affectations.index')
@@ -467,12 +1097,6 @@ class AffectationController extends Controller
     public function destroy(
         Affectation $affectation
     ) {
-        /*
-        |--------------------------------------------------------------------------
-        | Sécurité accès
-        |--------------------------------------------------------------------------
-        */
-
         $this->ensureCanAccessAffectation(
             $affectation
         );
@@ -488,21 +1112,23 @@ class AffectationController extends Controller
     }
 
     /**
-     * Retourne les enseignants correspondant
-     * à une matière.
+     * Enseignants correspondant à une matière.
      */
     public function enseignantsParMatiere(
         Request $request,
         $matiereId
     ) {
-        $query = Enseignant::query()
+        $this->ensureCanManageAffectations();
 
-            ->where(function (
-                $query
-            ) use (
+        $query =
+            Enseignant::query()
+            ->where(
+                'actif',
+                true
+            )
+            ->where(function ($query) use (
                 $matiereId
             ) {
-
                 $query
                     ->where(
                         'matiere_principale_id',
@@ -512,21 +1138,9 @@ class AffectationController extends Controller
                         'matiere_secondaire_id',
                         $matiereId
                     );
-            })
-
-            ->where(
-                'actif',
-                true
-            );
-
-        /*
-        |--------------------------------------------------------------------------
-        | Restriction établissement
-        |--------------------------------------------------------------------------
-        */
+            });
 
         if (! $this->isSuperAdmin()) {
-
             $query->where(
                 'etablissement_id',
                 $this->currentEtablissementId()
@@ -536,19 +1150,18 @@ class AffectationController extends Controller
                 'etablissement_id'
             )
         ) {
-
             $query->where(
                 'etablissement_id',
-                $request->etablissement_id
+                $request->integer(
+                    'etablissement_id'
+                )
             );
         }
 
-        $enseignants = $query
-
+        $enseignants =
+            $query
             ->orderBy('nom')
-
             ->orderBy('prenoms')
-
             ->get([
                 'id',
                 'nom',

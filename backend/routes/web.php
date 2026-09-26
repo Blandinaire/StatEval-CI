@@ -67,26 +67,56 @@ Route::middleware('auth')->group(function () {
 |--------------------------------------------------------------------------
 */
 
+
     Route::middleware('role:SuperAdmin')->group(function () {
 
         Route::get(
-            'etablissements/create',
-            [EtablissementController::class, 'create']
-        )->name('etablissements.create');
-
+            '/maquettes/{maquette}/matieres/create',
+            [MaquetteMatiereController::class, 'create']
+        )->name('maquettes.matieres.create');
 
         Route::post(
-            'etablissements',
-            [EtablissementController::class, 'store']
-        )->name('etablissements.store');
+            '/maquettes/{maquette}/matieres',
+            [MaquetteMatiereController::class, 'store']
+        )->name('maquettes.matieres.store');
 
+        /*
+    | Enregistrement global du classement
+    | IMPORTANT : avant les routes avec {maquetteMatiere}
+    */
+        Route::put(
+            '/maquettes/{maquette}/matieres/ordre',
+            [
+                MaquetteMatiereController::class,
+                'enregistrerOrdre',
+            ]
+        )->name('maquettes.matieres.ordre');
+
+        Route::get(
+            '/maquettes/{maquette}/matieres/{maquetteMatiere}/edit',
+            [MaquetteMatiereController::class, 'edit']
+        )->name('maquettes.matieres.edit');
+
+        Route::put(
+            '/maquettes/{maquette}/matieres/{maquetteMatiere}',
+            [MaquetteMatiereController::class, 'update']
+        )->name('maquettes.matieres.update');
 
         Route::delete(
-            'etablissements/{etablissement}',
-            [EtablissementController::class, 'destroy']
-        )->name('etablissements.destroy');
-    });
+            '/maquettes/{maquette}/matieres/{maquetteMatiere}',
+            [MaquetteMatiereController::class, 'destroy']
+        )->name('maquettes.matieres.destroy');
 
+        Route::post(
+            '/maquettes/{maquette}/matieres/{maquetteMatiere}/monter',
+            [MaquetteMatiereController::class, 'monter']
+        )->name('maquettes.matieres.monter');
+
+        Route::post(
+            '/maquettes/{maquette}/matieres/{maquetteMatiere}/descendre',
+            [MaquetteMatiereController::class, 'descendre']
+        )->name('maquettes.matieres.descendre');
+    });
 
     /*
 |--------------------------------------------------------------------------
@@ -378,11 +408,23 @@ Route::middleware('auth')->group(function () {
 
     Route::resource('enseignants', EnseignantController::class);
     Route::resource('affectations', AffectationController::class);
+    Route::post(
+        'affectations/bulk',
+        [AffectationController::class, 'storeBulk']
+    )->name('affectations.bulk.store');
 
     Route::resource('conduites', ConduiteController::class)
+        ->only([
+            'index',
+            'create',
+            'edit',
+            'update',
+            'destroy',
+        ])
         ->parameters([
             'conduites' => 'conduite',
         ]);
+
     Route::resource('absences', AbsenceController::class)
         ->parameters([
             'absences' => 'absence',
@@ -428,6 +470,36 @@ Route::middleware('auth')->group(function () {
         ->parameters([
             'eleves' => 'eleve',
         ]);
+    Route::get(
+        '/evaluations/programmer',
+        [EvaluationController::class, 'programmer']
+    )->name('evaluations.programmer');
+
+    Route::post(
+        '/evaluations/programmer',
+        [EvaluationController::class, 'programmerStore']
+    )->name('evaluations.programmer.store');
+
+    Route::get(
+        '/evaluations/programmations',
+        [EvaluationController::class, 'programmations']
+    )->name('evaluations.programmations');
+
+    Route::get(
+        '/evaluations/calendrier',
+        [EvaluationController::class, 'calendrier']
+    )->name('evaluations.calendrier');
+
+    Route::get(
+        '/evaluations/programmations/{evaluation}',
+        [EvaluationController::class, 'programmation']
+    )->name('evaluations.programmation');
+
+    Route::patch(
+        '/evaluations/{evaluation}/statut',
+        [EvaluationController::class, 'changerStatut']
+    )->name('evaluations.statut');
+
     Route::resource('evaluations', EvaluationController::class);
 
     Route::get(
@@ -514,6 +586,15 @@ Route::middleware('auth')->group(function () {
             '/maquettes/{maquette}/matieres/{maquetteMatiere}/descendre',
             [MaquetteMatiereController::class, 'descendre']
         )->name('maquettes.matieres.descendre');
+
+
+        Route::put(
+            '/maquettes/{maquette}/matieres/ordre',
+            [
+                MaquetteMatiereController::class,
+                'enregistrerOrdre',
+            ]
+        )->name('maquettes.matieres.ordre');
     });
 
     Route::get(
@@ -576,6 +657,11 @@ Route::middleware('auth')->group(function () {
         'educateur-classes/{educateurClasse}/toggle',
         [EducateurClasseController::class, 'toggle']
     )->name('educateur-classes.toggle');
+
+    Route::post(
+        'educateur-classes/enregistrer-groupe',
+        [EducateurClasseController::class, 'storeBulk']
+    )->name('educateur-classes.bulk.store');
 
     Route::resource('educateur-classes', EducateurClasseController::class)
         ->except(['show']);

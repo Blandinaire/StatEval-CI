@@ -3,7 +3,7 @@ import ResponsiveTable from "@/Components/ResponsiveTable";
 import { useState } from "react";
 import { Head, Link } from "@inertiajs/react";
 
-export default function Show({ evaluation, notes = [] }) {
+export default function Show({ evaluation, notes = [], canEdit = false }) {
     /*
     |--------------------------------------------------------------------------
     | FONCTIONS UTILITAIRES
@@ -233,12 +233,17 @@ export default function Show({ evaluation, notes = [] }) {
                                 ← Retour aux évaluations
                             </Link>
 
-                            <Link
-                                href={route("evaluations.edit", evaluation.id)}
-                                className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
-                            >
-                                ✏️ Modifier l'évaluation
-                            </Link>
+                            {canEdit && (
+                                <Link
+                                    href={route(
+                                        "evaluations.edit",
+                                        evaluation.id,
+                                    )}
+                                    className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
+                                >
+                                    ✏️ Modifier l'évaluation
+                                </Link>
+                            )}
 
                             <Link
                                 href={route(
@@ -250,12 +255,14 @@ export default function Show({ evaluation, notes = [] }) {
                                 📊 Statistiques
                             </Link>
 
-                            <Link
-                                href={route("notes.create", evaluation.id)}
-                                className="rounded-lg bg-green-600 px-5 py-3 font-semibold text-white hover:bg-green-700"
-                            >
-                                📝 Saisir / modifier les notes
-                            </Link>
+                            {evaluation.active && (
+                                <Link
+                                    href={route("notes.create", evaluation.id)}
+                                    className="rounded-lg bg-green-600 px-5 py-3 font-semibold text-white hover:bg-green-700"
+                                >
+                                    📝 Saisir / modifier les notes
+                                </Link>
+                            )}
                         </div>
                     </div>
 

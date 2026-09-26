@@ -72,10 +72,6 @@ export default function Index({ maquettes = { data: [] } }) {
                                     </th>
 
                                     <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">
-                                        Établissement
-                                    </th>
-
-                                    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-600">
                                         Année scolaire
                                     </th>
 
@@ -105,7 +101,7 @@ export default function Index({ maquettes = { data: [] } }) {
                                 {listeMaquettes.length === 0 ? (
                                     <tr>
                                         <td
-                                            colSpan="8"
+                                            colSpan="7"
                                             className="px-6 py-12 text-center text-gray-500"
                                         >
                                             <BookOpen
@@ -135,13 +131,6 @@ export default function Index({ maquettes = { data: [] } }) {
                                                 <p className="font-semibold text-gray-900">
                                                     {maquette.libelle ?? "-"}
                                                 </p>
-                                            </td>
-
-                                            {/* Établissement */}
-
-                                            <td className="px-6 py-4 text-sm text-gray-600">
-                                                {maquette.etablissement?.nom ??
-                                                    "-"}
                                             </td>
 
                                             {/* Année scolaire */}

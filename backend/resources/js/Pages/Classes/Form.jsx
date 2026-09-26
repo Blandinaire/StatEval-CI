@@ -26,21 +26,13 @@ export default function Form({
         ? etablissements
         : [];
 
-    const cyclesListe = Array.isArray(cycles)
-        ? cycles
-        : [];
+    const cyclesListe = Array.isArray(cycles) ? cycles : [];
 
-    const niveauxListe = Array.isArray(niveaux)
-        ? niveaux
-        : [];
+    const niveauxListe = Array.isArray(niveaux) ? niveaux : [];
 
-    const seriesListe = Array.isArray(series)
-        ? series
-        : [];
+    const seriesListe = Array.isArray(series) ? series : [];
 
-    const maquettesListe = Array.isArray(maquettes)
-        ? maquettes
-        : [];
+    const maquettesListe = Array.isArray(maquettes) ? maquettes : [];
 
     /*
     |--------------------------------------------------------------------------
@@ -49,13 +41,13 @@ export default function Form({
     */
 
     const prefixesNiveaux = {
-        "Sixième": "6ème",
-        "Cinquième": "5ème",
-        "Quatrième": "4ème",
-        "Troisième": "3ème",
-        "Seconde": "2nde",
-        "Première": "1ère",
-        "Terminale": "Tle",
+        Sixième: "6ème",
+        Cinquième: "5ème",
+        Quatrième: "4ème",
+        Troisième: "3ème",
+        Seconde: "2nde",
+        Première: "1ère",
+        Terminale: "Tle",
     };
 
     /*
@@ -65,9 +57,7 @@ export default function Form({
     */
 
     const niveauSelectionne = niveauxListe.find(
-        (niveau) =>
-            String(niveau.id) ===
-            String(data.niveau_id),
+        (niveau) => String(niveau.id) === String(data.niveau_id),
     );
 
     /*
@@ -77,11 +67,8 @@ export default function Form({
     */
 
     const prefixeClasse = niveauSelectionne
-        ? (
-            prefixesNiveaux[
-                niveauSelectionne.libelle
-            ] || niveauSelectionne.libelle
-        )
+        ? prefixesNiveaux[niveauSelectionne.libelle] ||
+          niveauSelectionne.libelle
         : "";
 
     /*
@@ -91,13 +78,9 @@ export default function Form({
     */
 
     function construireLibelle(prefixe, suffixe) {
-        const p = prefixe
-            ? String(prefixe).trim()
-            : "";
+        const p = prefixe ? String(prefixe).trim() : "";
 
-        const s = suffixe
-            ? String(suffixe).trim()
-            : "";
+        const s = suffixe ? String(suffixe).trim() : "";
 
         if (!p && !s) {
             return "";
@@ -120,25 +103,16 @@ export default function Form({
     |--------------------------------------------------------------------------
     */
 
-    const maquettesAnneeEtablissement =
-        maquettesListe.filter((maquette) => {
+    const maquettesAnneeEtablissement = maquettesListe.filter((maquette) => {
+        if (
+            String(maquette.annee_scolaire_id) !==
+            String(data.annee_scolaire_id)
+        ) {
+            return false;
+        }
 
-            if (
-                String(maquette.etablissement_id) !==
-                String(data.etablissement_id)
-            ) {
-                return false;
-            }
-
-            if (
-                String(maquette.annee_scolaire_id) !==
-                String(data.annee_scolaire_id)
-            ) {
-                return false;
-            }
-
-            return Boolean(maquette.active);
-        });
+        return Boolean(maquette.active);
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -146,17 +120,13 @@ export default function Form({
     |--------------------------------------------------------------------------
     */
 
-    const niveauxDisponibles =
-        niveauxListe.filter((niveau) => {
-
-            return maquettesAnneeEtablissement.some(
-                (maquette) =>
-                    String(maquette.cycle_id) ===
-                        String(data.cycle_id) &&
-                    String(maquette.niveau_id) ===
-                        String(niveau.id),
-            );
-        });
+    const niveauxDisponibles = niveauxListe.filter((niveau) => {
+        return maquettesAnneeEtablissement.some(
+            (maquette) =>
+                String(maquette.cycle_id) === String(data.cycle_id) &&
+                String(maquette.niveau_id) === String(niveau.id),
+        );
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -164,15 +134,12 @@ export default function Form({
     |--------------------------------------------------------------------------
     */
 
-    const seriesDisponibles =
-        seriesListe.filter((serie) => {
-
-            return (
-                String(serie.cycle_id) ===
-                    String(data.cycle_id) &&
-                Boolean(serie.actif)
-            );
-        });
+    const seriesDisponibles = seriesListe.filter((serie) => {
+        return (
+            String(serie.cycle_id) === String(data.cycle_id) &&
+            Boolean(serie.actif)
+        );
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -180,46 +147,35 @@ export default function Form({
     |--------------------------------------------------------------------------
     */
 
-    const maquettesDisponibles =
-        maquettesAnneeEtablissement.filter(
-            (maquette) => {
+    const maquettesDisponibles = maquettesAnneeEtablissement.filter(
+        (maquette) => {
+            if (String(maquette.cycle_id) !== String(data.cycle_id)) {
+                return false;
+            }
 
-                if (
-                    String(maquette.cycle_id) !==
-                    String(data.cycle_id)
-                ) {
-                    return false;
-                }
+            if (String(maquette.niveau_id) !== String(data.niveau_id)) {
+                return false;
+            }
 
-                if (
-                    String(maquette.niveau_id) !==
-                    String(data.niveau_id)
-                ) {
-                    return false;
-                }
-
-                /*
+            /*
                 |----------------------------------------------------------
                 | Sans série
                 |----------------------------------------------------------
                 */
 
-                if (!data.serie_id) {
-                    return !maquette.serie_id;
-                }
+            if (!data.serie_id) {
+                return !maquette.serie_id;
+            }
 
-                /*
+            /*
                 |----------------------------------------------------------
                 | Avec série
                 |----------------------------------------------------------
                 */
 
-                return (
-                    String(maquette.serie_id) ===
-                    String(data.serie_id)
-                );
-            },
-        );
+            return String(maquette.serie_id) === String(data.serie_id);
+        },
+    );
 
     /*
     |--------------------------------------------------------------------------
@@ -271,27 +227,15 @@ export default function Form({
     */
 
     function changerNiveau(value) {
-
-        const niveau =
-            niveauxListe.find(
-                (item) =>
-                    String(item.id) ===
-                    String(value),
-            );
+        const niveau = niveauxListe.find(
+            (item) => String(item.id) === String(value),
+        );
 
         const prefixe = niveau
-            ? (
-                prefixesNiveaux[
-                    niveau.libelle
-                ] || niveau.libelle
-            )
+            ? prefixesNiveaux[niveau.libelle] || niveau.libelle
             : "";
 
-        const nouveauLibelle =
-            construireLibelle(
-                prefixe,
-                data.suffixe || "",
-            );
+        const nouveauLibelle = construireLibelle(prefixe, data.suffixe || "");
 
         setData({
             ...data,
@@ -312,7 +256,6 @@ export default function Form({
     */
 
     function changerSerie(value) {
-
         setData({
             ...data,
 
@@ -329,15 +272,9 @@ export default function Form({
     */
 
     function changerSuffixe(value) {
+        const suffixe = String(value).toUpperCase();
 
-        const suffixe =
-            String(value).toUpperCase();
-
-        const nouveauLibelle =
-            construireLibelle(
-                prefixeClasse,
-                suffixe,
-            );
+        const nouveauLibelle = construireLibelle(prefixeClasse, suffixe);
 
         setData({
             ...data,
@@ -349,67 +286,35 @@ export default function Form({
     }
 
     return (
-        <form
-            onSubmit={submit}
-            className="space-y-6"
-        >
-
+        <form onSubmit={submit} className="space-y-6">
             {/* ========================================================
                 ÉTABLISSEMENT
             ======================================================== */}
 
             <div>
-
                 <label className="block font-semibold mb-2">
                     Établissement
                 </label>
 
                 {estSuperAdmin ? (
-
                     <select
-                        value={
-                            data.etablissement_id || ""
-                        }
-
-                        onChange={(e) =>
-                            changerEtablissement(
-                                e.target.value,
-                            )
-                        }
-
+                        value={data.etablissement_id || ""}
+                        onChange={(e) => changerEtablissement(e.target.value)}
                         className="w-full border rounded-lg p-3"
                     >
+                        <option value="">-- Sélectionner --</option>
 
-                        <option value="">
-                            -- Sélectionner --
-                        </option>
-
-                        {etablissementsListe.map(
-                            (item) => (
-
-                                <option
-                                    key={item.id}
-                                    value={item.id}
-                                >
-                                    {item.nom}
-                                </option>
-                            ),
-                        )}
-
+                        {etablissementsListe.map((item) => (
+                            <option key={item.id} value={item.id}>
+                                {item.nom}
+                            </option>
+                        ))}
                     </select>
-
                 ) : (
-
                     <input
                         type="text"
-
-                        value={
-                            etablissementUtilisateur?.nom ||
-                            ""
-                        }
-
+                        value={etablissementUtilisateur?.nom || ""}
                         readOnly
-
                         className="
                             w-full
                             border
@@ -423,12 +328,10 @@ export default function Form({
                 )}
 
                 {errors.etablissement_id && (
-
                     <p className="text-red-600 text-sm mt-1">
                         {errors.etablissement_id}
                     </p>
                 )}
-
             </div>
 
             {/* ========================================================
@@ -436,21 +339,14 @@ export default function Form({
             ======================================================== */}
 
             <div>
-
                 <label className="block font-semibold mb-2">
                     Année scolaire
                 </label>
 
                 <input
                     type="text"
-
-                    value={
-                        anneeActive?.libelle ||
-                        ""
-                    }
-
+                    value={anneeActive?.libelle || ""}
                     readOnly
-
                     className="
                         w-full
                         border
@@ -467,12 +363,10 @@ export default function Form({
                 </p>
 
                 {errors.annee_scolaire_id && (
-
                     <p className="text-red-600 text-sm mt-1">
                         {errors.annee_scolaire_id}
                     </p>
                 )}
-
             </div>
 
             {/* ========================================================
@@ -480,26 +374,12 @@ export default function Form({
             ======================================================== */}
 
             <div>
-
-                <label className="block font-semibold mb-2">
-                    Cycle
-                </label>
+                <label className="block font-semibold mb-2">Cycle</label>
 
                 <select
-                    value={
-                        data.cycle_id || ""
-                    }
-
-                    onChange={(e) =>
-                        changerCycle(
-                            e.target.value,
-                        )
-                    }
-
-                    disabled={
-                        !data.etablissement_id
-                    }
-
+                    value={data.cycle_id || ""}
+                    onChange={(e) => changerCycle(e.target.value)}
+                    disabled={!data.etablissement_id}
                     className="
                         w-full
                         border
@@ -509,32 +389,20 @@ export default function Form({
                         disabled:cursor-not-allowed
                     "
                 >
+                    <option value="">-- Sélectionner --</option>
 
-                    <option value="">
-                        -- Sélectionner --
-                    </option>
-
-                    {cyclesListe.map(
-                        (cycle) => (
-
-                            <option
-                                key={cycle.id}
-                                value={cycle.id}
-                            >
-                                {cycle.libelle}
-                            </option>
-                        ),
-                    )}
-
+                    {cyclesListe.map((cycle) => (
+                        <option key={cycle.id} value={cycle.id}>
+                            {cycle.libelle}
+                        </option>
+                    ))}
                 </select>
 
                 {errors.cycle_id && (
-
                     <p className="text-red-600 text-sm mt-1">
                         {errors.cycle_id}
                     </p>
                 )}
-
             </div>
 
             {/* ========================================================
@@ -542,26 +410,12 @@ export default function Form({
             ======================================================== */}
 
             <div>
-
-                <label className="block font-semibold mb-2">
-                    Niveau
-                </label>
+                <label className="block font-semibold mb-2">Niveau</label>
 
                 <select
-                    value={
-                        data.niveau_id || ""
-                    }
-
-                    onChange={(e) =>
-                        changerNiveau(
-                            e.target.value,
-                        )
-                    }
-
-                    disabled={
-                        !data.cycle_id
-                    }
-
+                    value={data.niveau_id || ""}
+                    onChange={(e) => changerNiveau(e.target.value)}
+                    disabled={!data.cycle_id}
                     className="
                         w-full
                         border
@@ -571,41 +425,27 @@ export default function Form({
                         disabled:cursor-not-allowed
                     "
                 >
+                    <option value="">-- Sélectionner un niveau --</option>
 
-                    <option value="">
-                        -- Sélectionner un niveau --
-                    </option>
-
-                    {niveauxDisponibles.map(
-                        (niveau) => (
-
-                            <option
-                                key={niveau.id}
-                                value={niveau.id}
-                            >
-                                {niveau.libelle}
-                            </option>
-                        ),
-                    )}
-
+                    {niveauxDisponibles.map((niveau) => (
+                        <option key={niveau.id} value={niveau.id}>
+                            {niveau.libelle}
+                        </option>
+                    ))}
                 </select>
 
-                {data.cycle_id &&
-                    niveauxDisponibles.length === 0 && (
-
+                {data.cycle_id && niveauxDisponibles.length === 0 && (
                     <p className="text-orange-600 text-sm mt-1">
-                        Aucun niveau disponible pour ce cycle
-                        dans les maquettes pédagogiques.
+                        Aucun niveau disponible pour ce cycle dans les maquettes
+                        pédagogiques.
                     </p>
                 )}
 
                 {errors.niveau_id && (
-
                     <p className="text-red-600 text-sm mt-1">
                         {errors.niveau_id}
                     </p>
                 )}
-
             </div>
 
             {/* ========================================================
@@ -613,26 +453,12 @@ export default function Form({
             ======================================================== */}
 
             <div>
-
-                <label className="block font-semibold mb-2">
-                    Série
-                </label>
+                <label className="block font-semibold mb-2">Série</label>
 
                 <select
-                    value={
-                        data.serie_id || ""
-                    }
-
-                    onChange={(e) =>
-                        changerSerie(
-                            e.target.value,
-                        )
-                    }
-
-                    disabled={
-                        !data.cycle_id
-                    }
-
+                    value={data.serie_id || ""}
+                    onChange={(e) => changerSerie(e.target.value)}
+                    disabled={!data.cycle_id}
                     className="
                         w-full
                         border
@@ -642,23 +468,13 @@ export default function Form({
                         disabled:cursor-not-allowed
                     "
                 >
+                    <option value="">Aucune</option>
 
-                    <option value="">
-                        Aucune
-                    </option>
-
-                    {seriesDisponibles.map(
-                        (serie) => (
-
-                            <option
-                                key={serie.id}
-                                value={serie.id}
-                            >
-                                {serie.libelle}
-                            </option>
-                        ),
-                    )}
-
+                    {seriesDisponibles.map((serie) => (
+                        <option key={serie.id} value={serie.id}>
+                            {serie.libelle}
+                        </option>
+                    ))}
                 </select>
 
                 <p className="text-sm text-gray-500 mt-1">
@@ -666,12 +482,10 @@ export default function Form({
                 </p>
 
                 {errors.serie_id && (
-
                     <p className="text-red-600 text-sm mt-1">
                         {errors.serie_id}
                     </p>
                 )}
-
             </div>
 
             {/* ========================================================
@@ -679,29 +493,18 @@ export default function Form({
             ======================================================== */}
 
             <div>
-
                 <label className="block font-semibold mb-2">
                     Maquette pédagogique
                 </label>
 
                 <select
-                    value={
-                        data.maquette_id || ""
-                    }
-
-                    onChange={(e) =>
-                        setData(
-                            "maquette_id",
-                            e.target.value,
-                        )
-                    }
-
+                    value={data.maquette_id || ""}
+                    onChange={(e) => setData("maquette_id", e.target.value)}
                     disabled={
                         !data.etablissement_id ||
                         !data.cycle_id ||
                         !data.niveau_id
                     }
-
                     className="
                         w-full
                         border
@@ -711,32 +514,20 @@ export default function Form({
                         disabled:cursor-not-allowed
                     "
                 >
+                    <option value="">-- Sélectionner --</option>
 
-                    <option value="">
-                        -- Sélectionner --
-                    </option>
-
-                    {maquettesDisponibles.map(
-                        (maquette) => (
-
-                            <option
-                                key={maquette.id}
-                                value={maquette.id}
-                            >
-                                {maquette.libelle}
-                            </option>
-                        ),
-                    )}
-
+                    {maquettesDisponibles.map((maquette) => (
+                        <option key={maquette.id} value={maquette.id}>
+                            {maquette.libelle}
+                        </option>
+                    ))}
                 </select>
 
                 {errors.maquette_id && (
-
                     <p className="text-red-600 text-sm mt-1">
                         {errors.maquette_id}
                     </p>
                 )}
-
             </div>
 
             {/* ========================================================
@@ -744,42 +535,37 @@ export default function Form({
             ======================================================== */}
 
             <div>
-
                 <label className="block font-semibold mb-3">
                     Nom de la classe
                 </label>
 
-                <div className="
+                <div
+                    className="
                     grid
                     grid-cols-1
                     md:grid-cols-2
                     gap-4
-                ">
-
+                "
+                >
                     <div>
-
-                        <label className="
+                        <label
+                            className="
                             block
                             text-sm
                             text-gray-600
                             mb-1
-                        ">
+                        "
+                        >
                             Niveau
                         </label>
 
                         <input
                             type="text"
-
-                            value={
-                                prefixeClasse
-                            }
-
+                            value={prefixeClasse}
                             readOnly
-
                             placeholder="
                                 Sélectionnez un niveau
                             "
-
                             className="
                                 w-full
                                 border
@@ -789,41 +575,28 @@ export default function Form({
                                 text-gray-700
                             "
                         />
-
                     </div>
 
                     <div>
-
-                        <label className="
+                        <label
+                            className="
                             block
                             text-sm
                             text-gray-600
                             mb-1
-                        ">
+                        "
+                        >
                             Lettre ou numéro
                         </label>
 
                         <input
                             type="text"
-
-                            value={
-                                data.suffixe || ""
-                            }
-
-                            onChange={(e) =>
-                                changerSuffixe(
-                                    e.target.value,
-                                )
-                            }
-
+                            value={data.suffixe || ""}
+                            onChange={(e) => changerSuffixe(e.target.value)}
                             placeholder="
                                 Ex : A, B, C, 1, 2...
                             "
-
-                            disabled={
-                                !data.niveau_id
-                            }
-
+                            disabled={!data.niveau_id}
                             className="
                                 w-full
                                 border
@@ -832,55 +605,53 @@ export default function Form({
                                 disabled:bg-gray-100
                             "
                         />
-
                     </div>
-
                 </div>
 
                 {prefixeClasse && (
-
-                    <div className="
+                    <div
+                        className="
                         mt-4
                         rounded-lg
                         bg-blue-50
                         border
                         border-blue-200
                         p-4
-                    ">
-
-                        <span className="
+                    "
+                    >
+                        <span
+                            className="
                             text-sm
                             text-gray-600
-                        ">
+                        "
+                        >
                             Libellé de la classe
                         </span>
 
-                        <div className="
+                        <div
+                            className="
                             text-xl
                             font-bold
                             text-blue-700
                             mt-1
-                        ">
-                            {
-                                data.libelle ||
-                                prefixeClasse
-                            }
+                        "
+                        >
+                            {data.libelle || prefixeClasse}
                         </div>
-
                     </div>
                 )}
 
                 {errors.libelle && (
-
-                    <p className="
+                    <p
+                        className="
                         text-red-600
                         text-sm
                         mt-1
-                    ">
+                    "
+                    >
                         {errors.libelle}
                     </p>
                 )}
-
             </div>
 
             {/* ========================================================
@@ -888,26 +659,13 @@ export default function Form({
             ======================================================== */}
 
             <div>
-
-                <label className="block font-semibold mb-2">
-                    Capacité
-                </label>
+                <label className="block font-semibold mb-2">Capacité</label>
 
                 <input
                     type="number"
                     min="1"
-
-                    value={
-                        data.capacite || ""
-                    }
-
-                    onChange={(e) =>
-                        setData(
-                            "capacite",
-                            e.target.value,
-                        )
-                    }
-
+                    value={data.capacite || ""}
+                    onChange={(e) => setData("capacite", e.target.value)}
                     className="
                         w-full
                         border
@@ -917,70 +675,54 @@ export default function Form({
                 />
 
                 {errors.capacite && (
-
-                    <p className="
+                    <p
+                        className="
                         text-red-600
                         text-sm
                         mt-1
-                    ">
+                    "
+                    >
                         {errors.capacite}
                     </p>
                 )}
-
             </div>
 
             {/* ========================================================
                 ACTIVE
             ======================================================== */}
 
-            <div className="
+            <div
+                className="
                 flex
                 items-center
                 gap-3
-            ">
-
+            "
+            >
                 <input
                     type="checkbox"
                     id="active"
-
-                    checked={
-                        Boolean(data.active)
-                    }
-
-                    onChange={(e) =>
-                        setData(
-                            "active",
-                            e.target.checked,
-                        )
-                    }
+                    checked={Boolean(data.active)}
+                    onChange={(e) => setData("active", e.target.checked)}
                 />
 
-                <label
-                    htmlFor="active"
-                    className="font-semibold"
-                >
+                <label htmlFor="active" className="font-semibold">
                     Classe active
                 </label>
-
             </div>
 
             {/* ========================================================
                 BOUTONS
             ======================================================== */}
 
-            <div className="
+            <div
+                className="
                 flex
                 justify-end
                 gap-4
-            ">
-
+            "
+            >
                 <Link
-                    href={
-                        route(
-                            "classes.index",
-                        )
-                    }
-
+                    href={route("classes.index")}
                     className="
                         border
                         rounded-lg
@@ -993,11 +735,7 @@ export default function Form({
 
                 <button
                     type="submit"
-
-                    disabled={
-                        processing
-                    }
-
+                    disabled={processing}
                     className="
                         bg-blue-600
                         hover:bg-blue-700
@@ -1010,9 +748,7 @@ export default function Form({
                 >
                     {submitLabel}
                 </button>
-
             </div>
-
         </form>
     );
 }

@@ -2,15 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\StoreConduiteRequest;
 use App\Http\Requests\UpdateConduiteRequest;
 use App\Models\AnneeScolaire;
 use App\Models\Classe;
 use App\Models\Conduite;
 use App\Models\Educateur;
+use App\Models\EducateurClasse;
 use App\Models\Eleve;
 use App\Models\Etablissement;
-use App\Models\EducateurClasse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,58 +19,89 @@ use Inertia\Response;
 
 class ConduiteController extends Controller
 {
+    /*
+    |--------------------------------------------------------------------------
+    | OUTILS D'AUTORISATION
+    |--------------------------------------------------------------------------
+    */
 
+   
 
-    /**
-     * Vérifie l'accès à une classe.
-     */
     /**
      * Vérifie qu'un utilisateur peut accéder à une classe.
-     */
-    /**
-     * Vérifie qu'un utilisateur peut accéder à une classe.
+     *
+     * Règles :
+     *
+     * SuperAdmin
+     *      → toutes les classes
+     *
+     * Administrateur / Direction
+     *      → classes de leur établissement
+     *
+     * Educateur
+     *      → uniquement les classes qui lui sont affectées
      */
     private function checkClasseAccess(Classe $classe): void
     {
         $user = auth()->user();
 
         /*
-    |--------------------------------------------------------------------------
-    | SuperAdmin : accès total
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | SUPERADMIN
+        |--------------------------------------------------------------------------
+        */
+
         if ($user->hasRole('SuperAdmin')) {
             return;
         }
 
         /*
-    |--------------------------------------------------------------------------
-    | Vérification de l'établissement
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | VÉRIFICATION DE L'ÉTABLISSEMENT
+        |--------------------------------------------------------------------------
+        */
+
         if (
+            ! $user->etablissement_id ||
             (int) $classe->etablissement_id !==
             (int) $user->etablissement_id
         ) {
-            abort(403, 'Vous n’êtes pas autorisé à accéder à cette classe.');
+            abort(
+                403,
+                'Vous n’êtes pas autorisé à accéder à cette classe.'
+            );
         }
 
         /*
-    |--------------------------------------------------------------------------
-    | Éducateur : uniquement les classes qui lui sont affectées
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | ÉDUCATEUR
+        |--------------------------------------------------------------------------
+        */
+
         if ($user->hasRole('Educateur')) {
 
-            $affectation = \App\Models\EducateurClasse::query()
+            if (! $user->educateur_id) {
+                abort(
+                    403,
+                    'Votre compte n’est associé à aucun éducateur.'
+                );
+            }
+
+            $autorise = EducateurClasse::query()
                 ->where('educateur_id', $user->educateur_id)
                 ->where('classe_id', $classe->id)
-                ->where('annee_scolaire_id', $classe->annee_scolaire_id)
-                ->where('etablissement_id', $classe->etablissement_id)
+                ->where(
+                    'annee_scolaire_id',
+                    $classe->annee_scolaire_id
+                )
+                ->where(
+                    'etablissement_id',
+                    $classe->etablissement_id
+                )
                 ->where('actif', true)
                 ->exists();
 
-            if (! $affectation) {
+            if (! $autorise) {
                 abort(
                     403,
                     'Cette classe ne vous est pas affectée.'
@@ -81,6 +111,108 @@ class ConduiteController extends Controller
     }
 
     /**
+     * Vérifie qu'un éducateur appartient à l'établissement.
+     */
+    private function checkEducateurAccess(
+        int $educateurId,
+        int $etablissementId
+    ): Educateur {
+
+        $educateur = Educateur::query()
+            ->where('id', $educateurId)
+            ->where('actif', true)
+            ->first();
+
+        if (! $educateur) {
+            abort(
+                403,
+                'L’éducateur sélectionné est invalide ou inactif.'
+            );
+        }
+
+        if (
+            ! $this->isSuperAdmin() &&
+            (int) $educateur->etablissement_id !==
+            (int) $etablissementId
+        ) {
+            abort(
+                403,
+                'Cet éducateur n’appartient pas à votre établissement.'
+            );
+        }
+
+        return $educateur;
+    }
+
+    /**
+     * Vérifie l'affectation d'un éducateur à une classe.
+     */
+    private function checkEducateurClasseAccess(
+        int $educateurId,
+        Classe $classe
+    ): void {
+
+        $autorise = EducateurClasse::query()
+            ->where('educateur_id', $educateurId)
+            ->where('classe_id', $classe->id)
+            ->where(
+                'annee_scolaire_id',
+                $classe->annee_scolaire_id
+            )
+            ->where(
+                'etablissement_id',
+                $classe->etablissement_id
+            )
+            ->where('actif', true)
+            ->exists();
+
+        if (! $autorise) {
+            abort(
+                403,
+                'Cet éducateur n’est pas affecté à cette classe.'
+            );
+        }
+    }
+
+    /**
+     * Vérifie qu'un élève appartient réellement à la classe.
+     */
+    private function getEleveForClasse(
+        int $eleveId,
+        Classe $classe
+    ): Eleve {
+
+        $eleve = Eleve::query()
+            ->where('id', $eleveId)
+            ->where('classe_id', $classe->id)
+            ->where(
+                'etablissement_id',
+                $classe->etablissement_id
+            )
+            ->where(
+                'annee_scolaire_id',
+                $classe->annee_scolaire_id
+            )
+            ->where('actif', true)
+            ->first();
+
+        if (! $eleve) {
+            abort(
+                422,
+                'L’élève sélectionné n’appartient pas à la classe concernée.'
+            );
+        }
+
+        return $eleve;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | INDEX
+    |--------------------------------------------------------------------------
+    */
+
+    /**
      * Liste des notes de conduite.
      */
     public function index(Request $request): Response
@@ -88,92 +220,107 @@ class ConduiteController extends Controller
         $user = auth()->user();
 
         $isSuperAdmin = $user->hasRole('SuperAdmin');
+        $isEducateur = $user->hasRole('Educateur');
 
         /*
-    |--------------------------------------------------------------------------
-    | REQUÊTE DES NOTES DE CONDUITE
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | REQUÊTE PRINCIPALE
+        |--------------------------------------------------------------------------
+        */
 
-        $query = Conduite::with([
-            'eleve',
-            'educateur',
-            'anneeScolaire',
-            'classe',
-        ]);
+        $query = Conduite::query()
+            ->with([
+                'eleve',
+                'educateur',
+                'anneeScolaire',
+                'classe',
+            ]);
 
         /*
-    |--------------------------------------------------------------------------
-    | RESTRICTION DES DONNÉES SELON LE PROFIL
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | RESTRICTION DES DONNÉES
+        |--------------------------------------------------------------------------
+        */
 
-        if ($user->hasRole('Educateur')) {
+        if ($isEducateur) {
 
-            /*
-    |--------------------------------------------------------------------------
-    | ÉDUCATEUR
-    |--------------------------------------------------------------------------
-    | Il ne voit que les notes :
-    | - enregistrées sous son compte ;
-    | - concernant une classe qui lui est affectée ;
-    | - pour l'année scolaire correspondante.
-    |--------------------------------------------------------------------------
-    */
+            if (! $user->educateur_id) {
+                $query->whereRaw('1 = 0');
+            } else {
 
-            $query
-                ->where('educateur_id', $user->educateur_id)
-                ->whereHas('classe.affectationsEducateurs', function ($q) use ($user) {
-                    $q->where(
+                $query
+                    ->where(
                         'educateur_id',
                         $user->educateur_id
                     )
-                        ->where(
-                            'actif',
-                            true
-                        )
-                        ->whereColumn(
-                            'educateur_classes.annee_scolaire_id',
-                            'conduites.annee_scolaire_id'
-                        );
-                });
+                    ->whereHas(
+                        'classe.affectationsEducateurs',
+                        function ($q) use ($user) {
+
+                            $q->where(
+                                'educateur_id',
+                                $user->educateur_id
+                            )
+                                ->where(
+                                    'actif',
+                                    true
+                                )
+                                ->whereColumn(
+                                    'educateur_classes.annee_scolaire_id',
+                                    'conduites.annee_scolaire_id'
+                                )
+                                ->whereColumn(
+                                    'educateur_classes.classe_id',
+                                    'conduites.classe_id'
+                                );
+                        }
+                    );
+            }
         } elseif (! $isSuperAdmin) {
 
-            // Les autres utilisateurs voient uniquement
-            // les notes de leur établissement
-            $query->whereHas('classe', function ($q) use ($user) {
-                $q->where(
-                    'etablissement_id',
-                    $user->etablissement_id
-                );
-            });
+            $query->whereHas(
+                'classe',
+                function ($q) use ($user) {
+
+                    $q->where(
+                        'etablissement_id',
+                        $user->etablissement_id
+                    );
+                }
+            );
         }
 
         /*
-    |--------------------------------------------------------------------------
-    | FILTRE ÉTABLISSEMENT
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | FILTRE ÉTABLISSEMENT
+        |--------------------------------------------------------------------------
+        */
 
         if (
             $isSuperAdmin &&
             $request->filled('etablissement_id')
         ) {
-            $query->whereHas('classe', function ($q) use ($request) {
-                $q->where(
-                    'etablissement_id',
-                    $request->etablissement_id
-                );
-            });
+
+            $query->whereHas(
+                'classe',
+                function ($q) use ($request) {
+
+                    $q->where(
+                        'etablissement_id',
+                        $request->etablissement_id
+                    );
+                }
+            );
         }
 
         /*
-    |--------------------------------------------------------------------------
-    | FILTRE CLASSE
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | FILTRE CLASSE
+        |--------------------------------------------------------------------------
+        */
 
         if ($request->filled('classe_id')) {
+
             $query->where(
                 'classe_id',
                 $request->classe_id
@@ -181,12 +328,13 @@ class ConduiteController extends Controller
         }
 
         /*
-    |--------------------------------------------------------------------------
-    | FILTRE PÉRIODE
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | FILTRE PÉRIODE
+        |--------------------------------------------------------------------------
+        */
 
         if ($request->filled('periode')) {
+
             $query->where(
                 'periode',
                 $request->periode
@@ -194,42 +342,59 @@ class ConduiteController extends Controller
         }
 
         /*
-    |--------------------------------------------------------------------------
-    | RECHERCHE ÉLÈVE
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | RECHERCHE ÉLÈVE
+        |--------------------------------------------------------------------------
+        */
 
         if ($request->filled('recherche')) {
 
-            $recherche = trim($request->recherche);
+            $recherche = trim(
+                $request->recherche
+            );
 
-            $query->whereHas('eleve', function ($q) use ($recherche) {
+            $query->whereHas(
+                'eleve',
+                function ($q) use ($recherche) {
 
-                $q->where('nom', 'like', "%{$recherche}%")
-                    ->orWhere('prenoms', 'like', "%{$recherche}%")
-                    ->orWhere('matricule', 'like', "%{$recherche}%");
-            });
+                    $q->where(
+                        'nom',
+                        'like',
+                        "%{$recherche}%"
+                    )
+                        ->orWhere(
+                            'prenoms',
+                            'like',
+                            "%{$recherche}%"
+                        )
+                        ->orWhere(
+                            'matricule',
+                            'like',
+                            "%{$recherche}%"
+                        );
+                }
+            );
         }
 
         /*
-    |--------------------------------------------------------------------------
-    | RÉSULTATS
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | RÉSULTATS
+        |--------------------------------------------------------------------------
+        */
 
         $conduites = $query
             ->orderByDesc('id')
             ->get();
 
         /*
-    |--------------------------------------------------------------------------
-    | ÉTABLISSEMENTS DISPONIBLES
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | ÉTABLISSEMENTS DISPONIBLES
+        |--------------------------------------------------------------------------
+        */
 
         if ($isSuperAdmin) {
 
-            $etablissements = \App\Models\Etablissement::query()
+            $etablissements = Etablissement::query()
                 ->where('actif', true)
                 ->orderBy('nom')
                 ->get([
@@ -238,8 +403,11 @@ class ConduiteController extends Controller
                 ]);
         } else {
 
-            $etablissements = \App\Models\Etablissement::query()
-                ->where('id', $user->etablissement_id)
+            $etablissements = Etablissement::query()
+                ->where(
+                    'id',
+                    $user->etablissement_id
+                )
                 ->where('actif', true)
                 ->get([
                     'id',
@@ -248,19 +416,14 @@ class ConduiteController extends Controller
         }
 
         /*
-    |--------------------------------------------------------------------------
-    | CLASSES DISPONIBLES
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | CLASSES DISPONIBLES
+        |--------------------------------------------------------------------------
+        */
 
         $classesQuery = Classe::query()
+            ->where('active', true)
             ->orderBy('libelle');
-
-        /*
-|--------------------------------------------------------------------------
-| SuperAdmin
-|--------------------------------------------------------------------------
-*/
 
         if ($isSuperAdmin) {
 
@@ -271,43 +434,37 @@ class ConduiteController extends Controller
                     $request->etablissement_id
                 );
             }
+        } elseif ($isEducateur) {
 
-            /*
-|--------------------------------------------------------------------------
-| Éducateur
-|--------------------------------------------------------------------------
-*/
-        } elseif ($user->hasRole('Educateur')) {
+            if ($user->educateur_id) {
 
-            $classesQuery
-                ->where(
-                    'etablissement_id',
-                    $user->etablissement_id
-                )
-                ->whereHas(
-                    'affectationsEducateurs',
-                    function ($q) use ($user) {
+                $classesQuery
+                    ->where(
+                        'etablissement_id',
+                        $user->etablissement_id
+                    )
+                    ->whereHas(
+                        'affectationsEducateurs',
+                        function ($q) use ($user) {
 
-                        $q->where(
-                            'educateur_id',
-                            $user->educateur_id
-                        )
-                            ->where(
-                                'etablissement_id',
-                                $user->etablissement_id
+                            $q->where(
+                                'educateur_id',
+                                $user->educateur_id
                             )
-                            ->where(
-                                'actif',
-                                true
-                            );
-                    }
-                );
+                                ->where(
+                                    'etablissement_id',
+                                    $user->etablissement_id
+                                )
+                                ->where(
+                                    'actif',
+                                    true
+                                );
+                        }
+                    );
+            } else {
 
-            /*
-|--------------------------------------------------------------------------
-| Autres profils
-|--------------------------------------------------------------------------
-*/
+                $classesQuery->whereRaw('1 = 0');
+            }
         } else {
 
             $classesQuery->where(
@@ -323,39 +480,53 @@ class ConduiteController extends Controller
             'annee_scolaire_id',
         ]);
 
-        $classes = $classesQuery->get([
-            'id',
-            'libelle',
-            'etablissement_id',
-        ]);
-
         /*
+        |--------------------------------------------------------------------------
+        | RETOUR INERTIA
+        |--------------------------------------------------------------------------
+        */
+
+        return Inertia::render(
+            'Conduites/Index',
+            [
+
+                'conduites' => $conduites,
+
+                'etablissements' =>
+                $etablissements,
+
+                'classes' =>
+                $classes,
+
+                'filters' => [
+
+                    'etablissement_id' =>
+                    $request->etablissement_id ?? '',
+
+                    'classe_id' =>
+                    $request->classe_id ?? '',
+
+                    'periode' =>
+                    $request->periode ?? '',
+
+                    'recherche' =>
+                    $request->recherche ?? '',
+                ],
+
+                'isSuperAdmin' =>
+                $isSuperAdmin,
+            ]
+        );
+    }
+
+    /*
     |--------------------------------------------------------------------------
-    | RETOUR INERTIA
+    | CREATE
     |--------------------------------------------------------------------------
     */
 
-        return Inertia::render('Conduites/Index', [
-
-            'conduites' => $conduites,
-
-            'etablissements' => $etablissements,
-
-            'classes' => $classes,
-
-            'filters' => [
-                'etablissement_id' => $request->etablissement_id ?? '',
-                'classe_id' => $request->classe_id ?? '',
-                'periode' => $request->periode ?? '',
-                'recherche' => $request->recherche ?? '',
-            ],
-
-            'isSuperAdmin' => $isSuperAdmin,
-        ]);
-    }
-
     /**
-     * Formulaire de création groupée.
+     * Formulaire de saisie groupée.
      */
     public function create(): Response
     {
@@ -363,6 +534,9 @@ class ConduiteController extends Controller
 
         $isSuperAdmin =
             $user->hasRole('SuperAdmin');
+
+        $isEducateur =
+            $user->hasRole('Educateur');
 
         $etablissementId =
             $user->etablissement_id;
@@ -375,6 +549,7 @@ class ConduiteController extends Controller
 
         $etablissements = $isSuperAdmin
             ? Etablissement::query()
+            ->where('actif', true)
             ->orderBy('nom')
             ->get()
             : Etablissement::query()
@@ -382,6 +557,7 @@ class ConduiteController extends Controller
                 'id',
                 $etablissementId
             )
+            ->where('actif', true)
             ->orderBy('nom')
             ->get();
 
@@ -391,8 +567,7 @@ class ConduiteController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        $anneesScolaires =
-            AnneeScolaire::query()
+        $anneesScolaires = AnneeScolaire::query()
             ->orderByDesc('date_debut')
             ->get();
 
@@ -402,10 +577,13 @@ class ConduiteController extends Controller
         |--------------------------------------------------------------------------
         */
 
-        if ($user->hasRole('Educateur')) {
+        if ($isEducateur) {
 
             $educateurs = Educateur::query()
-                ->where('id', $user->educateur_id)
+                ->where(
+                    'id',
+                    $user->educateur_id
+                )
                 ->where('actif', true)
                 ->get([
                     'id',
@@ -415,9 +593,11 @@ class ConduiteController extends Controller
                 ]);
         } else {
 
-            $educateursQuery = Educateur::query();
+            $educateursQuery = Educateur::query()
+                ->where('actif', true);
 
             if (! $isSuperAdmin) {
+
                 $educateursQuery->where(
                     'etablissement_id',
                     $etablissementId
@@ -435,35 +615,52 @@ class ConduiteController extends Controller
                 ]);
         }
 
-        return Inertia::render('Conduites/Create', [
+        /*
+        |--------------------------------------------------------------------------
+        | RETOUR
+        |--------------------------------------------------------------------------
+        */
 
-            'etablissements' =>
-            $etablissements,
+        return Inertia::render(
+            'Conduites/Create',
+            [
 
-            'anneesScolaires' =>
-            $anneesScolaires,
+                'etablissements' =>
+                $etablissements,
 
-            'educateurs' =>
-            $educateurs,
+                'anneesScolaires' =>
+                $anneesScolaires,
 
-            'isSuperAdmin' =>
-            $isSuperAdmin,
+                'educateurs' =>
+                $educateurs,
 
-            'etablissementId' =>
-            $isSuperAdmin
-                ? null
-                : $etablissementId,
+                'isSuperAdmin' =>
+                $isSuperAdmin,
 
-        ]);
+                'etablissementId' =>
+                $isSuperAdmin
+                    ? null
+                    : $etablissementId,
+            ]
+        );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | CLASSES API
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Retourne les classes accessibles
-     * selon l'établissement et l'année scolaire.
+     * Retourne les classes accessibles pour
+     * un établissement et une année scolaire.
      */
-    public function classes(Request $request): JsonResponse
-    {
+    public function classes(
+        Request $request
+    ): JsonResponse {
+
         $request->validate([
+
             'annee_scolaire_id' => [
                 'required',
                 'integer',
@@ -475,35 +672,43 @@ class ConduiteController extends Controller
                 'integer',
                 'exists:etablissements,id',
             ],
+
         ]);
 
         $user = auth()->user();
 
-        $isSuperAdmin = $user->hasRole('SuperAdmin');
+        $isSuperAdmin =
+            $user->hasRole('SuperAdmin');
+
+        $isEducateur =
+            $user->hasRole('Educateur');
 
         /*
-    |--------------------------------------------------------------------------
-    | Détermination de l'établissement
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | ÉTABLISSEMENT
+        |--------------------------------------------------------------------------
+        */
 
         if ($isSuperAdmin) {
 
-            $etablissementId = $request->etablissement_id;
+            $etablissementId =
+                $request->etablissement_id;
 
             if (! $etablissementId) {
+
                 return response()->json([]);
             }
         } else {
 
-            $etablissementId = $user->etablissement_id;
+            $etablissementId =
+                $user->etablissement_id;
         }
 
         /*
-    |--------------------------------------------------------------------------
-    | Requête des classes
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | REQUÊTE
+        |--------------------------------------------------------------------------
+        */
 
         $classesQuery = Classe::query()
             ->where(
@@ -520,18 +725,24 @@ class ConduiteController extends Controller
             );
 
         /*
-    |--------------------------------------------------------------------------
-    | ÉDUCATEUR
-    |--------------------------------------------------------------------------
-    | Un éducateur ne reçoit QUE ses classes affectées.
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | ÉDUCATEUR
+        |--------------------------------------------------------------------------
+        */
 
-        if ($user->hasRole('Educateur')) {
+        if ($isEducateur) {
+
+            if (! $user->educateur_id) {
+
+                return response()->json([]);
+            }
 
             $classesQuery->whereHas(
                 'affectationsEducateurs',
-                function ($q) use ($user, $request) {
+                function ($q) use (
+                    $user,
+                    $request
+                ) {
 
                     $q->where(
                         'educateur_id',
@@ -554,10 +765,10 @@ class ConduiteController extends Controller
         }
 
         /*
-    |--------------------------------------------------------------------------
-    | Résultat
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | RÉSULTAT
+        |--------------------------------------------------------------------------
+        */
 
         $classes = $classesQuery
             ->orderBy('libelle')
@@ -568,58 +779,57 @@ class ConduiteController extends Controller
                 'annee_scolaire_id',
             ]);
 
-        return response()->json($classes);
+        return response()->json(
+            $classes
+        );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | ÉLÈVES API
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Retourne les élèves de la classe sélectionnée.
+     * Retourne les élèves d'une classe accessible.
      */
-    public function elevesParClasse(Classe $classe): JsonResponse
-    {
-        $user = auth()->user();
+    public function elevesParClasse(
+        Classe $classe
+    ): JsonResponse {
 
         /*
-    |--------------------------------------------------------------------------
-    | Établissement
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | SÉCURITÉ CLASSE
+        |--------------------------------------------------------------------------
+        */
 
-        $this->checkClasseAccess($classe);
-
-        /*
-    |--------------------------------------------------------------------------
-    | Vérification spécifique ÉDUCATEUR
-    |--------------------------------------------------------------------------
-    */
-
-        if ($user->hasRole('Educateur')) {
-
-            if (! $user->educateur_id) {
-                abort(403);
-            }
-
-            $autorise = EducateurClasse::query()
-                ->where('educateur_id', $user->educateur_id)
-                ->where('classe_id', $classe->id)
-                ->where('annee_scolaire_id', $classe->annee_scolaire_id)
-                ->where('etablissement_id', $classe->etablissement_id)
-                ->where('actif', true)
-                ->exists();
-
-            abort_unless($autorise, 403);
-        }
+        $this->checkClasseAccess(
+            $classe
+        );
 
         /*
-    |--------------------------------------------------------------------------
-    | Élèves
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | ÉLÈVES
+        |--------------------------------------------------------------------------
+        */
 
         $eleves = Eleve::query()
-            ->where('classe_id', $classe->id)
-            ->where('etablissement_id', $classe->etablissement_id)
-            ->where('annee_scolaire_id', $classe->annee_scolaire_id)
-            ->where('actif', true)
+            ->where(
+                'classe_id',
+                $classe->id
+            )
+            ->where(
+                'etablissement_id',
+                $classe->etablissement_id
+            )
+            ->where(
+                'annee_scolaire_id',
+                $classe->annee_scolaire_id
+            )
+            ->where(
+                'actif',
+                true
+            )
             ->orderBy('nom')
             ->orderBy('prenoms')
             ->get([
@@ -632,17 +842,31 @@ class ConduiteController extends Controller
                 'annee_scolaire_id',
             ]);
 
-        return response()->json($eleves);
+        return response()->json(
+            $eleves
+        );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | ENREGISTREMENT GROUPÉ
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Enregistrement groupé des notes de conduite.
+     * Enregistre les notes de conduite d'une classe.
      */
     public function storeGroupe(
         Request $request
     ): RedirectResponse {
 
-        $request->validate([
+        /*
+        |--------------------------------------------------------------------------
+        | VALIDATION
+        |--------------------------------------------------------------------------
+        */
+
+        $validated = $request->validate([
 
             'etablissement_id' => [
                 'nullable',
@@ -671,7 +895,7 @@ class ConduiteController extends Controller
             'periode' => [
                 'required',
                 'string',
-                'max:50',
+                'in:Trimestre 1,Trimestre 2,Trimestre 3,Semestre 1,Semestre 2',
             ],
 
             'notes' => [
@@ -701,177 +925,197 @@ class ConduiteController extends Controller
 
         ]);
 
+        $user = auth()->user();
+
         /*
         |--------------------------------------------------------------------------
-        | Détermination de l'établissement
+        | ÉTABLISSEMENT
         |--------------------------------------------------------------------------
         */
 
-        if ($this->isSuperAdmin()) {
+        if ($user->hasRole('SuperAdmin')) {
 
-            $etablissementId =
-                $request->etablissement_id;
-
-            if (! $etablissementId) {
+            if (
+                empty($validated['etablissement_id'])
+            ) {
 
                 return back()
                     ->withErrors([
                         'etablissement_id' =>
                         'Veuillez sélectionner un établissement.',
-                    ]);
+                    ])
+                    ->withInput();
             }
-        } else {
 
             $etablissementId =
-                $this->currentEtablissementId();
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | Classe
-        |--------------------------------------------------------------------------
-        */
-
-        $classe = Classe::findOrFail(
-            $request->classe_id
-        );
-        /*
-|--------------------------------------------------------------------------
-| Vérification de l'accès à la classe
-|--------------------------------------------------------------------------
-*/
-
-        $this->checkClasseAccess($classe);
-
-        /*
-|--------------------------------------------------------------------------
-| Vérification de l'affectation ÉDUCATEUR → CLASSE
-|--------------------------------------------------------------------------
-*/
-
-        if ($this->isSuperAdmin()) {
-
-            // Aucun contrôle supplémentaire.
-
-        } elseif (auth()->user()->hasRole('Educateur')) {
-
-            $user = auth()->user();
-
-            if (! $user->educateur_id) {
-                abort(403);
-            }
-
-            $affectationExiste = EducateurClasse::query()
-                ->where('educateur_id', $user->educateur_id)
-                ->where('classe_id', $classe->id)
-                ->where('annee_scolaire_id', $classe->annee_scolaire_id)
-                ->where('etablissement_id', $classe->etablissement_id)
-                ->where('actif', true)
-                ->exists();
-
-            abort_unless($affectationExiste, 403);
-
-            /*
-    |--------------------------------------------------------------------------
-    | L'éducateur connecté devient automatiquement responsable
-    |--------------------------------------------------------------------------
-    */
-
-            $educateurId = $user->educateur_id;
+                (int) $validated['etablissement_id'];
         } else {
 
-            $educateurId = $request->educateur_id;
-        }
-        /*
-        |--------------------------------------------------------------------------
-        | Vérification établissement
-        |--------------------------------------------------------------------------
-        */
+            if (! $user->etablissement_id) {
 
-        if (
-            $classe->etablissement_id
-            !== (int) $etablissementId
-        ) {
-            abort(403);
+                abort(
+                    403,
+                    'Votre compte n’est associé à aucun établissement.'
+                );
+            }
+
+            $etablissementId =
+                (int) $user->etablissement_id;
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Vérification année scolaire
+        | CLASSE
         |--------------------------------------------------------------------------
         */
 
-        if (
-            $classe->annee_scolaire_id
-            !== (int) $request->annee_scolaire_id
-        ) {
+        $classe = Classe::query()
+            ->where(
+                'id',
+                $validated['classe_id']
+            )
+            ->where(
+                'etablissement_id',
+                $etablissementId
+            )
+            ->where(
+                'annee_scolaire_id',
+                $validated['annee_scolaire_id']
+            )
+            ->where(
+                'active',
+                true
+            )
+            ->first();
+
+        if (! $classe) {
+
             return back()
                 ->withErrors([
                     'classe_id' =>
-                    'La classe sélectionnée ne correspond pas à l’année scolaire.',
-                ]);
+                    'La classe sélectionnée est invalide ou ne correspond pas à l’année scolaire et à l’établissement.',
+                ])
+                ->withInput();
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Vérification éducateur
+        | DROITS SUR LA CLASSE
         |--------------------------------------------------------------------------
         */
 
-        if ($this->isSuperAdmin()) {
+        $this->checkClasseAccess(
+            $classe
+        );
 
-            $educateurId = $request->educateur_id;
-        } elseif (auth()->user()->hasRole('Educateur')) {
+        /*
+        |--------------------------------------------------------------------------
+        | ÉDUCATEUR RESPONSABLE
+        |--------------------------------------------------------------------------
+        */
 
-            $educateurId = auth()->user()->educateur_id;
+        if ($user->hasRole('Educateur')) {
+
+            if (! $user->educateur_id) {
+
+                abort(
+                    403,
+                    'Votre compte n’est associé à aucun éducateur.'
+                );
+            }
+
+            /*
+            | L'éducateur connecté est toujours
+            | responsable de la saisie.
+            */
+
+            $educateurId =
+                (int) $user->educateur_id;
+
+            /*
+            | Vérification supplémentaire.
+            */
+
+            $this->checkEducateurClasseAccess(
+                $educateurId,
+                $classe
+            );
         } else {
 
-            $educateurId = $request->educateur_id;
-        }
-
-        if ($educateurId) {
-
-            $educateur = Educateur::findOrFail($educateurId);
+            /*
+            | SuperAdmin / Administrateur / Direction
+            */
 
             if (
-                ! $this->isSuperAdmin()
-                &&
-                $educateur->etablissement_id
-                !== (int) $etablissementId
+                empty($validated['educateur_id'])
             ) {
-                abort(403);
+
+                return back()
+                    ->withErrors([
+                        'educateur_id' =>
+                        'Veuillez sélectionner un éducateur responsable.',
+                    ])
+                    ->withInput();
+            }
+
+            $educateurId =
+                (int) $validated['educateur_id'];
+
+            /*
+            | Vérification établissement
+            */
+
+            $this->checkEducateurAccess(
+                $educateurId,
+                $etablissementId
+            );
+
+            /*
+            | Pour les utilisateurs autres que SuperAdmin,
+            | l'éducateur doit être affecté à la classe.
+            |
+            | Le SuperAdmin conserve un accès global.
+            */
+
+            if (! $user->hasRole('SuperAdmin')) {
+
+                $this->checkEducateurClasseAccess(
+                    $educateurId,
+                    $classe
+                );
             }
         }
 
         /*
         |--------------------------------------------------------------------------
-        | Enregistrement transactionnel
+        | ENREGISTREMENT TRANSACTIONNEL
         |--------------------------------------------------------------------------
         */
 
         DB::transaction(
             function () use (
-                $request,
+                $validated,
                 $classe,
                 $educateurId
             ) {
 
                 foreach (
-                    $request->notes
+                    $validated['notes']
                     as $ligne
                 ) {
 
                     /*
                     |--------------------------------------------------------------------------
-                    | Aucune note saisie
+                    | NOTE VIDE
                     |--------------------------------------------------------------------------
+                    |
+                    | Une ligne sans note n'est pas enregistrée.
+                    |
                     */
 
                     if (
-                        ! isset($ligne['note'])
-                        ||
-                        $ligne['note'] === ''
-                        ||
+                        ! isset($ligne['note']) ||
+                        $ligne['note'] === '' ||
                         $ligne['note'] === null
                     ) {
                         continue;
@@ -879,62 +1123,46 @@ class ConduiteController extends Controller
 
                     /*
                     |--------------------------------------------------------------------------
-                    | Vérification de l'élève
+                    | ÉLÈVE
                     |--------------------------------------------------------------------------
                     */
 
                     $eleve =
-                        Eleve::query()
-
-                        ->where(
-                            'id',
-                            $ligne['eleve_id']
-                        )
-
-                        ->where(
-                            'classe_id',
-                            $classe->id
-                        )
-
-                        ->where(
-                            'etablissement_id',
-                            $classe->etablissement_id
-                        )
-
-                        ->where(
-                            'annee_scolaire_id',
-                            $classe->annee_scolaire_id
-                        )
-
-                        ->firstOrFail();
+                        $this->getEleveForClasse(
+                            (int) $ligne['eleve_id'],
+                            $classe
+                        );
 
                     /*
                     |--------------------------------------------------------------------------
-                    | Création ou mise à jour
+                    | CRÉATION / MISE À JOUR
                     |--------------------------------------------------------------------------
+                    |
+                    | Une seule conduite par :
+                    |
+                    | élève + année + classe + période
+                    |
                     */
 
                     Conduite::updateOrCreate(
 
                         [
-
                             'eleve_id' =>
                             $eleve->id,
 
                             'annee_scolaire_id' =>
-                            $request->annee_scolaire_id,
+                            $classe->annee_scolaire_id,
 
                             'classe_id' =>
                             $classe->id,
 
                             'periode' =>
-                            $request->periode,
-
+                            $validated['periode'],
                         ],
 
                         [
-
-                            'educateur_id' => $educateurId,
+                            'educateur_id' =>
+                            $educateurId,
 
                             'note' =>
                             $ligne['note'],
@@ -942,12 +1170,17 @@ class ConduiteController extends Controller
                             'observation' =>
                             $ligne['observation']
                                 ?? null,
-
                         ]
                     );
                 }
             }
         );
+
+        /*
+        |--------------------------------------------------------------------------
+        | REDIRECTION
+        |--------------------------------------------------------------------------
+        */
 
         return redirect()
             ->route('conduites.index')
@@ -957,126 +1190,109 @@ class ConduiteController extends Controller
             );
     }
 
-    /**
-     * Ancien enregistrement individuel.
-     */
-    public function store(
-        StoreConduiteRequest $request
-    ): RedirectResponse {
-
-        Conduite::create(
-            $request->validated()
-        );
-
-        return redirect()
-            ->route('conduites.index')
-            ->with(
-                'success',
-                'Note de conduite enregistrée avec succès.'
-            );
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | EDIT
+    |--------------------------------------------------------------------------
+    */
 
     /**
-     * Modification d'une note.
+     * Formulaire de modification d'une note.
      */
     public function edit(
         Conduite $conduite
     ): Response {
 
         $user = auth()->user();
+
+        /*
+        |--------------------------------------------------------------------------
+        | CLASSE
+        |--------------------------------------------------------------------------
+        */
+
         $classe = $conduite->classe;
 
-        if ($classe) {
+        if (! $classe) {
 
-            $this->checkClasseAccess(
-                $classe
+            abort(
+                404,
+                'La classe associée à cette note est introuvable.'
             );
         }
 
-        $isSuperAdmin =
-            $this->isSuperAdmin();
+        /*
+        |--------------------------------------------------------------------------
+        | SÉCURITÉ
+        |--------------------------------------------------------------------------
+        */
 
-        $etablissementId =
-            $this->currentEtablissementId();
+        $this->checkClasseAccess(
+            $classe
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | SÉCURITÉ SUPPLÉMENTAIRE POUR L'ÉDUCATEUR
+        |--------------------------------------------------------------------------
+        */
+
+        if ($user->hasRole('Educateur')) {
+
+            if (
+                ! $user->educateur_id ||
+                (int) $conduite->educateur_id !==
+                (int) $user->educateur_id
+            ) {
+
+                abort(
+                    403,
+                    'Vous n’êtes pas autorisé à modifier cette note de conduite.'
+                );
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | RETOUR
+        |--------------------------------------------------------------------------
+        |
+        | L'édition ne permet de modifier que :
+        |
+        | - la note
+        | - l'observation
+        |
+        | L'élève, la classe, la période,
+        | l'année et l'éducateur restent figés.
+        |
+        */
 
         return Inertia::render(
             'Conduites/Edit',
             [
 
                 'conduite' =>
-                $conduite,
-
-                'anneesScolaires' =>
-                AnneeScolaire::query()
-                    ->orderByDesc('date_debut')
-                    ->get(),
-
-                'classes' => Classe::query()
-                    ->when(
-                        ! $isSuperAdmin,
-                        fn($query) => $query->where(
-                            'etablissement_id',
-                            $etablissementId
-                        )
-                    )
-                    ->when(
-                        $user->hasRole('Educateur'),
-                        fn($query) => $query->whereHas(
-                            'affectationsEducateurs',
-                            function ($q) use ($user, $conduite) {
-                                $q->where(
-                                    'educateur_id',
-                                    $user->educateur_id
-                                )
-                                    ->where(
-                                        'annee_scolaire_id',
-                                        $conduite->annee_scolaire_id
-                                    )
-                                    ->where('actif', true);
-                            }
-                        )
-                    )
-                    ->orderBy('libelle')
-                    ->get(),
-
-                'eleves' =>
-                Eleve::query()
-
-                    ->when(
-                        ! $isSuperAdmin,
-                        fn($query) =>
-                        $query->where(
-                            'etablissement_id',
-                            $etablissementId
-                        )
-                    )
-
-                    ->orderBy('nom')
-                    ->orderBy('prenoms')
-                    ->get(),
-
-                'educateurs' =>
-                Educateur::query()
-
-                    ->when(
-                        ! $isSuperAdmin,
-                        fn($query) =>
-                        $query->where(
-                            'etablissement_id',
-                            $etablissementId
-                        )
-                    )
-
-                    ->orderBy('nom')
-                    ->orderBy('prenoms')
-                    ->get(),
+                $conduite->load([
+                    'eleve',
+                    'classe',
+                    'educateur',
+                    'anneeScolaire',
+                ]),
 
             ]
         );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Mise à jour.
+     * Modification d'une note.
+     *
+     * Seuls note et observation peuvent être modifiés.
      */
     public function update(
         UpdateConduiteRequest $request,
@@ -1085,98 +1301,74 @@ class ConduiteController extends Controller
 
         $user = auth()->user();
 
-        $classeActuelle = $conduite->classe;
+        /*
+        |--------------------------------------------------------------------------
+        | CLASSE
+        |--------------------------------------------------------------------------
+        */
 
-        if (! $classeActuelle) {
-            abort(404);
+        $classe = $conduite->classe;
+
+        if (! $classe) {
+
+            abort(
+                404,
+                'La classe associée à cette note est introuvable.'
+            );
         }
 
         /*
-    |--------------------------------------------------------------------------
-    | Sécurité établissement
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | SÉCURITÉ CLASSE
+        |--------------------------------------------------------------------------
+        */
 
-        $this->checkClasseAccess($classeActuelle);
+        $this->checkClasseAccess(
+            $classe
+        );
 
         /*
-    |--------------------------------------------------------------------------
-    | Sécurité ÉDUCATEUR
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | SÉCURITÉ ÉDUCATEUR
+        |--------------------------------------------------------------------------
+        */
 
         if ($user->hasRole('Educateur')) {
 
-            if (! $user->educateur_id) {
-                abort(403);
-            }
+            if (
+                ! $user->educateur_id ||
+                (int) $conduite->educateur_id !==
+                (int) $user->educateur_id
+            ) {
 
-            $autorise = EducateurClasse::query()
-                ->where('educateur_id', $user->educateur_id)
-                ->where('classe_id', $classeActuelle->id)
-                ->where(
-                    'annee_scolaire_id',
-                    $conduite->annee_scolaire_id
-                )
-                ->where('actif', true)
-                ->exists();
-
-            abort_unless($autorise, 403);
-        }
-
-        $data = $request->validated();
-
-        /*
-    |--------------------------------------------------------------------------
-    | Vérification nouvelle classe
-    |--------------------------------------------------------------------------
-    */
-
-        if (! empty($data['classe_id'])) {
-
-            $nouvelleClasse = Classe::findOrFail(
-                $data['classe_id']
-            );
-
-            $this->checkClasseAccess($nouvelleClasse);
-
-            if ($user->hasRole('Educateur')) {
-
-                $autoriseNouvelleClasse =
-                    EducateurClasse::query()
-                    ->where(
-                        'educateur_id',
-                        $user->educateur_id
-                    )
-                    ->where(
-                        'classe_id',
-                        $nouvelleClasse->id
-                    )
-                    ->where(
-                        'annee_scolaire_id',
-                        $data['annee_scolaire_id']
-                    )
-                    ->where('actif', true)
-                    ->exists();
-
-                abort_unless(
-                    $autoriseNouvelleClasse,
-                    403
+                abort(
+                    403,
+                    'Vous n’êtes pas autorisé à modifier cette note.'
                 );
             }
         }
 
         /*
-    |--------------------------------------------------------------------------
-    | Éducateur imposé pour un compte Éducateur
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | MISE À JOUR
+        |--------------------------------------------------------------------------
+        |
+        | Le FormRequest ne contient que :
+        |
+        | note
+        | observation
+        |
+        */
 
-        if ($user->hasRole('Educateur')) {
-            $data['educateur_id'] = $user->educateur_id;
-        }
+        $conduite->update(
+            $request->validated()
+        );
 
-        $conduite->update($data);
+        /*
+        |--------------------------------------------------------------------------
+        | REDIRECTION
+        |--------------------------------------------------------------------------
+        */
 
         return redirect()
             ->route('conduites.index')
@@ -1186,8 +1378,14 @@ class ConduiteController extends Controller
             );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | DESTROY
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Suppression.
+     * Suppression d'une note de conduite.
      */
     public function destroy(
         Conduite $conduite
@@ -1195,52 +1393,66 @@ class ConduiteController extends Controller
 
         $user = auth()->user();
 
+        /*
+        |--------------------------------------------------------------------------
+        | CLASSE
+        |--------------------------------------------------------------------------
+        */
+
         $classe = $conduite->classe;
 
         if (! $classe) {
-            abort(404);
+
+            abort(
+                404,
+                'La classe associée à cette note est introuvable.'
+            );
         }
 
         /*
-    |--------------------------------------------------------------------------
-    | Sécurité établissement
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | SÉCURITÉ CLASSE
+        |--------------------------------------------------------------------------
+        */
 
-        $this->checkClasseAccess($classe);
+        $this->checkClasseAccess(
+            $classe
+        );
 
         /*
-    |--------------------------------------------------------------------------
-    | Sécurité ÉDUCATEUR
-    |--------------------------------------------------------------------------
-    */
+        |--------------------------------------------------------------------------
+        | SÉCURITÉ ÉDUCATEUR
+        |--------------------------------------------------------------------------
+        */
 
         if ($user->hasRole('Educateur')) {
 
-            if (! $user->educateur_id) {
-                abort(403);
+            if (
+                ! $user->educateur_id ||
+                (int) $conduite->educateur_id !==
+                (int) $user->educateur_id
+            ) {
+
+                abort(
+                    403,
+                    'Vous n’êtes pas autorisé à supprimer cette note.'
+                );
             }
-
-            $autorise = EducateurClasse::query()
-                ->where(
-                    'educateur_id',
-                    $user->educateur_id
-                )
-                ->where(
-                    'classe_id',
-                    $classe->id
-                )
-                ->where(
-                    'annee_scolaire_id',
-                    $conduite->annee_scolaire_id
-                )
-                ->where('actif', true)
-                ->exists();
-
-            abort_unless($autorise, 403);
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | SUPPRESSION
+        |--------------------------------------------------------------------------
+        */
+
         $conduite->delete();
+
+        /*
+        |--------------------------------------------------------------------------
+        | REDIRECTION
+        |--------------------------------------------------------------------------
+        */
 
         return redirect()
             ->route('conduites.index')

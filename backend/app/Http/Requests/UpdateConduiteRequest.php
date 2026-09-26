@@ -14,35 +14,6 @@ class UpdateConduiteRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'eleve_id' => [
-                'required',
-                'integer',
-                'exists:eleves,id',
-            ],
-
-            'educateur_id' => [
-                'nullable',
-                'integer',
-                'exists:educateurs,id',
-            ],
-
-            'annee_scolaire_id' => [
-                'required',
-                'integer',
-                'exists:annee_scolaires,id',
-            ],
-
-            'classe_id' => [
-                'nullable',
-                'integer',
-                'exists:classes,id',
-            ],
-
-            'evaluation_id' => [
-                'nullable',
-                'integer',
-                'exists:evaluations,id',
-            ],
 
             'note' => [
                 'required',
@@ -56,6 +27,28 @@ class UpdateConduiteRequest extends FormRequest
                 'string',
                 'max:2000',
             ],
+
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+
+            'note.required' =>
+            'Veuillez saisir une note.',
+
+            'note.numeric' =>
+            'La note doit être numérique.',
+
+            'note.min' =>
+            'La note ne peut pas être inférieure à 0.',
+
+            'note.max' =>
+            'La note ne peut pas dépasser 20.',
+
+            'observation.max' =>
+            'L’observation ne peut pas dépasser 2000 caractères.',
         ];
     }
 }

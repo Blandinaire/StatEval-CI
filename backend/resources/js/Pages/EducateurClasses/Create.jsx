@@ -1,5 +1,5 @@
 import AdminLayout from "@/Layouts/AdminLayout";
-import Form from "./Form";
+import BulkForm from "./BulkForm";
 import { Head } from "@inertiajs/react";
 
 export default function Create({
@@ -7,6 +7,7 @@ export default function Create({
     anneesScolaires = [],
     educateurs = [],
     classes = [],
+    affectationsExistantes = [],
     isSuperAdmin = false,
     etablissementId = null,
 }) {
@@ -21,15 +22,16 @@ export default function Create({
                     </h1>
 
                     <p className="mt-1 text-sm text-gray-500">
-                        Affecter une classe à un éducateur.
+                        Affecter chaque classe à son éducateur responsable.
                     </p>
                 </div>
 
-                <Form
+                <BulkForm
                     etablissements={etablissements}
                     anneesScolaires={anneesScolaires}
                     educateurs={educateurs}
                     classes={classes}
+                    affectationsExistantes={affectationsExistantes}
                     isSuperAdmin={isSuperAdmin}
                     etablissementId={etablissementId}
                 />

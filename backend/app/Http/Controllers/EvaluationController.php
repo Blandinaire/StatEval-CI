@@ -8,6 +8,8 @@ use App\Models\Enseignant;
 use App\Models\Etablissement;
 use App\Models\Evaluation;
 use App\Models\Matiere;
+use App\Models\Niveau;
+use App\Models\Eleve;
 use App\Models\Affectation;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -28,6 +30,16 @@ class EvaluationController extends Controller
     private function estProfesseur($user): bool
     {
         return $user->hasRole('Professeur');
+    }
+
+    private function estAdministrateur($user): bool
+    {
+        return $user->hasAnyRole([
+            'SuperAdmin',
+            'Administrateur',
+            'Directeur',
+            'Direction',
+        ]);
     }
 
     /**
@@ -73,6 +85,19 @@ class EvaluationController extends Controller
             return;
         }
 
+        if (
+            $evaluation->origine === 'administration' &&
+            $this->estAdministrateur($user)
+        ) {
+            abort_unless(
+                $user->hasRole('SuperAdmin') ||
+                    (int) $evaluation->etablissement_id === (int) $user->etablissement_id,
+                403
+            );
+
+            return;
+        }
+
         /*
         |--------------------------------------------------------------------------
         | Professeur
@@ -80,6 +105,21 @@ class EvaluationController extends Controller
         */
 
         if ($this->estProfesseur($user)) {
+
+            if ($evaluation->origine === 'administration') {
+                $this->verifierCompteProfesseur($user);
+
+                abort_unless($evaluation->statut === 'active', 403);
+                abort_unless(
+                    (int) $evaluation->etablissement_id === (int) $user->etablissement_id &&
+                        $evaluation->classes()
+                        ->wherePivot('enseignant_id', $user->enseignant_id)
+                        ->exists(),
+                    403
+                );
+
+                return;
+            }
 
             $this->verifierCompteProfesseur($user);
 
@@ -155,6 +195,7 @@ class EvaluationController extends Controller
                 'etablissement',
                 'anneeScolaire',
                 'classe',
+                'classes',
                 'matiere',
                 'enseignant',
             ])
@@ -221,11 +262,18 @@ class EvaluationController extends Controller
                 'etablissement',
                 'anneeScolaire',
                 'classe',
+                'classes',
                 'matiere',
                 'enseignant',
+                'classes',
             ])
                 ->where('etablissement_id', $user->etablissement_id)
-                ->where('enseignant_id', $user->enseignant_id)
+                ->where(function ($query) use ($user) {
+                    $query->where('enseignant_id', $user->enseignant_id)
+                        ->orWhereHas('classes', function ($classesQuery) use ($user) {
+                            $classesQuery->where('evaluation_classes.enseignant_id', $user->enseignant_id);
+                        });
+                })
                 ->orderByDesc('date_evaluation')
                 ->orderByDesc('id')
                 ->get();
@@ -275,6 +323,7 @@ class EvaluationController extends Controller
                 'etablissement',
                 'anneeScolaire',
                 'classe',
+                'classes',
                 'matiere',
                 'enseignant',
             ])
@@ -316,6 +365,33 @@ class EvaluationController extends Controller
                 ->values();
         }
 
+        $enseignantsProgrammations = Enseignant::whereIn(
+            'id',
+            $evaluations->flatMap(
+                fn($evaluation) =>
+                $evaluation->classes->pluck('pivot.enseignant_id')
+            )->filter()->unique()
+        )->get()->keyBy('id');
+
+        $evaluations->each(function ($evaluation) use ($enseignantsProgrammations) {
+            $evaluation->setAttribute(
+                'enseignants_programmation',
+                $evaluation->classes
+                    ->map(function ($classe) use ($enseignantsProgrammations) {
+                        $enseignant = $enseignantsProgrammations->get(
+                            $classe->pivot->enseignant_id
+                        );
+
+                        return $enseignant
+                            ? trim($enseignant->nom . ' ' . $enseignant->prenoms)
+                            : null;
+                    })
+                    ->filter()
+                    ->unique()
+                    ->values()
+            );
+        });
+
         return Inertia::render('Evaluations/Index', [
             'evaluations' => $evaluations,
             'etablissements' => $etablissements,
@@ -324,6 +400,296 @@ class EvaluationController extends Controller
             'enseignants' => $enseignants,
             'periodes' => $periodes,
             'isSuperAdmin' => $isSuperAdmin,
+            'canProgram' => $this->estAdministrateur($user),
+        ]);
+    }
+
+    public function programmer()
+    {
+        $user = auth()->user();
+        abort_unless($this->estAdministrateur($user), 403);
+
+        $etablissements = $user->hasRole('SuperAdmin')
+            ? Etablissement::where('actif', true)->orderBy('nom')->get()
+            : Etablissement::whereKey($user->etablissement_id)->get();
+
+        $etablissementIds = $etablissements->pluck('id');
+
+        return Inertia::render('Evaluations/Programmer', [
+            'etablissements' => $etablissements,
+            'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
+            'classes' => Classe::whereIn('etablissement_id', $etablissementIds)
+                ->with(['etablissement', 'niveau', 'anneeScolaire', 'maquette.matieres'])
+                ->orderBy('libelle')->get(),
+            'matieres' => Matiere::orderBy('libelle')->get(),
+            'niveaux' => Niveau::orderBy('ordre')->orderBy('libelle')->get(['id', 'libelle']),
+        ]);
+    }
+
+    public function programmerStore(Request $request)
+    {
+        $user = auth()->user();
+        abort_unless($this->estAdministrateur($user), 403);
+
+        $validated = $request->validate([
+            'etablissement_id' => ['required', 'integer', 'exists:etablissements,id'],
+            'annee_scolaire_id' => ['required', 'integer', 'exists:annee_scolaires,id'],
+            'niveau_id' => ['required', 'integer', 'exists:niveaux,id'],
+            'classe_ids' => ['required', 'array', 'min:1'],
+            'classe_ids.*' => ['integer', 'exists:classes,id'],
+            'matiere_id' => ['required', 'integer', 'exists:matieres,id'],
+            'libelle' => ['required', 'string', 'max:255'],
+            'type' => ['required', 'in:Devoir de niveau,Composition trimestrielle,Examen blanc,Devoir commun,Évaluation commune,Test diagnostique,Examen,Autre'],
+            'numero' => ['nullable', 'integer', 'min:1'],
+            'date_evaluation' => ['required', 'date'],
+            'heure_debut' => ['nullable', 'date_format:H:i'],
+            'heure_fin' => ['nullable', 'date_format:H:i', 'after:heure_debut'],
+            'bareme' => ['required', 'numeric', 'min:1'],
+            'coefficient' => ['required', 'numeric', 'min:0.1'],
+            'periode' => ['required', 'in:Trimestre 1,Trimestre 2,Trimestre 3'],
+            'prise_en_compte_moyenne' => ['boolean'],
+            'notifier_professeurs' => ['boolean'],
+            'publier_eleves' => ['boolean'],
+            'publier_parents' => ['boolean'],
+        ]);
+
+        abort_unless(
+            $user->hasRole('SuperAdmin') ||
+                (int) $validated['etablissement_id'] === (int) $user->etablissement_id,
+            403
+        );
+
+        $classes = Classe::whereIn('id', $validated['classe_ids'])
+            ->where('etablissement_id', $validated['etablissement_id'])
+            ->where('annee_scolaire_id', $validated['annee_scolaire_id'])
+            ->get();
+
+        abort_unless($classes->count() === count(array_unique($validated['classe_ids'])), 422);
+
+        abort_unless(
+            $classes->every(fn($classe) => (int) $classe->niveau_id === (int) $validated['niveau_id']),
+            422,
+            'Toutes les classes sélectionnées doivent appartenir au niveau choisi.'
+        );
+
+        $matiereDansMaquettes = $classes->load('maquette.matieres')->every(
+            fn($classe) => $classe->maquette?->matieres->contains('id', $validated['matiere_id'])
+        );
+
+        abort_unless(
+            $matiereDansMaquettes,
+            422,
+            'La matière sélectionnée n’existe pas dans la maquette de chaque classe.'
+        );
+
+        $affectations = Affectation::query()
+            ->where('etablissement_id', $validated['etablissement_id'])
+            ->where('annee_scolaire_id', $validated['annee_scolaire_id'])
+            ->whereIn('classe_id', $classes->pluck('id'))
+            ->where('matiere_id', $validated['matiere_id'])
+            ->where('actif', true)
+            ->get()
+            ->groupBy('classe_id');
+
+        $classesSansProfesseur = $classes->filter(fn($classe) => !$affectations->has($classe->id));
+
+        $conflit = Evaluation::query()
+            ->where('etablissement_id', $validated['etablissement_id'])
+            ->whereDate('date_evaluation', $validated['date_evaluation'])
+            ->where('matiere_id', $validated['matiere_id'])
+            ->whereIn('statut', ['programmee', 'active'])
+            ->whereHas('classes', fn($query) => $query->whereIn('classes.id', $classes->pluck('id')))
+            ->when($validated['heure_debut'] && $validated['heure_fin'], function ($query) use ($validated) {
+                $query->where(function ($query) use ($validated) {
+                    $query->whereBetween('heure_debut', [$validated['heure_debut'], $validated['heure_fin']])
+                        ->orWhereBetween('heure_fin', [$validated['heure_debut'], $validated['heure_fin']]);
+                });
+            })
+            ->exists();
+
+        abort_unless(!$conflit, 422, 'Une évaluation est déjà programmée sur une classe sélectionnée à ce moment.');
+
+        $premiereAffectation = $affectations->flatten()->first();
+
+        $evaluation = Evaluation::create([
+            'etablissement_id' => $validated['etablissement_id'],
+            'annee_scolaire_id' => $validated['annee_scolaire_id'],
+            'niveau_id' => $validated['niveau_id'],
+            'classe_id' => $classes->first()->id,
+            'matiere_id' => $validated['matiere_id'],
+            'enseignant_id' => $premiereAffectation?->enseignant_id,
+            'origine' => 'administration',
+            'statut' => 'programmee',
+            'cree_par' => $user->id,
+            'libelle' => $validated['libelle'],
+            'type' => $validated['type'],
+            'numero' => $validated['numero'] ?? null,
+            'date_evaluation' => $validated['date_evaluation'],
+            'heure_debut' => $validated['heure_debut'] ?? null,
+            'heure_fin' => $validated['heure_fin'] ?? null,
+            'bareme' => $validated['bareme'],
+            'coefficient' => $validated['coefficient'],
+            'prise_en_compte_moyenne' => $validated['prise_en_compte_moyenne'] ?? true,
+            'notifier_professeurs' => $validated['notifier_professeurs'] ?? false,
+            'publier_eleves' => $validated['publier_eleves'] ?? false,
+            'publier_parents' => $validated['publier_parents'] ?? false,
+            'periode' => $validated['periode'],
+            'active' => false,
+        ]);
+
+        $evaluation->classes()->sync(
+            $classes->mapWithKeys(fn($classe) => [
+                $classe->id => [
+                    'enseignant_id' => $affectations->get($classe->id)?->first()?->enseignant_id,
+                ],
+            ])->all()
+        );
+
+        $message = 'Évaluation programmée avec succès.';
+
+        if ($classesSansProfesseur->isNotEmpty()) {
+            $message .= ' Affectation à compléter pour : ' .
+                $classesSansProfesseur->pluck('libelle')->implode(', ') . '.';
+        }
+
+        return redirect()->route('evaluations.index')
+            ->with('success', $message);
+    }
+
+    public function programmations()
+    {
+        $user = auth()->user();
+        abort_unless($this->estAdministrateur($user), 403);
+
+        $query = Evaluation::query()
+            ->where('origine', 'administration')
+            ->with(['anneeScolaire', 'niveau', 'matiere', 'classes', 'notes.eleve']);
+
+        if (!$user->hasRole('SuperAdmin')) {
+            $query->where('etablissement_id', $user->etablissement_id);
+        }
+
+        $evaluations = $query->orderByDesc('date_evaluation')->orderByDesc('id')->get();
+
+        $programmations = $evaluations->map(function (Evaluation $evaluation) {
+            $eleves = Eleve::whereIn('classe_id', $evaluation->classes->pluck('id'))
+                ->where('annee_scolaire_id', $evaluation->annee_scolaire_id)
+                ->where('actif', true)
+                ->get(['id', 'classe_id']);
+            $notes = $evaluation->notes->whereIn('eleve_id', $eleves->pluck('id'));
+
+            return [
+                'id' => $evaluation->id,
+                'libelle' => $evaluation->libelle,
+                'type' => $evaluation->type,
+                'date_evaluation' => $evaluation->date_evaluation?->format('Y-m-d'),
+                'statut' => $evaluation->statut,
+                'annee' => $evaluation->anneeScolaire?->libelle,
+                'niveau' => $evaluation->niveau?->libelle,
+                'matiere' => $evaluation->matiere?->libelle,
+                'classes_count' => $evaluation->classes->count(),
+                'eleves_count' => $eleves->count(),
+                'notes_count' => $notes->filter(fn($note) => $note->note !== null || $note->absent)->count(),
+            ];
+        });
+
+        return Inertia::render('Evaluations/Programmations', [
+            'programmations' => $programmations,
+        ]);
+    }
+
+    public function programmation(Evaluation $evaluation)
+    {
+        $user = auth()->user();
+        abort_unless($this->estAdministrateur($user), 403);
+        abort_unless($evaluation->origine === 'administration', 404);
+        abort_unless($user->hasRole('SuperAdmin') || (int) $evaluation->etablissement_id === (int) $user->etablissement_id, 403);
+
+        $evaluation->load(['anneeScolaire', 'niveau', 'matiere', 'classes', 'notes.eleve']);
+
+        $enseignants = Enseignant::whereIn(
+            'id',
+            $evaluation->classes
+                ->pluck('pivot.enseignant_id')
+                ->filter()
+                ->unique()
+        )->get()->keyBy('id');
+
+        $classes = $evaluation->classes->map(function ($classe) use ($evaluation, $enseignants) {
+            $elevesCount = Eleve::where('classe_id', $classe->id)
+                ->where('annee_scolaire_id', $evaluation->annee_scolaire_id)
+                ->where('actif', true)
+                ->count();
+            $notesCount = $evaluation->notes
+                ->filter(fn($note) => (int) $note->eleve?->classe_id === (int) $classe->id)
+                ->filter(fn($note) => $note->note !== null || $note->absent)
+                ->count();
+
+            return [
+                'id' => $classe->id,
+                'libelle' => $classe->libelle,
+                'enseignant' => $classe->pivot->enseignant_id
+                    ? $enseignants->get($classe->pivot->enseignant_id)?->only([
+                        'id',
+                        'nom',
+                        'prenoms',
+                    ])
+                    : null,
+                'eleves_count' => $elevesCount,
+                'notes_count' => $notesCount,
+                'progression' => $elevesCount > 0 ? round(($notesCount / $elevesCount) * 100) : 0,
+            ];
+        });
+
+        return Inertia::render('Evaluations/ProgrammationShow', [
+            'evaluation' => $evaluation,
+            'classes' => $classes,
+        ]);
+    }
+
+    public function calendrier()
+    {
+        $user = auth()->user();
+
+        abort_unless($this->estAdministrateur($user), 403);
+
+        $query = Evaluation::query()
+            ->where('origine', 'administration')
+            ->with([
+                'anneeScolaire',
+                'niveau',
+                'matiere',
+                'classes',
+            ]);
+
+        // Un utilisateur autre que SuperAdmin
+        // reste limité à son établissement.
+        if (!$user->hasRole('SuperAdmin')) {
+            $query->where(
+                'etablissement_id',
+                $user->etablissement_id
+            );
+        }
+
+        $evaluations = $query
+            ->orderBy('date_evaluation')
+            ->get();
+
+        $annees = AnneeScolaire::query()
+            ->orderByDesc('date_debut')
+            ->get([
+                'id',
+                'libelle',
+                'date_debut',
+                'date_fin',
+            ]);
+
+        $anneeActive = $annees->first();
+
+        return Inertia::render('Evaluations/Calendrier', [
+            'evaluations' => $evaluations,
+            'annees' => $annees,
+            'anneeScolaireActiveId' => $anneeActive?->id,
         ]);
     }
 
@@ -935,6 +1301,10 @@ class EvaluationController extends Controller
 
             'actif' =>
             $validated['actif'] ?? true,
+
+            'origine' => 'professeur',
+            'statut' => 'active',
+            'cree_par' => $user->id,
         ]);
 
         /*
@@ -977,6 +1347,7 @@ class EvaluationController extends Controller
             [
                 'evaluation' => $evaluation,
                 'notes' => $evaluation->notes,
+                'canEdit' => $this->estAdministrateur($user) || $evaluation->origine !== 'administration',
             ]
         );
     }
@@ -987,6 +1358,13 @@ class EvaluationController extends Controller
     public function edit(Evaluation $evaluation)
     {
         $user = auth()->user();
+
+        abort_unless(
+            $evaluation->origine !== 'administration' ||
+                $this->estAdministrateur($user),
+            403,
+            'Cette évaluation est gérée par l’administration.'
+        );
 
         $this->verifierAccesEvaluation(
             $user,
@@ -1223,6 +1601,13 @@ class EvaluationController extends Controller
     ) {
         $user = auth()->user();
 
+        abort_unless(
+            $evaluation->origine !== 'administration' ||
+                $this->estAdministrateur($user),
+            403,
+            'Cette évaluation est gérée par l’administration.'
+        );
+
         /*
         |--------------------------------------------------------------------------
         | Sécurité
@@ -1269,7 +1654,8 @@ class EvaluationController extends Controller
 
             'type' => [
                 'required',
-                'in:Interrogation,Devoir,Composition,Examen,Autre',
+                'string',
+                'max:255',
             ],
 
             'numero' => [
@@ -1909,6 +2295,13 @@ class EvaluationController extends Controller
     ) {
         $user = auth()->user();
 
+        abort_unless(
+            $evaluation->origine !== 'administration' ||
+                $this->estAdministrateur($user),
+            403,
+            'Cette évaluation est gérée par l’administration.'
+        );
+
         /*
         |--------------------------------------------------------------------------
         | Sécurité
@@ -1928,5 +2321,23 @@ class EvaluationController extends Controller
                 'success',
                 'Évaluation supprimée avec succès.'
             );
+    }
+
+    public function changerStatut(Request $request, Evaluation $evaluation)
+    {
+        $user = auth()->user();
+        abort_unless($this->estAdministrateur($user), 403);
+        abort_unless($evaluation->origine === 'administration', 422);
+
+        $validated = $request->validate([
+            'statut' => ['required', 'in:programmee,active,cloturee,annulee'],
+        ]);
+
+        $evaluation->update([
+            'statut' => $validated['statut'],
+            'active' => $validated['statut'] === 'active',
+        ]);
+
+        return back()->with('success', 'Statut de l’évaluation mis à jour.');
     }
 }

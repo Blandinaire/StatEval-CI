@@ -106,16 +106,6 @@ export default function Show({ maquette }) {
                     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
                         <div>
                             <p className="text-sm text-gray-500">
-                                Établissement
-                            </p>
-
-                            <p className="mt-1 font-semibold text-gray-900">
-                                {maquette.etablissement?.nom ?? "-"}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-sm text-gray-500">
                                 Année scolaire
                             </p>
 

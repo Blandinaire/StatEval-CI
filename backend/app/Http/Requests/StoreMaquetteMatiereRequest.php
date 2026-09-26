@@ -9,7 +9,8 @@ use Illuminate\Validation\Rule;
 class StoreMaquetteMatiereRequest extends FormRequest
 {
     /**
-     * Determine if the user is authorized to make this request.
+     * Détermine si l'utilisateur est autorisé
+     * à effectuer cette opération.
      */
     public function authorize(): bool
     {
@@ -17,29 +18,51 @@ class StoreMaquetteMatiereRequest extends FormRequest
     }
 
     /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, ValidationRule|array<mixed>|string>
+     * Règles de validation.
      */
     public function rules(): array
     {
+        /*
+         * Récupération de la ligne de maquette
+         * concernée par la modification.
+         *
+         * Lors d'une création, cette valeur est null.
+         */
+        $maquetteMatiere = $this->route('maquetteMatiere');
+
+        $idAModifier = is_object($maquetteMatiere)
+            ? $maquetteMatiere->getKey()
+            : $maquetteMatiere;
+
+        /*
+         * Récupération de l'identifiant de la maquette.
+         */
+        $maquetteId = $this->input('maquette_id');
+
         return [
 
             'maquette_id' => [
                 'required',
+                'integer',
                 'exists:maquettes,id',
             ],
 
             'matiere_id' => [
                 'required',
+                'integer',
                 'exists:matieres,id',
-                Rule::unique('maquette_matieres', 'matiere_id')
-                    ->where(
-                        fn($query) => $query->where(
+
+                Rule::unique(
+                    'maquette_matieres',
+                    'matiere_id'
+                )
+                    ->where(function ($query) use ($maquetteId) {
+                        return $query->where(
                             'maquette_id',
-                            $this->maquette_id
-                        )
-                    ),
+                            $maquetteId
+                        );
+                    })
+                    ->ignore($idAModifier),
             ],
 
             'coefficient' => [

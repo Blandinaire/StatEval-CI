@@ -1,6 +1,6 @@
 import AdminLayout from "@/Layouts/AdminLayout";
 import ResponsiveTable from "@/Components/ResponsiveTable";
-import { Head, Link } from "@inertiajs/react";
+import { Head, Link, router } from "@inertiajs/react";
 import { useMemo, useState } from "react";
 
 export default function Index({
@@ -11,6 +11,7 @@ export default function Index({
     enseignants = [],
     periodes = [],
     isSuperAdmin = false,
+    canProgram = false,
 }) {
     /*
     |--------------------------------------------------------------------------
@@ -91,7 +92,11 @@ export default function Index({
             */
 
             const correspondClasse =
-                !classeId || String(evaluation.classe_id) === String(classeId);
+                !classeId ||
+                String(evaluation.classe_id) === String(classeId) ||
+                evaluation.classes?.some(
+                    (classe) => String(classe.id) === String(classeId),
+                );
 
             /*
             |--------------------------------------------------------------------------
@@ -181,6 +186,10 @@ export default function Index({
         setStatut("");
     };
 
+    function changerStatut(evaluation, statut) {
+        router.patch(route("evaluations.statut", evaluation.id), { statut });
+    }
+
     return (
         <AdminLayout>
             <Head title="Évaluations" />
@@ -201,12 +210,32 @@ export default function Index({
                         </p>
                     </div>
 
-                    <Link
-                        href={route("evaluations.create")}
-                        className="rounded-lg bg-blue-600 px-5 py-3 text-white shadow-sm transition hover:bg-blue-700"
-                    >
-                        + Nouvelle évaluation
-                    </Link>
+                    <div className="flex flex-wrap gap-3">
+                        <Link
+                            href={route("evaluations.create")}
+                            className="rounded-lg bg-blue-600 px-5 py-3 text-white shadow-sm transition hover:bg-blue-700"
+                        >
+                            + Nouvelle évaluation
+                        </Link>
+
+                        {canProgram && (
+                            <Link
+                                href={route("evaluations.programmer")}
+                                className="rounded-lg bg-indigo-600 px-5 py-3 text-white shadow-sm transition hover:bg-indigo-700"
+                            >
+                                Programmer pour plusieurs classes
+                            </Link>
+                        )}
+
+                        {canProgram && (
+                            <Link
+                                href={route("evaluations.programmations")}
+                                className="rounded-lg border border-slate-300 px-5 py-3 text-slate-700 hover:bg-slate-50"
+                            >
+                                Suivi des programmations
+                            </Link>
+                        )}
+                    </div>
                 </div>
 
                 {/* ========================================================= */}
@@ -536,7 +565,15 @@ export default function Index({
                                         </td>
 
                                         <td className="p-3">
-                                            {evaluation.classe?.libelle ?? "-"}
+                                            {evaluation.classes?.length
+                                                ? evaluation.classes
+                                                      .map(
+                                                          (classe) =>
+                                                              classe.libelle,
+                                                      )
+                                                      .join(", ")
+                                                : (evaluation.classe?.libelle ??
+                                                  "-")}
                                         </td>
 
                                         <td className="p-3">
@@ -544,15 +581,21 @@ export default function Index({
                                         </td>
 
                                         <td className="p-3">
-                                            {evaluation.enseignant
-                                                ? `${
-                                                      evaluation.enseignant
-                                                          .nom ?? ""
-                                                  } ${
-                                                      evaluation.enseignant
-                                                          .prenoms ?? ""
-                                                  }`
-                                                : "-"}
+                                            {evaluation
+                                                .enseignants_programmation
+                                                ?.length
+                                                ? evaluation.enseignants_programmation.join(
+                                                      ", ",
+                                                  )
+                                                : evaluation.enseignant
+                                                  ? `${
+                                                        evaluation.enseignant
+                                                            .nom ?? ""
+                                                    } ${
+                                                        evaluation.enseignant
+                                                            .prenoms ?? ""
+                                                    }`
+                                                  : "-"}
                                         </td>
 
                                         <td className="p-3">
@@ -562,7 +605,12 @@ export default function Index({
                                         </td>
 
                                         <td className="p-3 text-center">
-                                            {evaluation.active ? (
+                                            {evaluation.origine ===
+                                            "administration" ? (
+                                                <span className="rounded-full bg-indigo-100 px-3 py-1 text-sm font-medium text-indigo-700">
+                                                    {evaluation.statut}
+                                                </span>
+                                            ) : evaluation.active ? (
                                                 <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-medium text-green-700">
                                                     Active
                                                 </span>
@@ -580,10 +628,47 @@ export default function Index({
                                                         "evaluations.edit",
                                                         evaluation.id,
                                                     )}
-                                                    className="rounded bg-blue-600 px-3 py-1 text-sm text-white transition hover:bg-blue-700"
+                                                    className={`rounded bg-blue-600 px-3 py-1 text-sm text-white transition hover:bg-blue-700 ${evaluation.origine === "administration" ? "hidden" : ""}`}
                                                 >
                                                     Modifier
                                                 </Link>
+
+                                                {canProgram &&
+                                                    evaluation.origine ===
+                                                        "administration" && (
+                                                        <>
+                                                            {evaluation.statut ===
+                                                                "programmee" && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        changerStatut(
+                                                                            evaluation,
+                                                                            "active",
+                                                                        )
+                                                                    }
+                                                                    className="rounded bg-green-600 px-3 py-1 text-sm text-white"
+                                                                >
+                                                                    Activer
+                                                                </button>
+                                                            )}
+                                                            {evaluation.statut ===
+                                                                "active" && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        changerStatut(
+                                                                            evaluation,
+                                                                            "cloturee",
+                                                                        )
+                                                                    }
+                                                                    className="rounded bg-gray-600 px-3 py-1 text-sm text-white"
+                                                                >
+                                                                    Clôturer
+                                                                </button>
+                                                            )}
+                                                        </>
+                                                    )}
 
                                                 <Link
                                                     href={route(

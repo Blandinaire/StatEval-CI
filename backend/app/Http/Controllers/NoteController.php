@@ -49,8 +49,10 @@ class NoteController extends Controller
      */
     private function verifierAccesEvaluation(
         $user,
-        Evaluation $evaluation
+        Evaluation $evaluation,
+        ?int $classeId = null
     ): void {
+        $classeId ??= (int) $evaluation->classe_id;
 
         /*
         |--------------------------------------------------------------------------
@@ -60,6 +62,30 @@ class NoteController extends Controller
 
         if ($this->estSuperAdmin($user)) {
             return;
+        }
+
+        if ($evaluation->origine === 'administration') {
+            if ($this->estProfesseur($user)) {
+                $this->verifierCompteProfesseur($user);
+                abort_unless(
+                    (int) $evaluation->etablissement_id === (int) $user->etablissement_id &&
+                        $evaluation->classes()
+                        ->whereKey($classeId)
+                        ->wherePivot('enseignant_id', $user->enseignant_id)
+                        ->exists(),
+                    403
+                );
+
+                abort_unless($evaluation->statut === 'active', 403);
+
+                return;
+            }
+
+            abort_unless($evaluation->statut === 'active', 403);
+            abort_unless(
+                $evaluation->classes()->whereKey($classeId)->exists(),
+                403
+            );
         }
 
         /*
@@ -110,7 +136,7 @@ class NoteController extends Controller
                 )
                 ->where(
                     'classe_id',
-                    $evaluation->classe_id
+                    $classeId
                 )
                 ->where(
                     'matiere_id',
@@ -176,10 +202,12 @@ class NoteController extends Controller
                     'etablissement_id',
                     $user->etablissement_id
                 )
-                ->where(
-                    'enseignant_id',
-                    $user->enseignant_id
-                );
+                ->where(function ($query) use ($user) {
+                    $query->where('enseignant_id', $user->enseignant_id)
+                        ->orWhereHas('classes', function ($classesQuery) use ($user) {
+                            $classesQuery->where('evaluation_classes.enseignant_id', $user->enseignant_id);
+                        });
+                });
         }
 
         /*
@@ -215,6 +243,7 @@ class NoteController extends Controller
         Evaluation $evaluation
     ) {
         $user = auth()->user();
+        $classeId = (int) request('classe_id', $evaluation->classe_id);
 
         /*
         |--------------------------------------------------------------------------
@@ -224,7 +253,8 @@ class NoteController extends Controller
 
         $this->verifierAccesEvaluation(
             $user,
-            $evaluation
+            $evaluation,
+            $classeId
         );
 
         /*
@@ -239,7 +269,24 @@ class NoteController extends Controller
             'classe',
             'matiere',
             'enseignant',
+            'classes',
         ]);
+
+        $classesEvaluation = $evaluation->classes;
+
+        if ($this->estProfesseur($user)) {
+            $classesEvaluation = $classesEvaluation
+                ->filter(
+                    fn($classe) =>
+                    (int) $classe->pivot->enseignant_id === (int) $user->enseignant_id
+                )
+                ->values();
+        }
+
+        abort_unless(
+            $classesEvaluation->contains('id', $classeId),
+            403
+        );
 
         /*
         |--------------------------------------------------------------------------
@@ -258,7 +305,7 @@ class NoteController extends Controller
             )
             ->where(
                 'classe_id',
-                $evaluation->classe_id
+                $classeId
             )
             ->where('actif', true)
             ->orderBy('nom')
@@ -324,6 +371,9 @@ class NoteController extends Controller
 
                 'notes' =>
                 $notes,
+
+                'classesEvaluation' => $classesEvaluation,
+                'selectedClasseId' => $classeId,
             ]
         );
     }
@@ -349,7 +399,8 @@ class NoteController extends Controller
 
         $this->verifierAccesEvaluation(
             $user,
-            $evaluation
+            $evaluation,
+            (int) $request->input('classe_id', $evaluation->classe_id)
         );
 
         /*
@@ -363,6 +414,12 @@ class NoteController extends Controller
             'notes' => [
                 'required',
                 'array',
+            ],
+
+            'classe_id' => [
+                'nullable',
+                'integer',
+                'exists:classes,id',
             ],
 
             'notes.*.eleve_id' => [
@@ -436,6 +493,8 @@ class NoteController extends Controller
         |--------------------------------------------------------------------------
         */
 
+        $classeId = (int) $request->input('classe_id', $evaluation->classe_id);
+
         $elevesIds =
             Eleve::query()
             ->where(
@@ -448,7 +507,7 @@ class NoteController extends Controller
             )
             ->where(
                 'classe_id',
-                $evaluation->classe_id
+                $classeId
             )
             ->where('actif', true)
             ->pluck('id')

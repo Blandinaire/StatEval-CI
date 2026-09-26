@@ -21,15 +21,14 @@ class StoreMaquetteRequest extends FormRequest
      * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
-{
-    return [
-        'etablissement_id' => ['required', 'exists:etablissements,id'],
-        'annee_scolaire_id' => ['required', 'exists:annee_scolaires,id'],
-        'cycle_id' => ['required', 'exists:cycles,id'],
-        'niveau_id' => ['required', 'exists:niveaux,id'],
-        'serie_id' => ['nullable', 'exists:series,id'],
+    {
+        return [
+            'annee_scolaire_id' => ['required', 'exists:annee_scolaires,id'],
+            'cycle_id' => ['required', 'exists:cycles,id'],
+            'niveau_id' => ['required', 'exists:niveaux,id'],
+            'serie_id' => ['nullable', 'exists:series,id'],
 
-        'libelle' => ['required', 'string', 'max:255'],
-    ];
-}
+            'libelle' => ['required', 'string', 'max:255'],
+        ];
+    }
 }

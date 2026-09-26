@@ -1,6 +1,7 @@
 import AdminLayout from "@/Layouts/AdminLayout";
-import { Head, useForm } from "@inertiajs/react";
-import Form from "./Form";
+import { Head, router } from "@inertiajs/react";
+import { useState } from "react";
+import BulkForm from "./BulkForm";
 
 export default function Create({
     etablissements,
@@ -8,33 +9,18 @@ export default function Create({
     classes,
     matieres,
     enseignants,
+    affectationsExistantes = [],
     isSuperAdmin,
     etablissementId,
+    errors = {},
 }) {
-    const { data, setData, post, processing, errors } = useForm({
-        etablissement_id: isSuperAdmin
-            ? ""
-            : String(etablissementId ?? ""),
+    const [processing, setProcessing] = useState(false);
 
-        annee_scolaire_id: "",
-
-        classe_id: "",
-
-        matiere_id: "",
-
-        enseignant_id: "",
-
-        coefficient: 1,
-
-        volume_horaire: 0,
-
-        actif: true,
-    });
-
-    function submit(e) {
-        e.preventDefault();
-
-        post(route("affectations.store"));
+    function submit(data) {
+        setProcessing(true);
+        router.post(route("affectations.bulk.store"), data, {
+            onFinish: () => setProcessing(false),
+        });
     }
 
     return (
@@ -47,20 +33,18 @@ export default function Create({
                         Nouvelle affectation
                     </h1>
 
-                    <Form
-                        data={data}
-                        setData={setData}
+                    <BulkForm
                         etablissements={etablissements}
                         annees={annees}
                         classes={classes}
                         matieres={matieres}
                         enseignants={enseignants}
+                        affectationsExistantes={affectationsExistantes}
                         isSuperAdmin={isSuperAdmin}
                         etablissementId={etablissementId}
                         errors={errors}
                         processing={processing}
                         submit={submit}
-                        submitLabel="Créer"
                     />
                 </div>
             </div>

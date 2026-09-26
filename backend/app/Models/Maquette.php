@@ -10,7 +10,6 @@ class Maquette extends Model
     use HasFactory;
 
     protected $fillable = [
-        'etablissement_id',
         'annee_scolaire_id',
         'cycle_id',
         'niveau_id',
@@ -27,11 +26,6 @@ class Maquette extends Model
     /**
      * Relations
      */
-
-    public function etablissement()
-    {
-        return $this->belongsTo(Etablissement::class);
-    }
 
     public function anneeScolaire()
     {

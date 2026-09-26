@@ -8,15 +8,8 @@ import {
 
 import { Link, useForm } from "@inertiajs/react";
 
-export default function Form({
-    etablissements,
-    annees,
-    cycles,
-    niveaux,
-    series,
-}) {
+export default function Form({ annees, cycles, niveaux, series }) {
     const { data, setData, post, processing, errors } = useForm({
-        etablissement_id: "",
         annee_scolaire_id: "",
         cycle_id: "",
         niveau_id: "",
@@ -42,21 +35,6 @@ export default function Form({
             <FormCard>
                 <form onSubmit={submit}>
                     <div className="grid grid-cols-2 gap-4">
-                        <SelectField
-                            label="Établissement"
-                            value={data.etablissement_id}
-                            onChange={(e) =>
-                                setData("etablissement_id", e.target.value)
-                            }
-                        >
-                            <option value="">Choisir...</option>
-                            {etablissements?.map((e) => (
-                                <option key={e.id} value={e.id}>
-                                    {e.nom}
-                                </option>
-                            ))}
-                        </SelectField>
-
                         <SelectField
                             label="Année scolaire"
                             value={data.annee_scolaire_id}

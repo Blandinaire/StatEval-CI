@@ -94,6 +94,8 @@ export default function Sidebar({ isOpen, closeSidebar }) {
     const canManageEvaluations =
         isSuperAdmin || isAdmin || isDirection || isProfesseur;
 
+    const canProgramEvaluations = isSuperAdmin || isAdmin || isDirection;
+
     // =========================================================
     // STATISTIQUES
     // =========================================================
@@ -397,10 +399,45 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                             href="/evaluations"
                             icon={ClipboardCheck}
                             activeMatch={["/evaluations"]}
+                            exact
                             onClick={closeSidebar}
                         >
                             Évaluations
                         </MenuItem>
+
+                        {canProgramEvaluations && (
+                            <MenuItem
+                                href="/evaluations/programmer"
+                                icon={ClipboardCheck}
+                                activeMatch={["/evaluations/programmer"]}
+                                onClick={closeSidebar}
+                            >
+                                Programmer une évaluation
+                            </MenuItem>
+                        )}
+
+                        {canProgramEvaluations && (
+                            <>
+                                <MenuItem
+                                    href="/evaluations/programmations"
+                                    icon={ClipboardCheck}
+                                    activeMatch={[
+                                        "/evaluations/programmations",
+                                    ]}
+                                    onClick={closeSidebar}
+                                >
+                                    Programmations
+                                </MenuItem>
+                                <MenuItem
+                                    href="/evaluations/calendrier"
+                                    icon={ClipboardCheck}
+                                    activeMatch={["/evaluations/calendrier"]}
+                                    onClick={closeSidebar}
+                                >
+                                    Calendrier
+                                </MenuItem>
+                            </>
+                        )}
 
                         <MenuItem
                             href="/notes"

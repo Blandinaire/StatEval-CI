@@ -5,13 +5,16 @@ export default function MenuItem({
     icon: Icon,
     children,
     activeMatch = null,
+    exact = false,
     onClick,
 }) {
     const { url } = usePage();
 
-    const active = activeMatch
-        ? activeMatch.some((prefix) => url.startsWith(prefix))
-        : url === href || url.startsWith(`${href}/`);
+    const active = exact
+        ? url === href
+        : activeMatch
+          ? activeMatch.some((prefix) => url.startsWith(prefix))
+          : url === href || url.startsWith(`${href}/`);
 
     const handleClick = () => {
         if (onClick) {

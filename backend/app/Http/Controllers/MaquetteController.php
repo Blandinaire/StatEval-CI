@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreMaquetteRequest;
 use App\Models\Maquette;
 use App\Services\MaquetteService;
-use App\Models\Etablissement;
 use App\Models\AnneeScolaire;
 use App\Models\Cycle;
 use App\Models\Niveau;
@@ -25,8 +24,7 @@ class MaquetteController extends Controller
                 'cycle',
                 'niveau',
                 'serie',
-                'anneeScolaire',
-                'etablissement'
+                'anneeScolaire'
             ])
                 ->latest()
                 ->paginate(15),
@@ -36,8 +34,6 @@ class MaquetteController extends Controller
     public function create()
     {
         return Inertia::render('Maquettes/Create', [
-
-            'etablissements' => Etablissement::orderBy('nom')->get(),
 
             'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
 
@@ -64,7 +60,6 @@ class MaquetteController extends Controller
     public function show(Maquette $maquette)
     {
         $maquette->load([
-            'etablissement',
             'anneeScolaire',
             'cycle',
             'niveau',

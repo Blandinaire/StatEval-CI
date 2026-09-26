@@ -13,33 +13,32 @@ class MaquetteService
      * Créer une maquette.
      */
     public function create(array $data): Maquette
-{
-    return DB::transaction(function () use ($data) {
+    {
+        return DB::transaction(function () use ($data) {
 
-        $niveau = Niveau::findOrFail($data['niveau_id']);
+            $niveau = Niveau::findOrFail($data['niveau_id']);
 
-        $serie = null;
+            $serie = null;
 
-        if (!empty($data['serie_id'])) {
-            $serie = Serie::findOrFail($data['serie_id']);
-        }
+            if (!empty($data['serie_id'])) {
+                $serie = Serie::findOrFail($data['serie_id']);
+            }
 
-        $libelle = $niveau->libelle;
+            $libelle = $niveau->libelle;
 
-        if ($serie) {
-            $libelle .= ' ' . $serie->libelle;
-        }
+            if ($serie) {
+                $libelle .= ' ' . $serie->libelle;
+            }
 
-        return Maquette::create([
-            'etablissement_id'  => $data['etablissement_id'],
-            'annee_scolaire_id' => $data['annee_scolaire_id'],
-            'cycle_id'          => $data['cycle_id'],
-            'niveau_id'         => $data['niveau_id'],
-            'serie_id'          => $data['serie_id'] ?? null,
-            'libelle'           => $libelle,
-            'version'           => 1,
-            'active'            => true,
-        ]);
-    });
-}
+            return Maquette::create([
+                'annee_scolaire_id' => $data['annee_scolaire_id'],
+                'cycle_id'          => $data['cycle_id'],
+                'niveau_id'         => $data['niveau_id'],
+                'serie_id'          => $data['serie_id'] ?? null,
+                'libelle'           => $libelle,
+                'version'           => 1,
+                'active'            => true,
+            ]);
+        });
+    }
 }

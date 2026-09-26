@@ -1,8 +1,14 @@
 import AdminLayout from "@/Layouts/AdminLayout";
 import ResponsiveTable from "@/Components/ResponsiveTable";
-import { Head, Link, useForm } from "@inertiajs/react";
+import { Head, Link, router, useForm } from "@inertiajs/react";
 
-export default function Create({ evaluation, eleves, notes }) {
+export default function Create({
+    evaluation,
+    eleves,
+    notes,
+    classesEvaluation = [],
+    selectedClasseId = null,
+}) {
     const notesExistantes = notes || {};
 
     /*
@@ -119,6 +125,7 @@ export default function Create({ evaluation, eleves, notes }) {
     });
 
     const { data, setData, post, processing, errors } = useForm({
+        classe_id: selectedClasseId ?? evaluation.classe_id,
         notes: initialNotes,
     });
 
@@ -284,6 +291,12 @@ export default function Create({ evaluation, eleves, notes }) {
         post(route("notes.store", evaluation.id));
     }
 
+    function changerClasse(classeId) {
+        router.get(route("notes.create", evaluation.id), {
+            classe_id: classeId,
+        });
+    }
+
     /*
     |--------------------------------------------------------------------------
     | Couleur de l'appréciation
@@ -355,6 +368,25 @@ export default function Create({ evaluation, eleves, notes }) {
                             ← Retour à l'évaluation
                         </Link>
                     </div>
+
+                    {classesEvaluation.length > 1 && (
+                        <label className="mt-4 block max-w-sm text-sm font-medium text-gray-700">
+                            Classe concernée
+                            <select
+                                className="mt-1 w-full rounded-lg border p-2"
+                                value={selectedClasseId}
+                                onChange={(event) =>
+                                    changerClasse(event.target.value)
+                                }
+                            >
+                                {classesEvaluation.map((classe) => (
+                                    <option key={classe.id} value={classe.id}>
+                                        {classe.libelle}
+                                    </option>
+                                ))}
+                            </select>
+                        </label>
+                    )}
 
                     {/* =================================================
                         INFORMATIONS
