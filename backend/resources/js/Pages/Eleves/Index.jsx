@@ -1990,7 +1990,7 @@ export default function Index({
                             </>
                         )}
 
-                        {elevesSelectionnes.length > 0 && (
+                        {peutSupprimer && elevesSelectionnes.length > 0 && (
                             <button
                                 type="button"
                                 onClick={() => {

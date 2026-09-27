@@ -226,7 +226,7 @@ class EleveController extends Controller
         $peutModifierGroupe = !$user->hasRole('Professeur')
             && (
                 !$user->hasRole('Educateur')
-                || $elevesModifiables->count() > 0
+                || count($elevesModifiables) > 0
             );
 
         /*
@@ -1921,10 +1921,35 @@ class EleveController extends Controller
     {
         $user = auth()->user();
 
-        // Les professeurs ne peuvent pas supprimer des élèves.
-        if ($user->hasRole('Professeur')) {
-            abort(403);
-        }
+        /*
+    |--------------------------------------------------------------------------
+    | AUTORISATION
+    |--------------------------------------------------------------------------
+    |
+    | Les mêmes rôles que pour la suppression individuelle :
+    | - SuperAdmin
+    | - Administrateur
+    | - Directeur
+    |
+    | Les Educateurs et Professeurs sont explicitement exclus.
+    |
+    */
+
+        abort_unless(
+            $user->hasAnyRole([
+                'SuperAdmin',
+                'Administrateur',
+                'Directeur',
+            ]),
+            403,
+            'Vous n’avez pas l’autorisation de supprimer un élève.'
+        );
+
+        /*
+    |--------------------------------------------------------------------------
+    | VALIDATION
+    |--------------------------------------------------------------------------
+    */
 
         $validated = $request->validate([
             'eleves' => [
@@ -1940,9 +1965,18 @@ class EleveController extends Controller
             ],
         ], [
             'eleves.required' => 'Veuillez sélectionner au moins un élève.',
+            'eleves.array' => 'La sélection des élèves est invalide.',
             'eleves.min' => 'Veuillez sélectionner au moins un élève.',
+            'eleves.*.required' => 'Un élève sélectionné est invalide.',
+            'eleves.*.integer' => 'Un identifiant élève est invalide.',
             'eleves.*.exists' => 'Un ou plusieurs élèves sélectionnés n’existent plus.',
         ]);
+
+        /*
+    |--------------------------------------------------------------------------
+    | NORMALISATION DES IDS
+    |--------------------------------------------------------------------------
+    */
 
         $eleveIds = collect($validated['eleves'])
             ->map(fn($id) => (int) $id)
@@ -1951,11 +1985,13 @@ class EleveController extends Controller
 
         /*
     |--------------------------------------------------------------------------
-    | Vérification de l'établissement
+    | VÉRIFICATION DE L'ÉTABLISSEMENT
     |--------------------------------------------------------------------------
     |
-    | Le SuperAdmin peut supprimer dans l'établissement sélectionné.
-    | Les autres utilisateurs sont strictement limités à leur établissement.
+    | Le SuperAdmin peut supprimer des élèves de n'importe quel établissement.
+    |
+    | Les Administrateurs et Directeurs sont strictement limités
+    | à leur établissement.
     |
     */
 
@@ -1971,39 +2007,60 @@ class EleveController extends Controller
                 )
                 ->count();
 
-            if ($nombreAutorises !== $eleveIds->count()) {
-                abort(403);
-            }
+            /*
+         * Si un seul élève sélectionné appartient à un autre établissement,
+         * toute l'opération est refusée.
+         */
+            abort_unless(
+                $nombreAutorises === $eleveIds->count(),
+                403,
+                'Un ou plusieurs élèves sélectionnés ne relèvent pas de votre établissement.'
+            );
         }
 
         /*
     |--------------------------------------------------------------------------
-    | Suppression transactionnelle
+    | SUPPRESSION TRANSACTIONNELLE
     |--------------------------------------------------------------------------
+    |
+    | Toutes les données dépendantes sont supprimées avant les élèves.
+    | En cas d'erreur, toute la transaction est annulée.
+    |
     */
 
         DB::transaction(function () use ($eleveIds) {
 
             /*
-         * Suppression des données dépendantes.
-         *
-         * On supprime d'abord les enregistrements liés
-         * afin d'éviter les erreurs de contraintes étrangères.
+         * Notes
          */
-
             Note::whereIn('eleve_id', $eleveIds)->delete();
 
+            /*
+         * Conduite
+         */
             Conduite::whereIn('eleve_id', $eleveIds)->delete();
 
+            /*
+         * Absences
+         */
             Absence::whereIn('eleve_id', $eleveIds)->delete();
 
+            /*
+         * Retards
+         */
             Retard::whereIn('eleve_id', $eleveIds)->delete();
 
             /*
-         * Suppression des élèves.
+         * Élèves
          */
             Eleve::whereIn('id', $eleveIds)->delete();
         });
+
+        /*
+    |--------------------------------------------------------------------------
+    | RETOUR
+    |--------------------------------------------------------------------------
+    */
 
         return redirect()
             ->route('eleves.index')
