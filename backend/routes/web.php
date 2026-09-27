@@ -450,6 +450,11 @@ Route::middleware('auth')->group(function () {
         ]);
 
     Route::get(
+        '/eleves/import/correction/{token}',
+        [EleveController::class, 'downloadCorrection']
+    )->name('eleves.import.correction');
+
+    Route::get(
         '/eleves/import',
         [EleveController::class, 'importForm']
     )->name('eleves.import.form');
@@ -464,6 +469,16 @@ Route::middleware('auth')->group(function () {
         '/eleves/import/template',
         [EleveController::class, 'importTemplate']
     )->name('eleves.import.template');
+
+    Route::patch(
+        '/eleves/modification-groupee',
+        [EleveController::class, 'updateBulk']
+    )->name('eleves.update.bulk');
+
+    Route::delete(
+        '/eleves/suppression-groupee',
+        [EleveController::class, 'suppressionGroupee']
+    )->name('eleves.suppression-groupee');
 
     Route::resource('eleves', EleveController::class)
 

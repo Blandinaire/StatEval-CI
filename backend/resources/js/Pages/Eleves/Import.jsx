@@ -1,11 +1,14 @@
 import AdminLayout from "@/Layouts/AdminLayout";
 import { Head, useForm, usePage } from "@inertiajs/react";
+import * as XLSX from "xlsx";
 
 export default function Import({ etablissements, annees }) {
     const { flash } = usePage().props;
 
     const import_errors = flash?.import_errors ?? [];
-    
+
+    const correctionToken = flash?.import_correction_token ?? null;
+
     const { data, setData, post, processing, errors, progress } = useForm({
         etablissement_id: "",
         annee_scolaire_id: "",
@@ -30,6 +33,47 @@ export default function Import({ etablissements, annees }) {
             etablissement_id: data.etablissement_id,
             annee_scolaire_id: data.annee_scolaire_id,
         });
+    };
+
+    const telechargerRapportErreurs = () => {
+        if (!import_errors.length) {
+            return;
+        }
+
+        const donnees = import_errors.map((erreur) => ({
+            Ligne: erreur.ligne ?? "",
+            Élève:
+                [erreur.nom, erreur.prenoms].filter(Boolean).join(" ").trim() ||
+                "—",
+            Champ: erreur.champ ?? "—",
+            Valeur: erreur.valeur ?? "—",
+            Erreur: Array.isArray(erreur.erreurs)
+                ? erreur.erreurs.join(" | ")
+                : (erreur.erreurs ?? "Erreur inconnue."),
+        }));
+
+        const worksheet = XLSX.utils.json_to_sheet(donnees);
+
+        // Largeur des colonnes
+        worksheet["!cols"] = [
+            { wch: 10 },
+            { wch: 35 },
+            { wch: 25 },
+            { wch: 30 },
+            { wch: 80 },
+        ];
+
+        const workbook = XLSX.utils.book_new();
+
+        XLSX.utils.book_append_sheet(
+            workbook,
+            worksheet,
+            "Erreurs d'importation",
+        );
+
+        const date = new Date().toISOString().slice(0, 10);
+
+        XLSX.writeFile(workbook, `rapport_erreurs_import_eleves_${date}.xlsx`);
     };
 
     return (
@@ -89,84 +133,175 @@ export default function Import({ etablissements, annees }) {
                         </li>
                     </ul>
                 </div>
-                
+
                 {/* Rapport d'erreurs d'importation */}
-                {import_errors.length > 0 && (
-                    <div className="rounded-xl border border-red-300 bg-red-50 p-5">
-                        <div className="mb-4">
-                            <h2 className="text-lg font-bold text-red-800">
-                                ❌ Importation impossible
-                            </h2>
+                {/* Rapport d'importation */}
+                {(import_errors.length > 0 || flash?.import_summary) && (
+                    <div className="space-y-4">
+                        {/* Résumé */}
+                        {flash?.import_summary && (
+                            <div className="grid gap-4 md:grid-cols-2">
+                                {/* Importés */}
+                                <div className="rounded-xl border border-green-200 bg-green-50 p-5">
+                                    <div className="flex items-center gap-3">
+                                        <div className="text-2xl">✅</div>
 
-                            <p className="mt-1 text-sm text-red-700">
-                                {import_errors.length} erreur(s) ont été
-                                détectée(s). Aucun élève n'a été importé.
-                            </p>
-                        </div>
+                                        <div>
+                                            <p className="text-sm font-medium text-green-700">
+                                                Élèves importés
+                                            </p>
 
-                        <div className="overflow-x-auto rounded-lg border border-red-200 bg-white">
-                            <table className="min-w-full text-sm">
-                                <thead className="bg-red-100">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left font-semibold text-red-900">
-                                            Ligne
-                                        </th>
+                                            <p className="text-2xl font-bold text-green-900">
+                                                {flash.import_summary.importes}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
 
-                                        <th className="px-4 py-3 text-left font-semibold text-red-900">
-                                            Champ
-                                        </th>
+                                {/* Erreurs */}
+                                <div className="rounded-xl border border-red-200 bg-red-50 p-5">
+                                    <div className="flex items-center gap-3">
+                                        <div className="text-2xl">⚠️</div>
 
-                                        <th className="px-4 py-3 text-left font-semibold text-red-900">
-                                            Valeur
-                                        </th>
+                                        <div>
+                                            <p className="text-sm font-medium text-red-700">
+                                                Lignes rejetées
+                                            </p>
 
-                                        <th className="px-4 py-3 text-left font-semibold text-red-900">
-                                            Erreur
-                                        </th>
-                                    </tr>
-                                </thead>
+                                            <p className="text-2xl font-bold text-red-900">
+                                                {flash.import_summary.erreurs}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
 
-                                <tbody className="divide-y divide-red-100">
-                                    {import_errors.map((erreur, index) => (
-                                        <tr
-                                            key={index}
-                                            className="hover:bg-red-50"
-                                        >
-                                            <td className="px-4 py-3 font-medium text-gray-900">
-                                                {erreur.ligne}
-                                            </td>
+                        {/* Détail des erreurs */}
+                        {import_errors.length > 0 && (
+                            <div className="rounded-xl border border-red-300 bg-red-50 p-5">
+                                <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                                    <div>
+                                        <h2 className="text-lg font-bold text-red-800">
+                                            ⚠️ Rapport des élèves rejetés
+                                        </h2>
 
-                                            <td className="px-4 py-3 text-gray-700">
-                                                {erreur.champ}
-                                            </td>
+                                        <p className="mt-1 text-sm text-red-700">
+                                            {import_errors.length} erreur(s) ont
+                                            été détectée(s). Les lignes
+                                            concernées n'ont pas été importées.
+                                        </p>
+                                    </div>
 
-                                            <td className="px-4 py-3 text-gray-700">
-                                                {erreur.valeur ?? "—"}
-                                            </td>
+                                    <button
+                                        type="button"
+                                        onClick={telechargerRapportErreurs}
+                                        className="inline-flex items-center justify-center rounded-lg bg-green-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700"
+                                    >
+                                        📥 Télécharger le rapport
+                                    </button>
 
-                                            <td className="px-4 py-3 text-red-700">
-                                                <ul className="list-disc space-y-1 pl-5">
-                                                    {erreur.erreurs?.map(
-                                                        (
-                                                            message,
-                                                            messageIndex,
-                                                        ) => (
-                                                            <li
-                                                                key={
-                                                                    messageIndex
-                                                                }
-                                                            >
-                                                                {message}
-                                                            </li>
-                                                        ),
-                                                    )}
-                                                </ul>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    {correctionToken && (
+                                        <div className="mt-4 flex flex-wrap gap-3">
+                                            <a
+                                                href={route(
+                                                    "eleves.import.correction",
+                                                    correctionToken,
+                                                )}
+                                                className="inline-flex items-center rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700"
+                                            >
+                                                📥 Télécharger les élèves à
+                                                corriger
+                                            </a>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="overflow-x-auto rounded-lg border border-red-200 bg-white">
+                                    <table className="min-w-full text-sm">
+                                        <thead className="bg-red-100">
+                                            <tr>
+                                                <th className="px-4 py-3 text-left font-semibold text-red-900">
+                                                    Ligne
+                                                </th>
+
+                                                <th className="px-4 py-3 text-left font-semibold text-red-900">
+                                                    Élève
+                                                </th>
+
+                                                <th className="px-4 py-3 text-left font-semibold text-red-900">
+                                                    Champ
+                                                </th>
+
+                                                <th className="px-4 py-3 text-left font-semibold text-red-900">
+                                                    Valeur
+                                                </th>
+
+                                                <th className="px-4 py-3 text-left font-semibold text-red-900">
+                                                    Erreur
+                                                </th>
+                                            </tr>
+                                        </thead>
+
+                                        <tbody className="divide-y divide-red-100">
+                                            {import_errors.map(
+                                                (erreur, index) => (
+                                                    <tr
+                                                        key={index}
+                                                        className="hover:bg-red-50"
+                                                    >
+                                                        <td className="px-4 py-3 font-medium text-gray-900">
+                                                            {erreur.ligne}
+                                                        </td>
+
+                                                        <td className="px-4 py-3 font-medium text-gray-900">
+                                                            {[
+                                                                erreur.nom,
+                                                                erreur.prenoms,
+                                                            ]
+                                                                .filter(Boolean)
+                                                                .join(" ") ||
+                                                                "—"}
+                                                        </td>
+
+                                                        <td className="px-4 py-3 text-gray-700">
+                                                            {erreur.champ ??
+                                                                "—"}
+                                                        </td>
+
+                                                        <td className="px-4 py-3 text-gray-700">
+                                                            {erreur.valeur ??
+                                                                "—"}
+                                                        </td>
+
+                                                        <td className="px-4 py-3 text-red-700">
+                                                            <ul className="list-disc space-y-1 pl-5">
+                                                                {erreur.erreurs?.map(
+                                                                    (
+                                                                        message,
+                                                                        messageIndex,
+                                                                    ) => (
+                                                                        <li
+                                                                            key={
+                                                                                messageIndex
+                                                                            }
+                                                                        >
+                                                                            {
+                                                                                message
+                                                                            }
+                                                                        </li>
+                                                                    ),
+                                                                )}
+                                                            </ul>
+                                                        </td>
+                                                    </tr>
+                                                ),
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
 

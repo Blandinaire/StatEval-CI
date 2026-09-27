@@ -25,8 +25,6 @@ class ElevesImport implements WithMultipleSheets
 
     /**
      * Sélectionner uniquement la feuille "Élèves".
-     *
-     * Toutes les autres feuilles du classeur sont ignorées.
      */
     public function sheets(): array
     {
@@ -41,12 +39,7 @@ class ElevesImport implements WithMultipleSheets
     }
 
     /**
-     * Permet au contrôleur de récupérer le nombre
-     * d'élèves effectivement importés.
-     *
-     * Le contrôleur utilise actuellement :
-     *
-     * $import->nombreImportes
+     * Nombre d'élèves effectivement importés.
      */
     public function __get(string $name): mixed
     {
@@ -55,5 +48,26 @@ class ElevesImport implements WithMultipleSheets
         }
 
         return null;
+    }
+
+    /**
+     * Rapport des erreurs d'importation.
+     */
+    public function getErreurs(): array
+    {
+        return $this->sheetImport?->getErreurs() ?? [];
+    }
+
+    /**
+     * Nombre d'erreurs.
+     */
+    public function getNombreErreurs(): int
+    {
+        return count($this->getErreurs());
+    }
+
+    public function getLignesRejetees(): array
+    {
+        return $this->sheetImport?->getLignesRejetees() ?? [];
     }
 }

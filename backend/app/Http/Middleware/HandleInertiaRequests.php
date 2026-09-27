@@ -41,10 +41,16 @@ class HandleInertiaRequests extends Middleware
 
             'flash' => [
                 'success' => fn() =>
-                    $request->session()->get('success'),
+                $request->session()->get('success'),
 
-                'import_error' => fn() =>
-                    $request->session()->get('import_error'),
+                'import_errors' => fn() =>
+                $request->session()->get('import_errors', []),
+
+                'import_summary' => fn() =>
+                $request->session()->get('import_summary'),
+
+                'import_correction_token' => fn() =>
+                $request->session()->get('import_correction_token'),
             ],
         ]);
     }

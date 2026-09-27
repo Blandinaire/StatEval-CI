@@ -1,26 +1,82 @@
 import AdminLayout from "@/Layouts/AdminLayout";
-import ResponsiveTable from "@/Components/ResponsiveTable";
 import { Head, Link, router } from "@inertiajs/react";
-import { Eye, Pencil, Trash2 } from "lucide-react";
+import {
+    Check,
+    Eye,
+    Pencil,
+    Save,
+    Square,
+    SquareCheck,
+    Trash2,
+    X,
+} from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 
 export default function Index({
     eleves,
     elevesModifiables = null,
+    peutModifierGroupe = false,
     peutSupprimer = false,
+    etablissements = [],
+    annees = [],
+    classes = [],
+    filtres = {},
+    isSuperAdmin = false,
 }) {
     /*
     |--------------------------------------------------------------------------
-    | FILTRES
+    | ÉTATS GÉNÉRAUX
     |--------------------------------------------------------------------------
     */
 
     const [recherche, setRecherche] = useState("");
     const [niveauId, setNiveauId] = useState("");
     const [classeId, setClasseId] = useState("");
-    const [filtresOuverts, setFiltresOuverts] = useState("");
+    const [filtresOuverts, setFiltresOuverts] = useState(false);
     const [filtreQualite, setFiltreQualite] = useState("");
+
+    const [etablissementId, setEtablissementId] = useState(
+        filtres?.etablissement_id ? String(filtres.etablissement_id) : "",
+    );
+
+    const etablissementSelectionne = etablissements.find(
+        (etablissement) => String(etablissement.id) === String(etablissementId),
+    );
+
+    /*
+    |--------------------------------------------------------------------------
+    | MODIFICATION GROUPÉE
+    |--------------------------------------------------------------------------
+    */
+
+    const [modeModificationGroupee, setModeModificationGroupee] =
+        useState(false);
+
+    const [elevesSelectionnes, setElevesSelectionnes] = useState([]);
+
+    const [modificationGroupee, setModificationGroupee] = useState({
+        etablissement_id: "",
+        annee_scolaire_id: "",
+        cycle_id: "",
+        niveau_id: "",
+        classe_id: "",
+        serie_id: "",
+    });
+
+    const [enregistrementGroupe, setEnregistrementGroupe] = useState(false);
+
+    const [erreursGroupees, setErreursGroupees] = useState({});
+
+    /*
+    |--------------------------------------------------------------------------
+    | MODIFICATIONS DIRECTES DES CELLULES
+    |--------------------------------------------------------------------------
+    */
+
+    const [modifications, setModifications] = useState({});
+
+    const [sauvegardeEnCours, setSauvegardeEnCours] = useState(false);
 
     /*
     |--------------------------------------------------------------------------
@@ -36,43 +92,94 @@ export default function Index({
                 { id: "nom", label: "Nom" },
                 { id: "prenoms", label: "Prénoms" },
                 { id: "sexe", label: "Sexe" },
-                { id: "date_naissance", label: "Date de naissance" },
-                { id: "lieu_naissance", label: "Lieu de naissance" },
-                { id: "nationalite", label: "Nationalité" },
+                {
+                    id: "date_naissance",
+                    label: "Date de naissance",
+                },
+                {
+                    id: "lieu_naissance",
+                    label: "Lieu de naissance",
+                },
+                {
+                    id: "nationalite",
+                    label: "Nationalité",
+                },
             ],
         },
 
         scolarite: {
             label: "Scolarité",
             colonnes: [
-                { id: "annee_scolaire", label: "Année scolaire" },
-                { id: "etablissement", label: "Établissement" },
-                { id: "cycle", label: "Cycle" },
-                { id: "niveau", label: "Niveau" },
-                { id: "classe", label: "Classe" },
-                { id: "serie", label: "Série" },
+                {
+                    id: "annee_scolaire",
+                    label: "Année scolaire",
+                },
+                {
+                    id: "etablissement",
+                    label: "Établissement",
+                },
+                {
+                    id: "cycle",
+                    label: "Cycle",
+                },
+                {
+                    id: "niveau",
+                    label: "Niveau",
+                },
+                {
+                    id: "classe",
+                    label: "Classe",
+                },
+                {
+                    id: "serie",
+                    label: "Série",
+                },
                 { id: "statut", label: "Statut" },
-                { id: "statut_affectation", label: "Statut affectation" },
+                {
+                    id: "statut_affectation",
+                    label: "Statut affectation",
+                },
                 { id: "regime", label: "Régime" },
-                { id: "redoublant", label: "Redoublant" },
-                { id: "boursier", label: "Boursier" },
+                {
+                    id: "redoublant",
+                    label: "Redoublant",
+                },
+                {
+                    id: "boursier",
+                    label: "Boursier",
+                },
             ],
         },
 
         eleve: {
             label: "Coordonnées de l'élève",
             colonnes: [
-                { id: "telephone", label: "Téléphone" },
-                { id: "email", label: "Email" },
-                { id: "adresse", label: "Adresse" },
+                {
+                    id: "telephone",
+                    label: "Téléphone",
+                },
+                {
+                    id: "email",
+                    label: "Email",
+                },
+                {
+                    id: "adresse",
+                    label: "Adresse",
+                },
             ],
         },
 
         tuteur: {
             label: "Responsable légal",
             colonnes: [
-                { id: "type_tuteur", label: "Type de tuteur" },
-                { id: "responsable_nom", label: "Nom du responsable" },
+                {
+                    id: "type_tuteur",
+                    label: "Type de tuteur",
+                },
+                {
+                    id: "responsable_nom",
+                    label: "Nom du responsable",
+                },
                 {
                     id: "responsable_prenoms",
                     label: "Prénoms du responsable",
@@ -99,33 +206,63 @@ export default function Index({
         pere: {
             label: "Père",
             colonnes: [
-                { id: "pere_nom", label: "Nom du père" },
-                { id: "pere_prenoms", label: "Prénoms du père" },
-                { id: "pere_telephone", label: "Téléphone du père" },
-                { id: "pere_email", label: "Email du père" },
-                { id: "pere_profession", label: "Profession du père" },
-                { id: "pere_adresse", label: "Adresse du père" },
+                {
+                    id: "pere_nom",
+                    label: "Nom du père",
+                },
+                {
+                    id: "pere_prenoms",
+                    label: "Prénoms du père",
+                },
+                {
+                    id: "pere_telephone",
+                    label: "Téléphone du père",
+                },
+                {
+                    id: "pere_email",
+                    label: "Email du père",
+                },
+                {
+                    id: "pere_profession",
+                    label: "Profession du père",
+                },
+                {
+                    id: "pere_adresse",
+                    label: "Adresse du père",
+                },
             ],
         },
 
         mere: {
             label: "Mère",
             colonnes: [
-                { id: "mere_nom", label: "Nom de la mère" },
-                { id: "mere_prenoms", label: "Prénoms de la mère" },
-                { id: "mere_telephone", label: "Téléphone de la mère" },
-                { id: "mere_email", label: "Email de la mère" },
-                { id: "mere_profession", label: "Profession de la mère" },
-                { id: "mere_adresse", label: "Adresse de la mère" },
+                {
+                    id: "mere_nom",
+                    label: "Nom de la mère",
+                },
+                {
+                    id: "mere_prenoms",
+                    label: "Prénoms de la mère",
+                },
+                {
+                    id: "mere_telephone",
+                    label: "Téléphone de la mère",
+                },
+                {
+                    id: "mere_email",
+                    label: "Email de la mère",
+                },
+                {
+                    id: "mere_profession",
+                    label: "Profession de la mère",
+                },
+                {
+                    id: "mere_adresse",
+                    label: "Adresse de la mère",
+                },
             ],
         },
     };
-
-    /*
-    |--------------------------------------------------------------------------
-    | COLONNES PAR DÉFAUT
-    |--------------------------------------------------------------------------
-    */
 
     const colonnesParDefaut = [
         "matricule",
@@ -136,12 +273,6 @@ export default function Index({
         "classe",
         "statut",
     ];
-
-    /*
-    |--------------------------------------------------------------------------
-    | ÉTAT DES COLONNES
-    |--------------------------------------------------------------------------
-    */
 
     const [colonnesSelectionnees, setColonnesSelectionnees] = useState(() => {
         try {
@@ -155,12 +286,6 @@ export default function Index({
 
     const [menuColonnesOuvert, setMenuColonnesOuvert] = useState(false);
 
-    /*
-    |--------------------------------------------------------------------------
-    | SAUVEGARDE DES COLONNES
-    |--------------------------------------------------------------------------
-    */
-
     useEffect(() => {
         localStorage.setItem(
             "stateval_eleves_colonnes",
@@ -170,7 +295,7 @@ export default function Index({
 
     /*
     |--------------------------------------------------------------------------
-    | NORMALISATION
+    | OUTILS
     |--------------------------------------------------------------------------
     */
 
@@ -182,9 +307,27 @@ export default function Index({
             .trim();
     };
 
+    const estVide = (valeur) => {
+        return (
+            valeur === null ||
+            valeur === undefined ||
+            String(valeur).trim() === ""
+        );
+    };
+
+    const estVrai = (valeur) => {
+        return (
+            valeur === true ||
+            valeur === 1 ||
+            valeur === "1" ||
+            normaliser(valeur) === "oui" ||
+            normaliser(valeur) === "true"
+        );
+    };
+
     /*
     |--------------------------------------------------------------------------
-    | NIVEAUX
+    | NIVEAUX / CLASSES POUR LES FILTRES
     |--------------------------------------------------------------------------
     */
 
@@ -204,13 +347,7 @@ export default function Index({
         );
     }, [eleves]);
 
-    /*
-    |--------------------------------------------------------------------------
-    | CLASSES
-    |--------------------------------------------------------------------------
-    */
-
-    const classes = useMemo(() => {
+    const classesFiltre = useMemo(() => {
         const map = new Map();
 
         eleves.forEach((eleve) => {
@@ -234,6 +371,126 @@ export default function Index({
 
     /*
     |--------------------------------------------------------------------------
+    | RÉFÉRENTIEL SCOLAIRE POUR LA MODIFICATION GROUPÉE
+    |--------------------------------------------------------------------------
+    */
+
+    const classesReferentiel = useMemo(() => {
+        return Array.isArray(classes) ? classes : [];
+    }, [classes]);
+
+    const anneesDisponibles = useMemo(() => {
+        return Array.isArray(annees) ? annees : [];
+    }, [annees]);
+
+    const etablissementsDisponibles = useMemo(() => {
+        return Array.isArray(etablissements) ? etablissements : [];
+    }, [etablissements]);
+
+    const cyclesDisponibles = useMemo(() => {
+        const map = new Map();
+
+        classesReferentiel.forEach((classe) => {
+            if (classe.cycle?.id) {
+                map.set(classe.cycle.id, classe.cycle);
+            }
+        });
+
+        return Array.from(map.values()).sort((a, b) =>
+            normaliser(a.libelle).localeCompare(normaliser(b.libelle), "fr"),
+        );
+    }, [classesReferentiel]);
+
+    const niveauxGroupe = useMemo(() => {
+        const map = new Map();
+
+        classesReferentiel.forEach((classe) => {
+            if (!classe.niveau?.id) {
+                return;
+            }
+
+            if (
+                modificationGroupee.cycle_id &&
+                String(classe.cycle_id) !== String(modificationGroupee.cycle_id)
+            ) {
+                return;
+            }
+
+            map.set(classe.niveau.id, classe.niveau);
+        });
+
+        return Array.from(map.values()).sort((a, b) =>
+            normaliser(a.libelle).localeCompare(normaliser(b.libelle), "fr"),
+        );
+    }, [classesReferentiel, modificationGroupee.cycle_id]);
+
+    const classesGroupe = useMemo(() => {
+        return classesReferentiel
+            .filter((classe) => {
+                if (
+                    modificationGroupee.etablissement_id &&
+                    String(classe.etablissement_id) !==
+                        String(modificationGroupee.etablissement_id)
+                ) {
+                    return false;
+                }
+
+                if (
+                    modificationGroupee.annee_scolaire_id &&
+                    String(classe.annee_scolaire_id) !==
+                        String(modificationGroupee.annee_scolaire_id)
+                ) {
+                    return false;
+                }
+
+                if (
+                    modificationGroupee.cycle_id &&
+                    String(classe.cycle_id) !==
+                        String(modificationGroupee.cycle_id)
+                ) {
+                    return false;
+                }
+
+                if (
+                    modificationGroupee.niveau_id &&
+                    String(classe.niveau_id) !==
+                        String(modificationGroupee.niveau_id)
+                ) {
+                    return false;
+                }
+
+                return true;
+            })
+            .sort((a, b) =>
+                normaliser(a.libelle).localeCompare(
+                    normaliser(b.libelle),
+                    "fr",
+                ),
+            );
+    }, [
+        classesReferentiel,
+        modificationGroupee.etablissement_id,
+        modificationGroupee.annee_scolaire_id,
+        modificationGroupee.cycle_id,
+        modificationGroupee.niveau_id,
+    ]);
+
+    const seriesDisponibles = useMemo(() => {
+        const map = new Map();
+
+        classesGroupe.forEach((classe) => {
+            if (classe.serie?.id) {
+                map.set(classe.serie.id, classe.serie);
+            }
+        });
+
+        return Array.from(map.values()).sort((a, b) =>
+            normaliser(a.libelle).localeCompare(normaliser(b.libelle), "fr"),
+        );
+    }, [classesGroupe]);
+
+    /*
+    |--------------------------------------------------------------------------
     | FILTRAGE DES ÉLÈVES
     |--------------------------------------------------------------------------
     */
@@ -241,176 +498,161 @@ export default function Index({
     const elevesFiltres = useMemo(() => {
         const terme = normaliser(recherche);
 
-        const estVide = (valeur) => {
-            return (
-                valeur === null ||
-                valeur === undefined ||
-                String(valeur).trim() === ""
-            );
-        };
-
-        const dossierEstComplet = (eleve) => {
-            const champsPrincipaux = [
-                eleve.matricule,
-                eleve.date_naissance,
-                eleve.lieu_naissance,
-                eleve.nationalite,
-                eleve.sexe,
-            ];
-
-            return champsPrincipaux.every((champ) => !estVide(champ));
-        };
-
         return eleves.filter((eleve) => {
-            /*
-        |--------------------------------------------------------------------------
-        | RECHERCHE
-        |--------------------------------------------------------------------------
-        */
+            if (terme) {
+                const valeursRecherche = [
+                    eleve.nom,
+                    eleve.prenoms,
+                    eleve.matricule,
+                    eleve.code_eleve,
+                ];
 
-            const correspondRecherche =
-                !terme ||
-                normaliser(eleve.nom).includes(terme) ||
-                normaliser(eleve.prenoms).includes(terme) ||
-                normaliser(eleve.matricule).includes(terme) ||
-                normaliser(eleve.code_eleve).includes(terme);
+                const correspondance = valeursRecherche.some((valeur) =>
+                    normaliser(valeur).includes(terme),
+                );
 
-            /*
-        |--------------------------------------------------------------------------
-        | NIVEAU
-        |--------------------------------------------------------------------------
-        */
-
-            const correspondNiveau =
-                !niveauId ||
-                String(eleve.classe?.niveau_id) === String(niveauId);
-
-            /*
-        |--------------------------------------------------------------------------
-        | CLASSE
-        |--------------------------------------------------------------------------
-        */
-
-            const correspondClasse =
-                !classeId || String(eleve.classe_id) === String(classeId);
-
-            /*
-        |--------------------------------------------------------------------------
-        | QUALITÉ DU DOSSIER
-        |--------------------------------------------------------------------------
-        */
-
-            let correspondQualite = true;
-
-            if (filtreQualite === "complet") {
-                correspondQualite = dossierEstComplet(eleve);
+                if (!correspondance) {
+                    return false;
+                }
             }
 
-            if (filtreQualite === "incomplet") {
-                correspondQualite = !dossierEstComplet(eleve);
+            if (
+                niveauId &&
+                String(eleve.classe?.niveau_id) !== String(niveauId)
+            ) {
+                return false;
             }
 
-            if (filtreQualite === "sans_matricule") {
-                correspondQualite = estVide(eleve.matricule);
+            if (classeId && String(eleve.classe_id) !== String(classeId)) {
+                return false;
             }
 
-            if (filtreQualite === "sans_date_naissance") {
-                correspondQualite = estVide(eleve.date_naissance);
+            switch (filtreQualite) {
+                case "complet":
+                    if (
+                        !(
+                            !estVide(eleve.matricule) &&
+                            !estVide(eleve.nom) &&
+                            !estVide(eleve.prenoms) &&
+                            !estVide(eleve.sexe) &&
+                            !estVide(eleve.date_naissance) &&
+                            !estVide(eleve.lieu_naissance) &&
+                            !estVide(eleve.nationalite) &&
+                            !estVide(eleve.classe?.niveau?.libelle) &&
+                            !estVide(eleve.classe?.libelle) &&
+                            !estVide(eleve.statut) &&
+                            !estVide(eleve.regime) &&
+                            !estVide(eleve.statut_affectation) &&
+                            !estVide(eleve.responsable_nom) &&
+                            !estVide(eleve.responsable_prenoms) &&
+                            !estVide(eleve.responsable_telephone)
+                        )
+                    ) {
+                        return false;
+                    }
+                    break;
+
+                case "incomplet":
+                    if (
+                        !(
+                            estVide(eleve.matricule) ||
+                            estVide(eleve.nom) ||
+                            estVide(eleve.prenoms) ||
+                            estVide(eleve.sexe) ||
+                            estVide(eleve.date_naissance) ||
+                            estVide(eleve.lieu_naissance) ||
+                            estVide(eleve.nationalite) ||
+                            estVide(eleve.classe?.niveau?.libelle) ||
+                            estVide(eleve.classe?.libelle) ||
+                            estVide(eleve.statut) ||
+                            estVide(eleve.regime) ||
+                            estVide(eleve.statut_affectation) ||
+                            estVide(eleve.responsable_nom) ||
+                            estVide(eleve.responsable_prenoms) ||
+                            estVide(eleve.responsable_telephone)
+                        )
+                    ) {
+                        return false;
+                    }
+                    break;
+
+                case "sans_matricule":
+                    if (!estVide(eleve.matricule)) return false;
+                    break;
+
+                case "sans_date_naissance":
+                    if (!estVide(eleve.date_naissance)) return false;
+                    break;
+
+                case "sans_lieu_naissance":
+                    if (!estVide(eleve.lieu_naissance)) return false;
+                    break;
+
+                case "sans_nationalite":
+                    if (!estVide(eleve.nationalite)) return false;
+                    break;
+
+                case "sans_telephone":
+                    if (!estVide(eleve.telephone)) return false;
+                    break;
+
+                case "sans_email":
+                    if (!estVide(eleve.email)) return false;
+                    break;
+
+                case "sans_adresse":
+                    if (!estVide(eleve.adresse)) return false;
+                    break;
+
+                case "sans_responsable":
+                    if (
+                        !(
+                            estVide(eleve.responsable_nom) &&
+                            estVide(eleve.responsable_prenoms)
+                        )
+                    ) {
+                        return false;
+                    }
+                    break;
+
+                case "sans_telephone_responsable":
+                    if (!estVide(eleve.responsable_telephone)) {
+                        return false;
+                    }
+                    break;
+
+                case "sans_email_responsable":
+                    if (!estVide(eleve.responsable_email)) {
+                        return false;
+                    }
+                    break;
+
+                default:
+                    break;
             }
 
-            if (filtreQualite === "sans_lieu_naissance") {
-                correspondQualite = estVide(eleve.lieu_naissance);
-            }
-
-            if (filtreQualite === "sans_nationalite") {
-                correspondQualite = estVide(eleve.nationalite);
-            }
-
-            if (filtreQualite === "sans_telephone") {
-                correspondQualite = estVide(eleve.telephone);
-            }
-
-            if (filtreQualite === "sans_email") {
-                correspondQualite = estVide(eleve.email);
-            }
-
-            if (filtreQualite === "sans_adresse") {
-                correspondQualite = estVide(eleve.adresse);
-            }
-
-            if (filtreQualite === "sans_responsable") {
-                correspondQualite =
-                    estVide(eleve.responsable_nom) &&
-                    estVide(eleve.responsable_prenoms);
-            }
-
-            if (filtreQualite === "sans_telephone_responsable") {
-                correspondQualite = estVide(eleve.responsable_telephone);
-            }
-
-            return (
-                correspondRecherche &&
-                correspondNiveau &&
-                correspondClasse &&
-                correspondQualite
-            );
+            return true;
         });
     }, [eleves, recherche, niveauId, classeId, filtreQualite]);
 
     /*
-|--------------------------------------------------------------------------
-| STATISTIQUES
-|--------------------------------------------------------------------------
-*/
-
-    const statistiques = useMemo(() => {
-        const total = elevesFiltres.length;
-
-        /*
     |--------------------------------------------------------------------------
-    | OUTILS
+    | STATISTIQUES
     |--------------------------------------------------------------------------
     */
 
-        const estVide = (valeur) => {
-            return (
-                valeur === null ||
-                valeur === undefined ||
-                String(valeur).trim() === ""
-            );
-        };
-
-        const estVrai = (valeur) => {
-            if (
-                valeur === true ||
-                valeur === 1 ||
-                valeur === "1" ||
-                normaliser(valeur) === "oui" ||
-                normaliser(valeur) === "true"
-            ) {
-                return true;
-            }
-
-            return false;
-        };
+    const statistiques = useMemo(() => {
+        const total = elevesFiltres.length;
 
         const sexeFeminin = (eleve) => normaliser(eleve.sexe) === "feminin";
 
         const sexeMasculin = (eleve) => normaliser(eleve.sexe) === "masculin";
 
         const pourcentage = (nombre) => {
-            if (total === 0) {
-                return 0;
-            }
+            if (total === 0) return 0;
 
             return Math.round((nombre / total) * 100);
         };
-
-        /*
-    |--------------------------------------------------------------------------
-    | GENRE
-    |--------------------------------------------------------------------------
-    */
 
         const filles = elevesFiltres.filter(sexeFeminin);
 
@@ -420,12 +662,6 @@ export default function Index({
             (eleve) => !sexeFeminin(eleve) && !sexeMasculin(eleve),
         );
 
-        /*
-    |--------------------------------------------------------------------------
-    | REDOUBLEMENT
-    |--------------------------------------------------------------------------
-    */
-
         const redoublants = elevesFiltres.filter((eleve) =>
             estVrai(eleve.redoublant),
         );
@@ -433,12 +669,6 @@ export default function Index({
         const redoublantes = redoublants.filter(sexeFeminin);
 
         const redoublantsGarcons = redoublants.filter(sexeMasculin);
-
-        /*
-    |--------------------------------------------------------------------------
-    | AFFECTATION
-    |--------------------------------------------------------------------------
-    */
 
         const affectes = elevesFiltres.filter(
             (eleve) => normaliser(eleve.statut_affectation) === "affecte",
@@ -452,12 +682,6 @@ export default function Index({
             estVide(eleve.statut_affectation),
         );
 
-        /*
-    |--------------------------------------------------------------------------
-    | BOURSIERS
-    |--------------------------------------------------------------------------
-    */
-
         const boursiers = elevesFiltres.filter((eleve) =>
             estVrai(eleve.boursier),
         );
@@ -465,12 +689,6 @@ export default function Index({
         const boursieres = boursiers.filter(sexeFeminin);
 
         const boursiersGarcons = boursiers.filter(sexeMasculin);
-
-        /*
-    |--------------------------------------------------------------------------
-    | INFORMATIONS D'IDENTITÉ MANQUANTES
-    |--------------------------------------------------------------------------
-    */
 
         const sansMatricule = elevesFiltres.filter((eleve) =>
             estVide(eleve.matricule),
@@ -489,12 +707,6 @@ export default function Index({
         );
 
         const sansSexe = elevesFiltres.filter((eleve) => estVide(eleve.sexe));
-
-        /*
-    |--------------------------------------------------------------------------
-    | INFORMATIONS SCOLAIRES MANQUANTES
-    |--------------------------------------------------------------------------
-    */
 
         const sansNiveau = elevesFiltres.filter((eleve) =>
             estVide(eleve.classe?.niveau?.libelle),
@@ -516,12 +728,6 @@ export default function Index({
             estVide(eleve.statut_affectation),
         );
 
-        /*
-    |--------------------------------------------------------------------------
-    | COORDONNÉES DE L'ÉLÈVE
-    |--------------------------------------------------------------------------
-    */
-
         const sansTelephone = elevesFiltres.filter((eleve) =>
             estVide(eleve.telephone),
         );
@@ -531,12 +737,6 @@ export default function Index({
         const sansAdresse = elevesFiltres.filter((eleve) =>
             estVide(eleve.adresse),
         );
-
-        /*
-    |--------------------------------------------------------------------------
-    | RESPONSABLE LÉGAL
-    |--------------------------------------------------------------------------
-    */
 
         const sansResponsable = elevesFiltres.filter(
             (eleve) =>
@@ -556,12 +756,6 @@ export default function Index({
             estVide(eleve.responsable_profession),
         );
 
-        /*
-    |--------------------------------------------------------------------------
-    | DOSSIER D'IDENTITÉ COMPLET
-    |--------------------------------------------------------------------------
-    */
-
         const champsIdentite = [
             "matricule",
             "nom",
@@ -572,9 +766,8 @@ export default function Index({
             "nationalite",
         ];
 
-        const estIdentiteComplete = (eleve) => {
-            return champsIdentite.every((champ) => !estVide(eleve[champ]));
-        };
+        const estIdentiteComplete = (eleve) =>
+            champsIdentite.every((champ) => !estVide(eleve[champ]));
 
         const identitesCompletes = elevesFiltres.filter(estIdentiteComplete);
 
@@ -582,65 +775,27 @@ export default function Index({
             (eleve) => !estIdentiteComplete(eleve),
         );
 
-        /*
-    |--------------------------------------------------------------------------
-    | DOSSIER SCOLAIRE COMPLET
-    |--------------------------------------------------------------------------
-    */
-
-        const estScolariteComplete = (eleve) => {
-            return (
-                !estVide(eleve.classe?.niveau?.libelle) &&
-                !estVide(eleve.classe?.libelle) &&
-                !estVide(eleve.statut) &&
-                !estVide(eleve.statut_affectation) &&
-                !estVide(eleve.regime)
-            );
-        };
+        const estScolariteComplete = (eleve) =>
+            !estVide(eleve.classe?.niveau?.libelle) &&
+            !estVide(eleve.classe?.libelle) &&
+            !estVide(eleve.statut) &&
+            !estVide(eleve.statut_affectation) &&
+            !estVide(eleve.regime);
 
         const scolaritesCompletes = elevesFiltres.filter(estScolariteComplete);
 
-        /*
-    |--------------------------------------------------------------------------
-    | DOSSIER GLOBAL COMPLET
-    |--------------------------------------------------------------------------
-    */
-
-        const estDossierComplet = (eleve) => {
-            return (
-                estIdentiteComplete(eleve) &&
-                estScolariteComplete(eleve) &&
-                !estVide(eleve.responsable_nom) &&
-                !estVide(eleve.responsable_prenoms) &&
-                !estVide(eleve.responsable_telephone)
-            );
-        };
+        const estDossierComplet = (eleve) =>
+            estIdentiteComplete(eleve) &&
+            estScolariteComplete(eleve) &&
+            !estVide(eleve.responsable_nom) &&
+            !estVide(eleve.responsable_prenoms) &&
+            !estVide(eleve.responsable_telephone);
 
         const dossiersComplets = elevesFiltres.filter(estDossierComplet);
 
         const dossiersIncomplets = elevesFiltres.filter(
             (eleve) => !estDossierComplet(eleve),
         );
-
-        /*
-    |--------------------------------------------------------------------------
-    | TAUX DE COMPLÉTUDE
-    |--------------------------------------------------------------------------
-    */
-
-        const tauxIdentiteComplete = pourcentage(identitesCompletes.length);
-
-        const tauxScolariteComplete = pourcentage(scolaritesCompletes.length);
-
-        const tauxDossiersComplets = pourcentage(dossiersComplets.length);
-
-        const tauxDossiersIncomplets = pourcentage(dossiersIncomplets.length);
-
-        /*
-    |--------------------------------------------------------------------------
-    | RÉPARTITION PAR NIVEAU
-    |--------------------------------------------------------------------------
-    */
 
         const repartitionNiveaux = {};
 
@@ -650,12 +805,6 @@ export default function Index({
             repartitionNiveaux[niveau] = (repartitionNiveaux[niveau] || 0) + 1;
         });
 
-        /*
-    |--------------------------------------------------------------------------
-    | RÉPARTITION PAR CLASSE
-    |--------------------------------------------------------------------------
-    */
-
         const repartitionClasses = {};
 
         elevesFiltres.forEach((eleve) => {
@@ -664,19 +813,7 @@ export default function Index({
             repartitionClasses[classe] = (repartitionClasses[classe] || 0) + 1;
         });
 
-        /*
-    |--------------------------------------------------------------------------
-    | RETOUR
-    |--------------------------------------------------------------------------
-    */
-
         return {
-            /*
-        |--------------------------------------------------------------------------
-        | EFFECTIF
-        |--------------------------------------------------------------------------
-        */
-
             total,
 
             filles: filles.length,
@@ -687,12 +824,6 @@ export default function Index({
 
             tauxGarcons: pourcentage(garcons.length),
 
-            /*
-        |--------------------------------------------------------------------------
-        | REDOUBLEMENT
-        |--------------------------------------------------------------------------
-        */
-
             redoublants: redoublants.length,
 
             redoublantes: redoublantes.length,
@@ -700,12 +831,6 @@ export default function Index({
             redoublantsGarcons: redoublantsGarcons.length,
 
             tauxRedoublement: pourcentage(redoublants.length),
-
-            /*
-        |--------------------------------------------------------------------------
-        | AFFECTATION
-        |--------------------------------------------------------------------------
-        */
 
             affectes: affectes.length,
 
@@ -721,15 +846,7 @@ export default function Index({
 
             nonAffectesGarcons: nonAffectes.filter(sexeMasculin).length,
 
-            tauxNonAffectation: pourcentage(nonAffectes.length),
-
             statutAffectationNonRenseigne: statutAffectationNonRenseigne.length,
-
-            /*
-        |--------------------------------------------------------------------------
-        | BOURSIERS
-        |--------------------------------------------------------------------------
-        */
 
             boursiers: boursiers.length,
 
@@ -738,12 +855,6 @@ export default function Index({
             boursiersGarcons: boursiersGarcons.length,
 
             tauxBoursiers: pourcentage(boursiers.length),
-
-            /*
-        |--------------------------------------------------------------------------
-        | INFORMATIONS MANQUANTES
-        |--------------------------------------------------------------------------
-        */
 
             sansMatricule: sansMatricule.length,
 
@@ -779,252 +890,32 @@ export default function Index({
 
             sansProfessionResponsable: sansProfessionResponsable.length,
 
-            /*
-        |--------------------------------------------------------------------------
-        | QUALITÉ DES DOSSIERS
-        |--------------------------------------------------------------------------
-        */
-
             identitesCompletes: identitesCompletes.length,
 
             identitesIncompletes: identitesIncompletes.length,
 
-            tauxIdentiteComplete,
+            tauxIdentiteComplete: pourcentage(identitesCompletes.length),
 
             scolaritesCompletes: scolaritesCompletes.length,
 
-            tauxScolariteComplete,
+            tauxScolariteComplete: pourcentage(scolaritesCompletes.length),
 
             dossiersComplets: dossiersComplets.length,
 
             dossiersIncomplets: dossiersIncomplets.length,
 
-            tauxDossiersComplets,
+            tauxDossiersComplets: pourcentage(dossiersComplets.length),
 
-            tauxDossiersIncomplets,
-
-            /*
-        |--------------------------------------------------------------------------
-        | RÉPARTITIONS
-        |--------------------------------------------------------------------------
-        */
+            tauxDossiersIncomplets: pourcentage(dossiersIncomplets.length),
 
             repartitionNiveaux,
-
             repartitionClasses,
         };
     }, [elevesFiltres]);
 
-    {
-        /* =====================================================
-    QUALITÉ DES DONNÉES
-===================================================== */
-    }
-
-    <div className="mt-6">
-        <div className="mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">
-                Qualité des données
-            </h3>
-
-            <p className="text-sm text-gray-500">
-                Vérification des informations renseignées pour les élèves
-                actuellement affichés.
-            </p>
-        </div>
-
-        {/* Résumé général */}
-
-        <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
-            <div className="rounded-xl border bg-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <p className="text-sm font-medium text-gray-500">
-                            Dossiers complets
-                        </p>
-
-                        <p className="mt-1 text-3xl font-bold text-green-600">
-                            {statistiques.dossiersComplets}
-                        </p>
-
-                        <p className="mt-1 text-sm text-gray-500">
-                            {statistiques.tauxDossiersComplets}% de l'effectif
-                        </p>
-                    </div>
-
-                    <div className="rounded-lg bg-green-100 px-3 py-2 text-xl">
-                        ✓
-                    </div>
-                </div>
-
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-gray-200">
-                    <div
-                        className="h-full rounded-full bg-green-500"
-                        style={{
-                            width: `${statistiques.tauxDossiersComplets}%`,
-                        }}
-                    />
-                </div>
-            </div>
-
-            <div className="rounded-xl border bg-white p-5 shadow-sm">
-                <div className="flex items-center justify-between">
-                    <div>
-                        <p className="text-sm font-medium text-gray-500">
-                            Dossiers incomplets
-                        </p>
-
-                        <p className="mt-1 text-3xl font-bold text-red-600">
-                            {statistiques.dossiersIncomplets}
-                        </p>
-
-                        <p className="mt-1 text-sm text-gray-500">
-                            {statistiques.tauxDossiersIncomplets}% de l'effectif
-                        </p>
-                    </div>
-
-                    <div className="rounded-lg bg-red-100 px-3 py-2 text-xl">
-                        !
-                    </div>
-                </div>
-
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-gray-200">
-                    <div
-                        className="h-full rounded-full bg-red-500"
-                        style={{
-                            width: `${statistiques.tauxDossiersIncomplets}%`,
-                        }}
-                    />
-                </div>
-            </div>
-
-            <div className="rounded-xl border bg-white p-5 shadow-sm">
-                <p className="text-sm font-medium text-gray-500">
-                    Taux de féminisation
-                </p>
-
-                <p className="mt-1 text-3xl font-bold text-pink-600">
-                    {statistiques.tauxFeminisation}%
-                </p>
-
-                <p className="mt-1 text-sm text-gray-500">
-                    {statistiques.filles} fille
-                    {statistiques.filles > 1 ? "s" : ""} sur{" "}
-                    {statistiques.total}
-                </p>
-
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-gray-200">
-                    <div
-                        className="h-full rounded-full bg-pink-500"
-                        style={{
-                            width: `${statistiques.tauxFeminisation}%`,
-                        }}
-                    />
-                </div>
-            </div>
-        </div>
-
-        {/* Informations manquantes */}
-
-        <div className="rounded-xl border bg-white p-5 shadow-sm">
-            <div className="mb-4">
-                <h4 className="font-semibold text-gray-900">
-                    Informations manquantes
-                </h4>
-
-                <p className="text-sm text-gray-500">
-                    Nombre d'élèves pour lesquels chaque information n'est pas
-                    renseignée.
-                </p>
-            </div>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                <div className="rounded-lg bg-red-50 p-4">
-                    <p className="text-sm text-gray-600">Sans matricule</p>
-
-                    <p className="mt-1 text-2xl font-bold text-red-600">
-                        {statistiques.sansMatricule}
-                    </p>
-                </div>
-
-                <div className="rounded-lg bg-orange-50 p-4">
-                    <p className="text-sm text-gray-600">
-                        Sans date de naissance
-                    </p>
-
-                    <p className="mt-1 text-2xl font-bold text-orange-600">
-                        {statistiques.sansDateNaissance}
-                    </p>
-                </div>
-
-                <div className="rounded-lg bg-orange-50 p-4">
-                    <p className="text-sm text-gray-600">
-                        Sans lieu de naissance
-                    </p>
-
-                    <p className="mt-1 text-2xl font-bold text-orange-600">
-                        {statistiques.sansLieuNaissance}
-                    </p>
-                </div>
-
-                <div className="rounded-lg bg-orange-50 p-4">
-                    <p className="text-sm text-gray-600">Sans nationalité</p>
-
-                    <p className="mt-1 text-2xl font-bold text-orange-600">
-                        {statistiques.sansNationalite}
-                    </p>
-                </div>
-
-                <div className="rounded-lg bg-yellow-50 p-4">
-                    <p className="text-sm text-gray-600">Sans téléphone</p>
-
-                    <p className="mt-1 text-2xl font-bold text-yellow-600">
-                        {statistiques.sansTelephone}
-                    </p>
-                </div>
-
-                <div className="rounded-lg bg-yellow-50 p-4">
-                    <p className="text-sm text-gray-600">Sans email</p>
-
-                    <p className="mt-1 text-2xl font-bold text-yellow-600">
-                        {statistiques.sansEmail}
-                    </p>
-                </div>
-
-                <div className="rounded-lg bg-yellow-50 p-4">
-                    <p className="text-sm text-gray-600">Sans adresse</p>
-
-                    <p className="mt-1 text-2xl font-bold text-yellow-600">
-                        {statistiques.sansAdresse}
-                    </p>
-                </div>
-
-                <div className="rounded-lg bg-red-50 p-4">
-                    <p className="text-sm text-gray-600">
-                        Sans responsable légal
-                    </p>
-
-                    <p className="mt-1 text-2xl font-bold text-red-600">
-                        {statistiques.sansResponsable}
-                    </p>
-                </div>
-
-                <div className="rounded-lg bg-red-50 p-4">
-                    <p className="text-sm text-gray-600">
-                        Sans téléphone du responsable
-                    </p>
-
-                    <p className="mt-1 text-2xl font-bold text-red-600">
-                        {statistiques.sansTelephoneResponsable}
-                    </p>
-                </div>
-            </div>
-        </div>
-    </div>;
-
     /*
     |--------------------------------------------------------------------------
-    | RÉINITIALISATION DES FILTRES
+    | FILTRES
     |--------------------------------------------------------------------------
     */
 
@@ -1033,11 +924,43 @@ export default function Index({
         setNiveauId("");
         setClasseId("");
         setFiltreQualite("");
+
+        if (isSuperAdmin && etablissementId) {
+            setEtablissementId("");
+
+            router.get(
+                route("eleves.index"),
+                {},
+                {
+                    preserveState: true,
+                    preserveScroll: true,
+                    replace: true,
+                },
+            );
+        }
+    };
+
+    const changerEtablissement = (value) => {
+        setEtablissementId(value);
+
+        router.get(
+            route("eleves.index"),
+            value
+                ? {
+                      etablissement_id: value,
+                  }
+                : {},
+            {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+            },
+        );
     };
 
     /*
     |--------------------------------------------------------------------------
-    | GESTION DES COLONNES
+    | COLONNES
     |--------------------------------------------------------------------------
     */
 
@@ -1122,7 +1045,7 @@ export default function Index({
 
     /*
     |--------------------------------------------------------------------------
-    | AFFICHAGE D'UNE CELLULE
+    | AFFICHAGE DES VALEURS
     |--------------------------------------------------------------------------
     */
 
@@ -1179,10 +1102,10 @@ export default function Index({
                 return eleve.regime || "-";
 
             case "redoublant":
-                return eleve.redoublant ? "Oui" : "Non";
+                return estVrai(eleve.redoublant) ? "Oui" : "Non";
 
             case "boursier":
-                return eleve.boursier ? "Oui" : "Non";
+                return estVrai(eleve.boursier) ? "Oui" : "Non";
 
             case "telephone":
                 return eleve.telephone || "-";
@@ -1255,12 +1178,6 @@ export default function Index({
         }
     };
 
-    /*
-    |--------------------------------------------------------------------------
-    | LABEL D'UNE COLONNE
-    |--------------------------------------------------------------------------
-    */
-
     const labelColonne = (id) => {
         for (const groupe of Object.values(colonnesDisponibles)) {
             const colonne = groupe.colonnes.find(
@@ -1276,14 +1193,627 @@ export default function Index({
     };
 
     /*
-|--------------------------------------------------------------------------
-| EXPORTS
-|--------------------------------------------------------------------------
-*/
+    |--------------------------------------------------------------------------
+    | DROITS
+    |--------------------------------------------------------------------------
+    */
 
-    /**
-     * Prépare les données selon les colonnes actuellement sélectionnées.
-     */
+    const peutModifierEleve = (eleve) => {
+        return (
+            elevesModifiables === null ||
+            elevesModifiables?.some((id) => String(id) === String(eleve.id))
+        );
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | SÉLECTION DES ÉLÈVES
+    |--------------------------------------------------------------------------
+    */
+
+    const estSelectionne = (eleveId) => {
+        return elevesSelectionnes.some((id) => String(id) === String(eleveId));
+    };
+
+    const basculerSelectionEleve = (eleveId) => {
+        setElevesSelectionnes((actuelles) => {
+            const existe = actuelles.some(
+                (id) => String(id) === String(eleveId),
+            );
+
+            if (existe) {
+                return actuelles.filter((id) => String(id) !== String(eleveId));
+            }
+
+            return [...actuelles, eleveId];
+        });
+    };
+
+    const elevesModifiablesFiltres = elevesFiltres.filter(peutModifierEleve);
+
+    const tousLesElevesSelectionnes =
+        elevesModifiablesFiltres.length > 0 &&
+        elevesModifiablesFiltres.every((eleve) => estSelectionne(eleve.id));
+
+    const selectionnerTousLesEleves = () => {
+        setElevesSelectionnes(
+            elevesModifiablesFiltres.map((eleve) => eleve.id),
+        );
+    };
+
+    const deselectionnerTousLesEleves = () => {
+        setElevesSelectionnes([]);
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | VALEURS ORIGINALES
+    |--------------------------------------------------------------------------
+    */
+
+    const valeurOriginale = (eleve, colonne) => {
+        switch (colonne) {
+            case "matricule":
+                return eleve.matricule ?? "";
+
+            case "nom":
+                return eleve.nom ?? "";
+
+            case "prenoms":
+                return eleve.prenoms ?? "";
+
+            case "sexe":
+                return eleve.sexe ?? "";
+
+            case "date_naissance":
+                return eleve.date_naissance ?? "";
+
+            case "lieu_naissance":
+                return eleve.lieu_naissance ?? "";
+
+            case "nationalite":
+                return eleve.nationalite ?? "";
+
+            case "telephone":
+                return eleve.telephone ?? "";
+
+            case "email":
+                return eleve.email ?? "";
+
+            case "adresse":
+                return eleve.adresse ?? "";
+
+            case "statut":
+                return eleve.statut ?? "";
+
+            case "statut_affectation":
+                return eleve.statut_affectation ?? "";
+
+            case "regime":
+                return eleve.regime ?? "";
+
+            case "redoublant":
+                return Boolean(eleve.redoublant);
+
+            case "boursier":
+                return Boolean(eleve.boursier);
+
+            case "type_tuteur":
+                return eleve.type_tuteur ?? "";
+
+            case "responsable_nom":
+                return eleve.responsable_nom ?? "";
+
+            case "responsable_prenoms":
+                return eleve.responsable_prenoms ?? "";
+
+            case "responsable_telephone":
+                return eleve.responsable_telephone ?? "";
+
+            case "responsable_email":
+                return eleve.responsable_email ?? "";
+
+            case "responsable_profession":
+                return eleve.responsable_profession ?? "";
+
+            case "responsable_adresse":
+                return eleve.responsable_adresse ?? "";
+
+            case "pere_nom":
+                return eleve.pere_nom ?? "";
+
+            case "pere_prenoms":
+                return eleve.pere_prenoms ?? "";
+
+            case "pere_telephone":
+                return eleve.pere_telephone ?? "";
+
+            case "pere_email":
+                return eleve.pere_email ?? "";
+
+            case "pere_profession":
+                return eleve.pere_profession ?? "";
+
+            case "pere_adresse":
+                return eleve.pere_adresse ?? "";
+
+            case "mere_nom":
+                return eleve.mere_nom ?? "";
+
+            case "mere_prenoms":
+                return eleve.mere_prenoms ?? "";
+
+            case "mere_telephone":
+                return eleve.mere_telephone ?? "";
+
+            case "mere_email":
+                return eleve.mere_email ?? "";
+
+            case "mere_profession":
+                return eleve.mere_profession ?? "";
+
+            case "mere_adresse":
+                return eleve.mere_adresse ?? "";
+
+            default:
+                return "";
+        }
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | MODIFICATION D'UNE CELLULE
+    |--------------------------------------------------------------------------
+    */
+
+    const modifierCellule = (eleve, colonne, valeur) => {
+        setModifications((actuelles) => {
+            const eleveActuel = actuelles[eleve.id] || {};
+
+            const valeurInitiale = valeurOriginale(eleve, colonne);
+
+            const nouvellesDonnees = {
+                ...eleveActuel,
+                [colonne]: valeur,
+            };
+
+            const valeursEgales =
+                String(valeur ?? "") === String(valeurInitiale ?? "");
+
+            if (valeursEgales) {
+                delete nouvellesDonnees[colonne];
+            }
+
+            if (Object.keys(nouvellesDonnees).length === 0) {
+                const copie = {
+                    ...actuelles,
+                };
+
+                delete copie[eleve.id];
+
+                return copie;
+            }
+
+            return {
+                ...actuelles,
+                [eleve.id]: nouvellesDonnees,
+            };
+        });
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | CHAMP D'ÉDITION D'UNE CELLULE
+    |--------------------------------------------------------------------------
+    */
+
+    const champEdition = (eleve, colonne) => {
+        const valeur =
+            modifications[eleve.id]?.[colonne] ??
+            valeurOriginale(eleve, colonne);
+
+        const classesInput =
+            "w-full min-w-[130px] rounded border border-indigo-300 bg-white px-2 py-1.5 text-xs focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500";
+
+        if (
+            colonne === "annee_scolaire" ||
+            colonne === "etablissement" ||
+            colonne === "cycle" ||
+            colonne === "niveau" ||
+            colonne === "classe" ||
+            colonne === "serie"
+        ) {
+            return (
+                <div className="min-w-[140px] rounded bg-gray-50 px-2 py-1.5 text-xs text-gray-500">
+                    Modification via le panneau « Scolarité »
+                </div>
+            );
+        }
+
+        if (colonne === "sexe") {
+            return (
+                <select
+                    value={valeur}
+                    onChange={(e) =>
+                        modifierCellule(eleve, colonne, e.target.value)
+                    }
+                    className={classesInput}
+                >
+                    <option value="">Non renseigné</option>
+                    <option value="Masculin">Masculin</option>
+                    <option value="Féminin">Féminin</option>
+                </select>
+            );
+        }
+
+        if (colonne === "date_naissance") {
+            return (
+                <input
+                    type="date"
+                    value={valeur || ""}
+                    onChange={(e) =>
+                        modifierCellule(eleve, colonne, e.target.value)
+                    }
+                    className={classesInput}
+                />
+            );
+        }
+
+        if (colonne === "statut") {
+            return (
+                <select
+                    value={valeur}
+                    onChange={(e) =>
+                        modifierCellule(eleve, colonne, e.target.value)
+                    }
+                    className={classesInput}
+                >
+                    <option value="">Non renseigné</option>
+                    <option value="Nouveau">Nouveau</option>
+                    <option value="Ancien">Ancien</option>
+                </select>
+            );
+        }
+
+        if (colonne === "statut_affectation") {
+            return (
+                <select
+                    value={valeur}
+                    onChange={(e) =>
+                        modifierCellule(eleve, colonne, e.target.value)
+                    }
+                    className={classesInput}
+                >
+                    <option value="">Non renseigné</option>
+                    <option value="Affecté">Affecté</option>
+                    <option value="Non affecté">Non affecté</option>
+                </select>
+            );
+        }
+
+        if (colonne === "regime") {
+            return (
+                <select
+                    value={valeur}
+                    onChange={(e) =>
+                        modifierCellule(eleve, colonne, e.target.value)
+                    }
+                    className={classesInput}
+                >
+                    <option value="">Non renseigné</option>
+                    <option value="Interne">Interne</option>
+                    <option value="Externé">Externé</option>
+                    <option value="Demi-pensionnaire">Demi-pensionnaire</option>
+                </select>
+            );
+        }
+
+        if (colonne === "redoublant" || colonne === "boursier") {
+            return (
+                <select
+                    value={valeur ? "1" : "0"}
+                    onChange={(e) =>
+                        modifierCellule(eleve, colonne, e.target.value === "1")
+                    }
+                    className={classesInput}
+                >
+                    <option value="0">Non</option>
+                    <option value="1">Oui</option>
+                </select>
+            );
+        }
+
+        if (colonne === "type_tuteur") {
+            return (
+                <select
+                    value={valeur}
+                    onChange={(e) =>
+                        modifierCellule(eleve, colonne, e.target.value)
+                    }
+                    className={classesInput}
+                >
+                    <option value="">Non renseigné</option>
+                    <option value="Père">Père</option>
+                    <option value="Mère">Mère</option>
+                    <option value="Autre">Autre</option>
+                </select>
+            );
+        }
+
+        const type = colonne.includes("email") ? "email" : "text";
+
+        return (
+            <input
+                type={type}
+                value={valeur}
+                onChange={(e) =>
+                    modifierCellule(eleve, colonne, e.target.value)
+                }
+                className={classesInput}
+            />
+        );
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | OUVERTURE DU MODE MODIFICATION GROUPÉE
+    |--------------------------------------------------------------------------
+    */
+
+    const ouvrirModificationGroupee = () => {
+        setModeModificationGroupee(true);
+
+        setElevesSelectionnes([]);
+
+        setErreursGroupees({});
+
+        setModificationGroupee({
+            etablissement_id:
+                isSuperAdmin && etablissementId ? String(etablissementId) : "",
+            annee_scolaire_id: "",
+            cycle_id: "",
+            niveau_id: "",
+            classe_id: "",
+            serie_id: "",
+        });
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | MODIFICATION DE LA CHAÎNE SCOLAIRE
+    |--------------------------------------------------------------------------
+    */
+
+    const modifierChampGroupe = (champ, valeur) => {
+        setErreursGroupees({});
+
+        setModificationGroupee((actuelle) => {
+            const nouvelle = {
+                ...actuelle,
+                [champ]: valeur,
+            };
+
+            if (champ === "etablissement_id") {
+                nouvelle.annee_scolaire_id = "";
+                nouvelle.cycle_id = "";
+                nouvelle.niveau_id = "";
+                nouvelle.classe_id = "";
+                nouvelle.serie_id = "";
+            }
+
+            if (champ === "annee_scolaire_id") {
+                nouvelle.cycle_id = "";
+                nouvelle.niveau_id = "";
+                nouvelle.classe_id = "";
+                nouvelle.serie_id = "";
+            }
+
+            if (champ === "cycle_id") {
+                nouvelle.niveau_id = "";
+                nouvelle.classe_id = "";
+                nouvelle.serie_id = "";
+            }
+
+            if (champ === "niveau_id") {
+                nouvelle.classe_id = "";
+                nouvelle.serie_id = "";
+            }
+
+            if (champ === "classe_id") {
+                const classe = classesReferentiel.find(
+                    (item) => String(item.id) === String(valeur),
+                );
+
+                nouvelle.serie_id = classe?.serie_id
+                    ? String(classe.serie_id)
+                    : "";
+            }
+
+            return nouvelle;
+        });
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | APPLICATION DE LA MODIFICATION SCOLAIRE GROUPÉE
+    |--------------------------------------------------------------------------
+    */
+
+    const appliquerModificationGroupee = () => {
+        setErreursGroupees({});
+
+        if (elevesSelectionnes.length === 0) {
+            setErreursGroupees({
+                general: "Veuillez sélectionner au moins un élève.",
+            });
+
+            return;
+        }
+
+        if (!modificationGroupee.classe_id) {
+            setErreursGroupees({
+                classe_id: "Veuillez sélectionner une classe.",
+            });
+
+            return;
+        }
+
+        const classe = classesReferentiel.find(
+            (item) => String(item.id) === String(modificationGroupee.classe_id),
+        );
+
+        if (!classe) {
+            setErreursGroupees({
+                classe_id: "La classe sélectionnée est introuvable.",
+            });
+
+            return;
+        }
+
+        const donnees = elevesSelectionnes.map((id) => ({
+            id: Number(id),
+
+            ...(modificationGroupee.etablissement_id
+                ? {
+                      etablissement_id: Number(
+                          modificationGroupee.etablissement_id,
+                      ),
+                  }
+                : {}),
+
+            ...(modificationGroupee.annee_scolaire_id
+                ? {
+                      annee_scolaire_id: Number(
+                          modificationGroupee.annee_scolaire_id,
+                      ),
+                  }
+                : {}),
+
+            classe_id: Number(modificationGroupee.classe_id),
+        }));
+
+        setEnregistrementGroupe(true);
+
+        router.patch(
+            route("eleves.update.bulk"),
+            {
+                eleves: donnees,
+            },
+            {
+                preserveScroll: true,
+
+                onSuccess: () => {
+                    setModificationGroupee({
+                        etablissement_id: "",
+                        annee_scolaire_id: "",
+                        cycle_id: "",
+                        niveau_id: "",
+                        classe_id: "",
+                        serie_id: "",
+                    });
+
+                    setElevesSelectionnes([]);
+
+                    setErreursGroupees({});
+                },
+
+                onError: (errors) => {
+                    setErreursGroupees(errors || {});
+                },
+
+                onFinish: () => {
+                    setEnregistrementGroupe(false);
+                },
+            },
+        );
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | SAUVEGARDE DES MODIFICATIONS DIRECTES
+    |--------------------------------------------------------------------------
+    */
+
+    const sauvegarderModifications = () => {
+        const ids = Object.keys(modifications);
+
+        if (ids.length === 0) {
+            window.alert("Aucune modification n'a été effectuée.");
+
+            return;
+        }
+
+        const donnees = ids.map((id) => ({
+            id: Number(id),
+            ...modifications[id],
+        }));
+
+        setSauvegardeEnCours(true);
+
+        router.patch(
+            route("eleves.update.bulk"),
+            {
+                eleves: donnees,
+            },
+            {
+                preserveScroll: true,
+
+                onSuccess: () => {
+                    setModifications({});
+
+                    setElevesSelectionnes([]);
+
+                    setModeModificationGroupee(false);
+                },
+
+                onFinish: () => {
+                    setSauvegardeEnCours(false);
+                },
+            },
+        );
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | ANNULATION
+    |--------------------------------------------------------------------------
+    */
+
+    const annulerModificationGroupee = () => {
+        if (Object.keys(modifications).length > 0) {
+            const confirmer = window.confirm(
+                "Les modifications non enregistrées seront perdues. Continuer ?",
+            );
+
+            if (!confirmer) {
+                return;
+            }
+        }
+
+        setModifications({});
+
+        setElevesSelectionnes([]);
+
+        setModificationGroupee({
+            etablissement_id: "",
+            annee_scolaire_id: "",
+            cycle_id: "",
+            niveau_id: "",
+            classe_id: "",
+            serie_id: "",
+        });
+
+        setErreursGroupees({});
+
+        setModeModificationGroupee(false);
+    };
+
+    /*
+    |--------------------------------------------------------------------------
+    | EXPORTS
+    |--------------------------------------------------------------------------
+    */
+
     const donneesExport = useMemo(() => {
         return elevesFiltres.map((eleve) => {
             const ligne = {};
@@ -1294,102 +1824,52 @@ export default function Index({
 
             return ligne;
         });
-        const pourcentage = (nombre) => {
-            if (total === 0) {
-                return 0;
-            }
-
-            return Math.round((nombre / total) * 100);
-        };
     }, [elevesFiltres, colonnesSelectionnees]);
 
-    /**
-     * Nom de fichier sécurisé.
-     */
     const nomFichierExport = () => {
-        let nom = "liste_eleves";
-
-        if (niveauId) {
-            const niveau = niveaux.find(
-                (niveau) => String(niveau.id) === String(niveauId),
-            );
-
-            if (niveau) {
-                nom += `_${normaliser(niveau.libelle).replace(/\s+/g, "_")}`;
-            }
+        if (etablissementSelectionne?.nom) {
+            return `eleves_${normaliser(etablissementSelectionne.nom).replace(
+                /\s+/g,
+                "_",
+            )}`;
         }
 
-        if (classeId) {
-            const classe = classes.find(
-                (classe) => String(classe.id) === String(classeId),
-            );
-
-            if (classe) {
-                nom += `_${normaliser(classe.libelle).replace(/\s+/g, "_")}`;
-            }
-        }
-
-        return nom;
+        return "eleves";
     };
-
-    /*
-|--------------------------------------------------------------------------
-| EXPORT EXCEL
-|--------------------------------------------------------------------------
-*/
 
     const exporterExcel = () => {
-        if (elevesFiltres.length === 0) {
-            return;
-        }
+        const worksheet = XLSX.utils.json_to_sheet(donneesExport);
 
-        const donnees = elevesFiltres.map((eleve) => {
-            const ligne = {};
+        const workbook = XLSX.utils.book_new();
 
-            colonnesSelectionnees.forEach((colonne) => {
-                ligne[labelColonne(colonne)] = afficherValeur(eleve, colonne);
-            });
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Élèves");
 
-            return ligne;
-        });
-
-        const feuille = XLSX.utils.json_to_sheet(donnees);
-
-        const classeur = XLSX.utils.book_new();
-
-        XLSX.utils.book_append_sheet(classeur, feuille, "Élèves");
-
-        XLSX.writeFile(classeur, "liste-eleves.xlsx");
+        XLSX.writeFile(workbook, `${nomFichierExport()}.xlsx`);
     };
 
-    /*
-|--------------------------------------------------------------------------
-| EXPORT CSV
-|--------------------------------------------------------------------------
-*/
-
     const exporterCSV = () => {
-        if (elevesFiltres.length === 0) {
+        if (donneesExport.length === 0) {
             return;
         }
 
-        const donnees = elevesFiltres.map((eleve) => {
-            const ligne = {};
+        const entetes = Object.keys(donneesExport[0]);
 
-            colonnesSelectionnees.forEach((colonne) => {
-                ligne[labelColonne(colonne)] = afficherValeur(eleve, colonne);
-            });
+        const lignes = donneesExport.map((ligne) =>
+            entetes
+                .map((entete) => {
+                    const valeur = ligne[entete] ?? "";
 
-            return ligne;
-        });
+                    return `"${String(valeur).replace(/"/g, '""')}"`;
+                })
+                .join(";"),
+        );
 
-        const feuille = XLSX.utils.json_to_sheet(donnees);
+        const contenu = [
+            entetes.map((entete) => `"${entete}"`).join(";"),
+            ...lignes,
+        ].join("\n");
 
-        const csv = XLSX.utils.sheet_to_csv(feuille, {
-            FS: ";",
-        });
-
-        const blob = new Blob(["\uFEFF" + csv], {
+        const blob = new Blob(["\ufeff" + contenu], {
             type: "text/csv;charset=utf-8;",
         });
 
@@ -1398,7 +1878,8 @@ export default function Index({
         const lien = document.createElement("a");
 
         lien.href = url;
-        lien.download = "liste-eleves.csv";
+
+        lien.download = `${nomFichierExport()}.csv`;
 
         document.body.appendChild(lien);
 
@@ -1409,159 +1890,8 @@ export default function Index({
         URL.revokeObjectURL(url);
     };
 
-    /*
-|--------------------------------------------------------------------------
-| IMPRESSION
-|--------------------------------------------------------------------------
-*/
-
     const imprimerListe = () => {
-        if (elevesFiltres.length === 0) {
-            return;
-        }
-
-        const fenetre = window.open("", "_blank", "width=1200,height=800");
-
-        if (!fenetre) {
-            alert(
-                "La fenêtre d'impression a été bloquée par votre navigateur.",
-            );
-
-            return;
-        }
-
-        const titre = niveauId
-            ? `Liste des élèves - ${
-                  niveaux.find(
-                      (niveau) => String(niveau.id) === String(niveauId),
-                  )?.libelle ?? ""
-              }`
-            : classeId
-              ? `Liste des élèves - ${
-                    classes.find(
-                        (classe) => String(classe.id) === String(classeId),
-                    )?.libelle ?? ""
-                }`
-              : "Liste des élèves";
-
-        const entetes = colonnesSelectionnees
-            .map((colonne) => `<th>${labelColonne(colonne)}</th>`)
-            .join("");
-
-        const lignes = elevesFiltres
-            .map((eleve) => {
-                const cellules = colonnesSelectionnees
-                    .map(
-                        (colonne) =>
-                            `<td>${afficherValeur(eleve, colonne)}</td>`,
-                    )
-                    .join("");
-
-                return `<tr>${cellules}</tr>`;
-            })
-            .join("");
-
-        fenetre.document.write(`
-        <!DOCTYPE html>
-        <html lang="fr">
-        <head>
-            <meta charset="UTF-8">
-
-            <title>${titre}</title>
-
-            <style>
-                body {
-                    font-family: Arial, sans-serif;
-                    margin: 30px;
-                    color: #111827;
-                }
-
-                h1 {
-                    font-size: 22px;
-                    margin-bottom: 5px;
-                }
-
-                .informations {
-                    color: #6b7280;
-                    margin-bottom: 20px;
-                    font-size: 13px;
-                }
-
-                table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    font-size: 11px;
-                }
-
-                th {
-                    background: #f3f4f6;
-                    font-weight: bold;
-                }
-
-                th,
-                td {
-                    border: 1px solid #d1d5db;
-                    padding: 7px;
-                    text-align: left;
-                }
-
-                tr:nth-child(even) {
-                    background: #f9fafb;
-                }
-
-                .pied {
-                    margin-top: 20px;
-                    font-size: 11px;
-                    color: #6b7280;
-                }
-
-                @media print {
-                    body {
-                        margin: 10mm;
-                    }
-                }
-            </style>
-        </head>
-
-        <body>
-
-            <h1>${titre}</h1>
-
-            <div class="informations">
-                ${elevesFiltres.length} élève${
-                    elevesFiltres.length > 1 ? "s" : ""
-                }
-            </div>
-
-            <table>
-
-                <thead>
-                    <tr>
-                        ${entetes}
-                    </tr>
-                </thead>
-
-                <tbody>
-                    ${lignes}
-                </tbody>
-
-            </table>
-
-            <div class="pied">
-                Document généré par StatEval-CI
-            </div>
-
-        </body>
-        </html>
-    `);
-
-        fenetre.document.close();
-
-        fenetre.focus();
-
-        setTimeout(() => {
-            fenetre.print();
-        }, 300);
+        window.print();
     };
 
     /*
@@ -1574,68 +1904,652 @@ export default function Index({
         <AdminLayout>
             <Head title="Élèves" />
 
-            <div className="min-w-0 max-w-full space-y-6">
+            <div className="space-y-6 p-4 sm:p-6">
                 {/* =====================================================
                     EN-TÊTE
-                ===================================================== */}
+                ====================================================== */}
 
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                     <div>
-                        <h1 className="text-3xl font-bold">Élèves</h1>
+                        <h1 className="text-2xl font-bold text-gray-900">
+                            Élèves
+                        </h1>
 
-                        <p className="text-gray-500">Gestion des élèves</p>
+                        <p className="text-sm text-gray-500">
+                            Gestion des élèves
+                        </p>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                        <Link
-                            href={route("eleves.import.form")}
-                            className="rounded-lg border border-green-600 px-5 py-3 font-medium text-green-700 hover:bg-green-50"
-                        >
-                            📥 Importer les élèves
-                        </Link>
+                    <div className="flex flex-wrap gap-2">
+                        {!modeModificationGroupee ? (
+                            <>
+                                <Link
+                                    href={route("eleves.import.form")}
+                                    className="inline-flex items-center gap-2 rounded-lg bg-gray-700 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
+                                >
+                                    Importer les élèves
+                                </Link>
 
-                        <Link
-                            href={route("eleves.create")}
-                            className="rounded-lg bg-blue-600 px-5 py-3 font-medium text-white hover:bg-blue-700"
-                        >
-                            + Nouvel élève
-                        </Link>
+                                <Link
+                                    href={route("eleves.create")}
+                                    className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+                                >
+                                    + Nouvel élève
+                                </Link>
+
+                                {peutModifierGroupe && (
+                                    <button
+                                        type="button"
+                                        onClick={ouvrirModificationGroupee}
+                                        className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                                    >
+                                        <Pencil className="h-4 w-4" />
+                                        Modification groupée
+                                    </button>
+                                )}
+                            </>
+                        ) : (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={sauvegarderModifications}
+                                    disabled={
+                                        sauvegardeEnCours ||
+                                        Object.keys(modifications).length === 0
+                                    }
+                                    className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    <Save className="h-4 w-4" />
+
+                                    {sauvegardeEnCours
+                                        ? "Enregistrement..."
+                                        : `Enregistrer les modifications${
+                                              Object.keys(modifications)
+                                                  .length > 0
+                                                  ? ` (${
+                                                        Object.keys(
+                                                            modifications,
+                                                        ).length
+                                                    })`
+                                                  : ""
+                                          }`}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={annulerModificationGroupee}
+                                    disabled={
+                                        sauvegardeEnCours ||
+                                        enregistrementGroupe
+                                    }
+                                    className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                >
+                                    <X className="h-4 w-4" />
+                                    Annuler
+                                </button>
+                            </>
+                        )}
+
+                        {elevesSelectionnes.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (
+                                        !window.confirm(
+                                            `Voulez-vous vraiment supprimer ${elevesSelectionnes.length} élève(s) sélectionné(s) ?\n\nCette opération est irréversible.`,
+                                        )
+                                    ) {
+                                        return;
+                                    }
+
+                                    router.delete(
+                                        route("eleves.suppression-groupee"),
+                                        {
+                                            data: {
+                                                eleves: elevesSelectionnes,
+                                            },
+                                            preserveScroll: true,
+                                            onSuccess: () => {
+                                                setElevesSelectionnes([]);
+                                            },
+                                        },
+                                    );
+                                }}
+                                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                            >
+                                <Trash2 className="h-4 w-4" />
+                                Supprimer ({elevesSelectionnes.length})
+                            </button>
+                        )}
                     </div>
                 </div>
 
                 {/* =====================================================
-                    FILTRES
-                ===================================================== */}
+                    PANNEAU MODIFICATION GROUPÉE
+                ====================================================== */}
 
-                <div className="rounded-xl border bg-white p-5 shadow-sm">
-                    <div className="flex items-center justify-between">
+                {modeModificationGroupee && (
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                        <div className="flex flex-col gap-4">
+                            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                <div>
+                                    <p className="font-semibold text-indigo-900">
+                                        Modification groupée
+                                    </p>
+
+                                    <p className="text-sm text-indigo-700">
+                                        {elevesSelectionnes.length} élève
+                                        {elevesSelectionnes.length > 1
+                                            ? "s"
+                                            : ""}{" "}
+                                        sélectionné
+                                        {elevesSelectionnes.length > 1
+                                            ? "s"
+                                            : ""}
+                                    </p>
+                                </div>
+
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={selectionnerTousLesEleves}
+                                        disabled={
+                                            elevesModifiablesFiltres.length ===
+                                            0
+                                        }
+                                        className="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <SquareCheck className="h-4 w-4" />
+                                        Tout sélectionner
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={deselectionnerTousLesEleves}
+                                        disabled={
+                                            elevesSelectionnes.length === 0
+                                        }
+                                        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <Square className="h-4 w-4" />
+                                        Tout désélectionner
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* CHAÎNE SCOLAIRE */}
+
+                            <div className="rounded-xl border border-indigo-200 bg-white p-4">
+                                <div className="mb-4">
+                                    <h3 className="font-semibold text-gray-900">
+                                        Affectation scolaire groupée
+                                    </h3>
+
+                                    <p className="text-xs text-gray-500">
+                                        Les choix sont dépendants les uns des
+                                        autres. Sélectionnez l'établissement,
+                                        l'année, le cycle, le niveau puis la
+                                        classe.
+                                    </p>
+                                </div>
+
+                                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                                    {/* ÉTABLISSEMENT */}
+
+                                    {isSuperAdmin && (
+                                        <div>
+                                            <label className="mb-1 block text-xs font-semibold text-gray-700">
+                                                Établissement
+                                            </label>
+
+                                            <select
+                                                value={
+                                                    modificationGroupee.etablissement_id
+                                                }
+                                                onChange={(e) =>
+                                                    modifierChampGroupe(
+                                                        "etablissement_id",
+                                                        e.target.value,
+                                                    )
+                                                }
+                                                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                            >
+                                                <option value="">
+                                                    Tous les établissements
+                                                </option>
+
+                                                {etablissementsDisponibles.map(
+                                                    (etablissement) => (
+                                                        <option
+                                                            key={
+                                                                etablissement.id
+                                                            }
+                                                            value={
+                                                                etablissement.id
+                                                            }
+                                                        >
+                                                            {etablissement.nom}
+                                                        </option>
+                                                    ),
+                                                )}
+                                            </select>
+                                        </div>
+                                    )}
+
+                                    {/* ANNÉE */}
+
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                                            Année scolaire
+                                        </label>
+
+                                        <select
+                                            value={
+                                                modificationGroupee.annee_scolaire_id
+                                            }
+                                            onChange={(e) =>
+                                                modifierChampGroupe(
+                                                    "annee_scolaire_id",
+                                                    e.target.value,
+                                                )
+                                            }
+                                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                        >
+                                            <option value="">
+                                                Sélectionner
+                                            </option>
+
+                                            {anneesDisponibles.map((annee) => (
+                                                <option
+                                                    key={annee.id}
+                                                    value={annee.id}
+                                                >
+                                                    {annee.libelle}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* CYCLE */}
+
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                                            Cycle
+                                        </label>
+
+                                        <select
+                                            value={modificationGroupee.cycle_id}
+                                            onChange={(e) =>
+                                                modifierChampGroupe(
+                                                    "cycle_id",
+                                                    e.target.value,
+                                                )
+                                            }
+                                            disabled={
+                                                !modificationGroupee.annee_scolaire_id
+                                            }
+                                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-400"
+                                        >
+                                            <option value="">
+                                                Sélectionner
+                                            </option>
+
+                                            {cyclesDisponibles
+                                                .filter((cycle) => {
+                                                    if (
+                                                        !modificationGroupee.etablissement_id
+                                                    ) {
+                                                        return true;
+                                                    }
+
+                                                    return classesReferentiel.some(
+                                                        (classe) =>
+                                                            String(
+                                                                classe.cycle_id,
+                                                            ) ===
+                                                                String(
+                                                                    cycle.id,
+                                                                ) &&
+                                                            String(
+                                                                classe.etablissement_id,
+                                                            ) ===
+                                                                String(
+                                                                    modificationGroupee.etablissement_id,
+                                                                ) &&
+                                                            String(
+                                                                classe.annee_scolaire_id,
+                                                            ) ===
+                                                                String(
+                                                                    modificationGroupee.annee_scolaire_id,
+                                                                ),
+                                                    );
+                                                })
+                                                .map((cycle) => (
+                                                    <option
+                                                        key={cycle.id}
+                                                        value={cycle.id}
+                                                    >
+                                                        {cycle.libelle}
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
+
+                                    {/* NIVEAU */}
+
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                                            Niveau
+                                        </label>
+
+                                        <select
+                                            value={
+                                                modificationGroupee.niveau_id
+                                            }
+                                            onChange={(e) =>
+                                                modifierChampGroupe(
+                                                    "niveau_id",
+                                                    e.target.value,
+                                                )
+                                            }
+                                            disabled={
+                                                !modificationGroupee.cycle_id
+                                            }
+                                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-400"
+                                        >
+                                            <option value="">
+                                                Sélectionner
+                                            </option>
+
+                                            {niveauxGroupe
+                                                .filter((niveau) => {
+                                                    return classesReferentiel.some(
+                                                        (classe) => {
+                                                            if (
+                                                                String(
+                                                                    classe.niveau_id,
+                                                                ) !==
+                                                                String(
+                                                                    niveau.id,
+                                                                )
+                                                            ) {
+                                                                return false;
+                                                            }
+
+                                                            if (
+                                                                String(
+                                                                    classe.cycle_id,
+                                                                ) !==
+                                                                String(
+                                                                    modificationGroupee.cycle_id,
+                                                                )
+                                                            ) {
+                                                                return false;
+                                                            }
+
+                                                            if (
+                                                                modificationGroupee.etablissement_id &&
+                                                                String(
+                                                                    classe.etablissement_id,
+                                                                ) !==
+                                                                    String(
+                                                                        modificationGroupee.etablissement_id,
+                                                                    )
+                                                            ) {
+                                                                return false;
+                                                            }
+
+                                                            if (
+                                                                modificationGroupee.annee_scolaire_id &&
+                                                                String(
+                                                                    classe.annee_scolaire_id,
+                                                                ) !==
+                                                                    String(
+                                                                        modificationGroupee.annee_scolaire_id,
+                                                                    )
+                                                            ) {
+                                                                return false;
+                                                            }
+
+                                                            return true;
+                                                        },
+                                                    );
+                                                })
+                                                .map((niveau) => (
+                                                    <option
+                                                        key={niveau.id}
+                                                        value={niveau.id}
+                                                    >
+                                                        {niveau.libelle}
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
+
+                                    {/* CLASSE */}
+
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                                            Classe
+                                        </label>
+
+                                        <select
+                                            value={
+                                                modificationGroupee.classe_id
+                                            }
+                                            onChange={(e) =>
+                                                modifierChampGroupe(
+                                                    "classe_id",
+                                                    e.target.value,
+                                                )
+                                            }
+                                            disabled={
+                                                !modificationGroupee.niveau_id
+                                            }
+                                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-400"
+                                        >
+                                            <option value="">
+                                                Sélectionner
+                                            </option>
+
+                                            {classesGroupe.map((classe) => (
+                                                <option
+                                                    key={classe.id}
+                                                    value={classe.id}
+                                                >
+                                                    {classe.libelle}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    {/* SÉRIE */}
+
+                                    <div>
+                                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                                            Série
+                                        </label>
+
+                                        <select
+                                            value={modificationGroupee.serie_id}
+                                            onChange={(e) =>
+                                                modifierChampGroupe(
+                                                    "serie_id",
+                                                    e.target.value,
+                                                )
+                                            }
+                                            disabled={
+                                                !modificationGroupee.classe_id
+                                            }
+                                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm disabled:bg-gray-100 disabled:text-gray-400"
+                                        >
+                                            <option value="">
+                                                {modificationGroupee.classe_id
+                                                    ? "Aucune série"
+                                                    : "Sélectionner"}
+                                            </option>
+
+                                            {seriesDisponibles
+                                                .filter((serie) =>
+                                                    classesGroupe.some(
+                                                        (classe) =>
+                                                            String(
+                                                                classe.id,
+                                                            ) ===
+                                                                String(
+                                                                    modificationGroupee.classe_id,
+                                                                ) &&
+                                                            String(
+                                                                classe.serie_id,
+                                                            ) ===
+                                                                String(
+                                                                    serie.id,
+                                                                ),
+                                                    ),
+                                                )
+                                                .map((serie) => (
+                                                    <option
+                                                        key={serie.id}
+                                                        value={serie.id}
+                                                    >
+                                                        {serie.libelle}
+                                                    </option>
+                                                ))}
+                                        </select>
+                                    </div>
+                                </div>
+
+                                {erreursGroupees.general && (
+                                    <p className="mt-3 text-sm font-medium text-red-600">
+                                        {erreursGroupees.general}
+                                    </p>
+                                )}
+
+                                {erreursGroupees.classe_id && (
+                                    <p className="mt-3 text-sm font-medium text-red-600">
+                                        {erreursGroupees.classe_id}
+                                    </p>
+                                )}
+
+                                <div className="mt-4 flex flex-col gap-3 rounded-lg bg-indigo-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <p className="text-xs text-indigo-800">
+                                        Cette affectation sera appliquée aux{" "}
+                                        <strong>
+                                            {elevesSelectionnes.length}
+                                        </strong>{" "}
+                                        élève
+                                        {elevesSelectionnes.length > 1
+                                            ? "s"
+                                            : ""}{" "}
+                                        sélectionné
+                                        {elevesSelectionnes.length > 1
+                                            ? "s"
+                                            : ""}
+                                        .
+                                    </p>
+
+                                    <button
+                                        type="button"
+                                        onClick={appliquerModificationGroupee}
+                                        disabled={
+                                            enregistrementGroupe ||
+                                            elevesSelectionnes.length === 0 ||
+                                            !modificationGroupee.classe_id
+                                        }
+                                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <Check className="h-4 w-4" />
+
+                                        {enregistrementGroupe
+                                            ? "Application..."
+                                            : `Appliquer à ${elevesSelectionnes.length} élève${
+                                                  elevesSelectionnes.length > 1
+                                                      ? "s"
+                                                      : ""
+                                              }`}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="rounded-lg bg-white/70 p-3 text-xs text-indigo-800">
+                                <strong>Modification directe :</strong> après
+                                avoir sélectionné des élèves, les autres
+                                colonnes modifiables du tableau deviennent
+                                directement éditables. Les informations
+                                scolaires sont modifiées exclusivement à partir
+                                du panneau ci-dessus afin d'éviter les
+                                incohérences entre cycle, niveau, classe et
+                                série.
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* =====================================================
+                    FILTRES
+                ====================================================== */}
+
+                <div className="rounded-xl border bg-white shadow-sm">
+                    <div className="flex flex-col gap-3 p-4 lg:flex-row lg:items-center lg:justify-between">
                         <div>
-                            <h2 className="text-lg font-semibold">
-                                Rechercher un élève
+                            <h2 className="font-semibold text-gray-900">
+                                Filtres
                             </h2>
 
                             <p className="text-sm text-gray-500">
-                                Filtrez les élèves par niveau, classe, nom,
-                                prénoms ou matricule.
+                                Affinez la liste des élèves.
                             </p>
                         </div>
 
                         <button
                             type="button"
                             onClick={() => setFiltresOuverts(!filtresOuverts)}
-                            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                            className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                         >
                             {filtresOuverts
-                                ? "▲ Replier"
-                                : "▼ Afficher les filtres"}
+                                ? "Masquer les filtres"
+                                : "Afficher les filtres"}
                         </button>
                     </div>
 
                     {filtresOuverts && (
-                        <div className="mt-5">
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                        <div className="border-t p-4">
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+                                {isSuperAdmin && (
+                                    <div>
+                                        <label className="mb-1 block text-sm font-medium text-gray-700">
+                                            Établissement
+                                        </label>
+
+                                        <select
+                                            value={etablissementId}
+                                            onChange={(e) =>
+                                                changerEtablissement(
+                                                    e.target.value,
+                                                )
+                                            }
+                                            className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                        >
+                                            <option value="">
+                                                Tous les établissements
+                                            </option>
+
+                                            {etablissements.map(
+                                                (etablissement) => (
+                                                    <option
+                                                        key={etablissement.id}
+                                                        value={etablissement.id}
+                                                    >
+                                                        {etablissement.nom}
+                                                    </option>
+                                                ),
+                                            )}
+                                        </select>
+                                    </div>
+                                )}
+
                                 <div>
-                                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                                    <label className="mb-1 block text-sm font-medium text-gray-700">
                                         Niveau
                                     </label>
 
@@ -1643,9 +2557,10 @@ export default function Index({
                                         value={niveauId}
                                         onChange={(e) => {
                                             setNiveauId(e.target.value);
+
                                             setClasseId("");
                                         }}
-                                        className="w-full rounded-lg border-gray-300 px-4 py-3 focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                                     >
                                         <option value="">
                                             Tous les niveaux
@@ -1663,7 +2578,7 @@ export default function Index({
                                 </div>
 
                                 <div>
-                                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                                    <label className="mb-1 block text-sm font-medium text-gray-700">
                                         Classe
                                     </label>
 
@@ -1672,13 +2587,13 @@ export default function Index({
                                         onChange={(e) =>
                                             setClasseId(e.target.value)
                                         }
-                                        className="w-full rounded-lg border-gray-300 px-4 py-3 focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                                     >
                                         <option value="">
                                             Toutes les classes
                                         </option>
 
-                                        {classes.map((classe) => (
+                                        {classesFiltre.map((classe) => (
                                             <option
                                                 key={classe.id}
                                                 value={classe.id}
@@ -1690,30 +2605,23 @@ export default function Index({
                                 </div>
 
                                 <div>
-                                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                                    <label className="mb-1 block text-sm font-medium text-gray-700">
                                         Recherche
                                     </label>
 
-                                    <div className="relative">
-                                        <input
-                                            type="text"
-                                            value={recherche}
-                                            onChange={(e) =>
-                                                setRecherche(e.target.value)
-                                            }
-                                            placeholder="Nom, prénoms, matricule..."
-                                            className="w-full rounded-lg border-gray-300 px-4 py-3 pr-10 focus:border-blue-500 focus:ring-blue-500"
-                                        />
-
-                                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-                                            🔍
-                                        </span>
-                                    </div>
+                                    <input
+                                        type="text"
+                                        value={recherche}
+                                        onChange={(e) =>
+                                            setRecherche(e.target.value)
+                                        }
+                                        placeholder="Nom, prénoms, matricule..."
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                                    />
                                 </div>
-                                {/* Qualité du dossier */}
 
                                 <div>
-                                    <label className="mb-2 block text-sm font-medium text-gray-700">
+                                    <label className="mb-1 block text-sm font-medium text-gray-700">
                                         Qualité du dossier
                                     </label>
 
@@ -1722,10 +2630,10 @@ export default function Index({
                                         onChange={(e) =>
                                             setFiltreQualite(e.target.value)
                                         }
-                                        className="w-full rounded-lg border-gray-300 px-4 py-3 focus:border-blue-500 focus:ring-blue-500"
+                                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                                     >
                                         <option value="">
-                                            Toutes les informations
+                                            Tous les dossiers
                                         </option>
 
                                         <option value="complet">
@@ -1775,36 +2683,11 @@ export default function Index({
                                 </div>
                             </div>
 
-                            <div className="mt-5 flex flex-col justify-between gap-3 border-t pt-4 sm:flex-row sm:items-center">
-                                <div className="text-sm text-gray-600">
-                                    <span className="font-semibold text-gray-900">
-                                        {elevesFiltres.length}
-                                    </span>{" "}
-                                    élève
-                                    {elevesFiltres.length > 1 ? "s" : ""}{" "}
-                                    affiché
-                                    {elevesFiltres.length > 1 ? "s" : ""}
-                                    {elevesFiltres.length !== eleves.length && (
-                                        <>
-                                            {" "}
-                                            sur{" "}
-                                            <span className="font-semibold">
-                                                {eleves.length}
-                                            </span>
-                                        </>
-                                    )}
-                                </div>
-
+                            <div className="mt-4 flex justify-end">
                                 <button
                                     type="button"
                                     onClick={reinitialiserFiltres}
-                                    disabled={
-                                        !recherche &&
-                                        !niveauId &&
-                                        !classeId &&
-                                        !filtreQualite
-                                    }
-                                    className="rounded-lg border border-gray-300 px-4 py-2 font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
                                 >
                                     Réinitialiser les filtres
                                 </button>
@@ -1814,230 +2697,200 @@ export default function Index({
                 </div>
 
                 {/* =====================================================
-                    BARRE DES COLONNES
-                ===================================================== */}
+                    LISTE
+                ====================================================== */}
 
-                <div className="flex items-center justify-between">
-                    <div>
-                        <h2 className="text-lg font-semibold">
-                            Liste des élèves
-                        </h2>
+                <div className="rounded-xl border bg-white shadow-sm">
+                    <div className="flex flex-col gap-4 border-b p-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div>
+                            <h2 className="text-lg font-semibold text-gray-900">
+                                Liste des élèves
+                                {etablissementSelectionne
+                                    ? ` — ${etablissementSelectionne.nom}`
+                                    : ""}
+                            </h2>
 
-                        <p className="text-sm text-gray-500">
-                            {colonnesSelectionnees.length} colonne
-                            {colonnesSelectionnees.length > 1 ? "s" : ""}{" "}
-                            affichée
-                            {colonnesSelectionnees.length > 1 ? "s" : ""}
-                        </p>
-                    </div>
-                </div>
-                <div className="mt-3 flex flex-col items-start justify-between gap-3 sm:flex-row sm:items-center">
-                    <div className="flex items-center gap-2">
-                        {/* =====================================================
-        EXPORT EXCEL
-    ===================================================== */}
+                            <p className="text-sm text-gray-500">
+                                {elevesFiltres.length} élève
+                                {elevesFiltres.length > 1 ? "s" : ""}
+                            </p>
+                        </div>
 
-                        <button
-                            type="button"
-                            onClick={exporterExcel}
-                            disabled={elevesFiltres.length === 0}
-                            className="rounded-lg border border-green-600 bg-white px-4 py-2 font-medium text-green-700 shadow-sm hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            📊 Excel
-                        </button>
-
-                        {/* =====================================================
-        EXPORT CSV
-    ===================================================== */}
-
-                        <button
-                            type="button"
-                            onClick={exporterCSV}
-                            disabled={elevesFiltres.length === 0}
-                            className="rounded-lg border border-blue-600 bg-white px-4 py-2 font-medium text-blue-700 shadow-sm hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            📄 CSV
-                        </button>
-
-                        {/* =====================================================
-        IMPRESSION
-    ===================================================== */}
-
-                        <button
-                            type="button"
-                            onClick={imprimerListe}
-                            disabled={elevesFiltres.length === 0}
-                            className="rounded-lg border border-gray-400 bg-white px-4 py-2 font-medium text-gray-700 shadow-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                            🖨 Imprimer
-                        </button>
-
-                        {/* =====================================================
-        MENU COLONNES
-    ===================================================== */}
-
-                        <div className="relative">
+                        <div className="flex flex-wrap gap-2">
                             <button
                                 type="button"
-                                onClick={() =>
-                                    setMenuColonnesOuvert(!menuColonnesOuvert)
-                                }
-                                className="rounded-lg border border-gray-300 bg-white px-4 py-2 font-medium text-gray-700 shadow-sm hover:bg-gray-50"
+                                onClick={exporterExcel}
+                                className="rounded-lg bg-green-600 px-3 py-2 text-sm font-medium text-white hover:bg-green-700"
                             >
-                                ⚙ Colonnes
+                                Excel
                             </button>
 
-                            {menuColonnesOuvert && (
-                                <div className="absolute right-0 z-50 mt-2 w-96 rounded-xl border bg-white p-4 shadow-xl">
-                                    <div className="mb-4 flex items-center justify-between">
-                                        <div>
-                                            <h3 className="font-semibold">
-                                                Colonnes à afficher
-                                            </h3>
+                            <button
+                                type="button"
+                                onClick={exporterCSV}
+                                className="rounded-lg bg-gray-700 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800"
+                            >
+                                CSV
+                            </button>
 
-                                            <p className="text-xs text-gray-500">
-                                                Personnalisez votre tableau.
-                                            </p>
-                                        </div>
+                            <button
+                                type="button"
+                                onClick={imprimerListe}
+                                className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                            >
+                                Imprimer
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* MENU COLONNES */}
+
+                    <div className="relative border-b p-4">
+                        <button
+                            type="button"
+                            onClick={() =>
+                                setMenuColonnesOuvert(!menuColonnesOuvert)
+                            }
+                            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                            Colonnes affichées ({colonnesSelectionnees.length})
+                        </button>
+
+                        {menuColonnesOuvert && (
+                            <div className="absolute left-4 top-14 z-50 max-h-[70vh] w-[340px] overflow-y-auto rounded-xl border bg-white p-4 shadow-xl">
+                                <div className="mb-4">
+                                    <p className="mb-2 text-sm font-semibold text-gray-900">
+                                        Vues rapides
+                                    </p>
+
+                                    <div className="flex flex-wrap gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                appliquerVue("standard")
+                                            }
+                                            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium hover:bg-gray-200"
+                                        >
+                                            Standard
+                                        </button>
 
                                         <button
                                             type="button"
                                             onClick={() =>
-                                                setMenuColonnesOuvert(false)
+                                                appliquerVue("administrative")
                                             }
-                                            className="text-gray-400 hover:text-gray-700"
+                                            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium hover:bg-gray-200"
                                         >
-                                            ✕
+                                            Administrative
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                appliquerVue("parents")
+                                            }
+                                            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium hover:bg-gray-200"
+                                        >
+                                            Parents
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                appliquerVue("complete")
+                                            }
+                                            className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium hover:bg-gray-200"
+                                        >
+                                            Complète
                                         </button>
                                     </div>
-
-                                    {/* Vues */}
-
-                                    <div className="mb-4 border-b pb-4">
-                                        <p className="mb-2 text-xs font-semibold uppercase text-gray-500">
-                                            Vues rapides
-                                        </p>
-
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    appliquerVue("standard")
-                                                }
-                                                className="rounded border px-3 py-2 text-sm hover:bg-gray-50"
-                                            >
-                                                Standard
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    appliquerVue(
-                                                        "administrative",
-                                                    )
-                                                }
-                                                className="rounded border px-3 py-2 text-sm hover:bg-gray-50"
-                                            >
-                                                Administrative
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    appliquerVue("parents")
-                                                }
-                                                className="rounded border px-3 py-2 text-sm hover:bg-gray-50"
-                                            >
-                                                Parents
-                                            </button>
-
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    appliquerVue("complete")
-                                                }
-                                                className="rounded border px-3 py-2 text-sm hover:bg-gray-50"
-                                            >
-                                                Complète
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* Colonnes */}
-
-                                    <div className="max-h-[500px] space-y-5 overflow-y-auto">
-                                        {Object.entries(
-                                            colonnesDisponibles,
-                                        ).map(([key, groupe]) => (
-                                            <div key={key}>
-                                                <p className="mb-2 text-xs font-semibold uppercase text-gray-500">
-                                                    {groupe.label}
-                                                </p>
-
-                                                <div className="space-y-2">
-                                                    {groupe.colonnes.map(
-                                                        (colonne) => (
-                                                            <label
-                                                                key={colonne.id}
-                                                                className="flex cursor-pointer items-center gap-3 rounded px-2 py-1.5 hover:bg-gray-50"
-                                                            >
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={colonnesSelectionnees.includes(
-                                                                        colonne.id,
-                                                                    )}
-                                                                    onChange={() =>
-                                                                        toggleColonne(
-                                                                            colonne.id,
-                                                                        )
-                                                                    }
-                                                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                                />
-
-                                                                <span className="text-sm text-gray-700">
-                                                                    {
-                                                                        colonne.label
-                                                                    }
-                                                                </span>
-                                                            </label>
-                                                        ),
-                                                    )}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
                                 </div>
-                            )}
-                        </div>
+
+                                {Object.entries(colonnesDisponibles).map(
+                                    ([groupeId, groupe]) => (
+                                        <div key={groupeId} className="mb-4">
+                                            <p className="mb-2 text-sm font-semibold text-gray-900">
+                                                {groupe.label}
+                                            </p>
+
+                                            <div className="space-y-2">
+                                                {groupe.colonnes.map(
+                                                    (colonne) => (
+                                                        <label
+                                                            key={colonne.id}
+                                                            className="flex cursor-pointer items-center gap-2 text-sm text-gray-700"
+                                                        >
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={colonnesSelectionnees.includes(
+                                                                    colonne.id,
+                                                                )}
+                                                                onChange={() =>
+                                                                    toggleColonne(
+                                                                        colonne.id,
+                                                                    )
+                                                                }
+                                                                className="h-4 w-4 rounded border-gray-300"
+                                                            />
+
+                                                            {colonne.label}
+                                                        </label>
+                                                    ),
+                                                )}
+                                            </div>
+                                        </div>
+                                    ),
+                                )}
+                            </div>
+                        )}
                     </div>
-                </div>
 
-                {/* =====================================================
-                    TABLEAU
-                ===================================================== */}
+                    {/* TABLEAU */}
 
-                <div className="min-w-0 overflow-hidden rounded-xl border bg-white shadow-sm">
-                    <div className="min-h-[260px] max-h-[60vh] min-w-0 overflow-auto">
+                    <div className="overflow-x-auto">
                         <table className="min-w-max w-full">
                             <thead className="bg-gray-100">
+                               
                                 <tr>
+                                    
+                                    {modeModificationGroupee && (
+                                        <th className="sticky left-0 top-0 z-50 w-[50px] min-w-[50px] bg-gray-100 px-3 py-3 text-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={
+                                                    tousLesElevesSelectionnes
+                                                }
+                                                onChange={() => {
+                                                    if (
+                                                        tousLesElevesSelectionnes
+                                                    ) {
+                                                        deselectionnerTousLesEleves();
+                                                    } else {
+                                                        selectionnerTousLesEleves();
+                                                    }
+                                                }}
+                                                className="h-4 w-4 rounded border-gray-300"
+                                            />
+                                        </th>
+                                    )}
+
                                     {colonnesSelectionnees.map((colonne) => {
                                         const classeColonne =
                                             colonne === "matricule"
-                                                ? "sticky top-0 left-0 z-40 w-[110px] min-w-[110px] bg-gray-100"
+                                                ? "sticky left-0 top-0 z-40 w-[110px] min-w-[110px] bg-gray-100"
                                                 : "sticky top-0 z-30 bg-gray-100";
 
                                         return (
                                             <th
                                                 key={colonne}
-                                                className={`whitespace-nowrap border-b p-3 text-left ${classeColonne}`}
+                                                className={`${classeColonne} whitespace-nowrap px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600`}
                                             >
                                                 {labelColonne(colonne)}
                                             </th>
                                         );
                                     })}
 
-                                    <th className="sticky top-0 z-30 whitespace-nowrap border-b bg-gray-100 p-3 text-center">
+                                    <th className="sticky right-0 top-0 z-40 bg-gray-100 px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-600">
                                         Actions
                                     </th>
                                 </tr>
@@ -2048,121 +2901,137 @@ export default function Index({
                                     <tr>
                                         <td
                                             colSpan={
-                                                colonnesSelectionnees.length + 1
+                                                colonnesSelectionnees.length +
+                                                1 +
+                                                (modeModificationGroupee
+                                                    ? 1
+                                                    : 0)
                                             }
-                                            className="p-10 text-center"
+                                            className="px-4 py-10 text-center text-sm text-gray-500"
                                         >
-                                            <div className="text-4xl">🔍</div>
-
-                                            <p className="mt-3 font-medium text-gray-700">
-                                                Aucun élève trouvé
-                                            </p>
-
-                                            <p className="mt-1 text-sm text-gray-500">
-                                                Essayez de modifier vos critères
-                                                de recherche.
-                                            </p>
-
-                                            <button
-                                                type="button"
-                                                onClick={reinitialiserFiltres}
-                                                className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-                                            >
-                                                Réinitialiser
-                                            </button>
+                                            Aucun élève trouvé.
                                         </td>
                                     </tr>
                                 ) : (
-                                    elevesFiltres.map((eleve) => (
-                                        <tr
-                                            key={eleve.id}
-                                            className="border-t hover:bg-gray-50"
-                                        >
-                                            {colonnesSelectionnees.map(
-                                                (colonne) => {
-                                                    const classeColonne =
-                                                        colonne === "matricule"
-                                                            ? "sticky left-0 z-20 w-[110px] min-w-[110px] bg-white"
-                                                            : "";
+                                    elevesFiltres.map((eleve) => {
+                                        const selectionne = estSelectionne(
+                                            eleve.id,
+                                        );
 
-                                                    return (
-                                                        <td
-                                                            key={colonne}
-                                                            className={`whitespace-nowrap border-b p-3 ${classeColonne}`}
-                                                        >
-                                                            {afficherValeur(
-                                                                eleve,
-                                                                colonne,
-                                                            )}
-                                                        </td>
-                                                    );
-                                                },
-                                            )}
+                                        const ligneModifiee =
+                                            modifications[eleve.id] &&
+                                            Object.keys(modifications[eleve.id])
+                                                .length > 0;
 
-                                            <td className="whitespace-nowrap p-3 text-center">
-                                                <div className="flex items-center justify-center gap-2">
-                                                    <Link
-                                                        href={route(
-                                                            "eleves.show",
-                                                            eleve.id,
-                                                        )}
-                                                        aria-label="Voir l'élève"
-                                                        title="Voir l'élève"
-                                                        className="inline-flex items-center justify-center rounded bg-gray-700 p-2 text-white hover:bg-gray-800 sm:gap-1 sm:px-3 sm:py-1"
-                                                    >
-                                                        <Eye size={16} />
-                                                        <span className="hidden sm:inline">
-                                                            Voir
-                                                        </span>
-                                                    </Link>
-
-                                                    {(elevesModifiables ===
-                                                        null ||
-                                                        elevesModifiables.some(
-                                                            (id) =>
-                                                                String(id) ===
-                                                                String(
-                                                                    eleve.id,
-                                                                ),
-                                                        )) && (
-                                                        <Link
-                                                            href={route(
-                                                                "eleves.edit",
-                                                                eleve.id,
-                                                            )}
-                                                            aria-label="Modifier l'élève"
-                                                            title="Modifier l'élève"
-                                                            className="inline-flex items-center justify-center rounded bg-blue-600 p-2 text-white hover:bg-blue-700 sm:gap-1 sm:px-3 sm:py-1"
-                                                        >
-                                                            <Pencil size={16} />
-                                                            <span className="hidden sm:inline">
-                                                                Modifier
-                                                            </span>
-                                                        </Link>
-                                                    )}
-
-                                                    {peutSupprimer && (
-                                                        <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                                supprimerEleve(
+                                        return (
+                                            <tr
+                                                key={eleve.id}
+                                                className={`border-t ${
+                                                    ligneModifiee
+                                                        ? "bg-yellow-50"
+                                                        : "hover:bg-gray-50"
+                                                }`}
+                                            >
+                                                {modeModificationGroupee && (
+                                                    <td className="sticky left-0 z-20 w-[50px] min-w-[50px] bg-white px-3 py-2 text-center">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={
+                                                                selectionne
+                                                            }
+                                                            disabled={
+                                                                !peutModifierEleve(
                                                                     eleve,
                                                                 )
                                                             }
-                                                            aria-label="Supprimer l'élève"
-                                                            title="Supprimer l'élève"
-                                                            className="inline-flex items-center justify-center rounded bg-red-600 p-2 text-white hover:bg-red-700 sm:gap-1 sm:px-3 sm:py-1"
+                                                            onChange={() =>
+                                                                basculerSelectionEleve(
+                                                                    eleve.id,
+                                                                )
+                                                            }
+                                                            className="h-4 w-4 rounded border-gray-300"
+                                                        />
+                                                    </td>
+                                                )}
+
+                                                {colonnesSelectionnees.map(
+                                                    (colonne) => {
+                                                        const classeColonne =
+                                                            colonne ===
+                                                            "matricule"
+                                                                ? "sticky left-0 z-20 w-[110px] min-w-[110px] bg-white"
+                                                                : "";
+
+                                                        return (
+                                                            <td
+                                                                key={colonne}
+                                                                className={`${classeColonne} px-3 py-2 text-sm text-gray-700`}
+                                                            >
+                                                                {modeModificationGroupee &&
+                                                                selectionne &&
+                                                                peutModifierEleve(
+                                                                    eleve,
+                                                                )
+                                                                    ? champEdition(
+                                                                          eleve,
+                                                                          colonne,
+                                                                      )
+                                                                    : afficherValeur(
+                                                                          eleve,
+                                                                          colonne,
+                                                                      )}
+                                                            </td>
+                                                        );
+                                                    },
+                                                )}
+
+                                                <td className="sticky right-0 z-20 bg-white px-3 py-2">
+                                                    <div className="flex items-center gap-1">
+                                                        <Link
+                                                            href={route(
+                                                                "eleves.show",
+                                                                eleve.id,
+                                                            )}
+                                                            title="Voir"
+                                                            className="rounded-lg p-2 text-blue-600 hover:bg-blue-50"
                                                         >
-                                                            <Trash2 size={16} />
-                                                            <span className="hidden sm:inline">
-                                                                Supprimer
-                                                            </span>
-                                                        </button>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
+                                                            <Eye className="h-4 w-4" />
+                                                        </Link>
+
+                                                        {peutModifierEleve(
+                                                            eleve,
+                                                        ) && (
+                                                            <Link
+                                                                href={route(
+                                                                    "eleves.edit",
+                                                                    eleve.id,
+                                                                )}
+                                                                title="Modifier"
+                                                                className="rounded-lg p-2 text-indigo-600 hover:bg-indigo-50"
+                                                            >
+                                                                <Pencil className="h-4 w-4" />
+                                                            </Link>
+                                                        )}
+
+                                                        {peutSupprimer && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    supprimerEleve(
+                                                                        eleve,
+                                                                    )
+                                                                }
+                                                                title="Supprimer"
+                                                                className="rounded-lg p-2 text-red-600 hover:bg-red-50"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
                                 )}
                             </tbody>
                         </table>
@@ -2170,575 +3039,311 @@ export default function Index({
                 </div>
 
                 {/* =====================================================
-    STATISTIQUES
-===================================================== */}
+                    STATISTIQUES
+                ====================================================== */}
 
-                <div className="mt-6 space-y-6">
-                    {/* -------------------------------------------------
-        TITRE
-    ------------------------------------------------- */}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+                    <div className="rounded-xl border bg-white p-5 shadow-sm">
+                        <p className="text-sm font-medium text-gray-500">
+                            Effectif
+                        </p>
 
-                    <div>
-                        <h2 className="text-lg font-semibold text-gray-900">
-                            Statistiques
-                        </h2>
+                        <p className="mt-1 text-3xl font-bold text-gray-900">
+                            {statistiques.total}
+                        </p>
+
+                        <p className="mt-2 text-sm text-gray-500">
+                            {statistiques.filles} filles ·{" "}
+                            {statistiques.garcons} garçons
+                        </p>
+                    </div>
+
+                    <div className="rounded-xl border bg-white p-5 shadow-sm">
+                        <p className="text-sm font-medium text-gray-500">
+                            Taux de féminisation
+                        </p>
+
+                        <p className="mt-1 text-3xl font-bold text-pink-600">
+                            {statistiques.tauxFeminisation}%
+                        </p>
+
+                        <p className="mt-2 text-sm text-gray-500">
+                            {statistiques.filles} fille
+                            {statistiques.filles > 1 ? "s" : ""}
+                        </p>
+                    </div>
+
+                    <div className="rounded-xl border bg-white p-5 shadow-sm">
+                        <p className="text-sm font-medium text-gray-500">
+                            Redoublants
+                        </p>
+
+                        <p className="mt-1 text-3xl font-bold text-orange-600">
+                            {statistiques.redoublants}
+                        </p>
+
+                        <p className="mt-2 text-sm text-gray-500">
+                            {statistiques.tauxRedoublement}% de l'effectif
+                        </p>
+                    </div>
+
+                    <div className="rounded-xl border bg-white p-5 shadow-sm">
+                        <p className="text-sm font-medium text-gray-500">
+                            Élèves affectés
+                        </p>
+
+                        <p className="mt-1 text-3xl font-bold text-blue-600">
+                            {statistiques.affectes}
+                        </p>
+
+                        <p className="mt-2 text-sm text-gray-500">
+                            {statistiques.tauxAffectation}% de l'effectif
+                        </p>
+                    </div>
+                </div>
+
+                {/* =====================================================
+                    QUALITÉ DES DONNÉES
+                ====================================================== */}
+
+                <div className="mt-6">
+                    <div className="mb-4">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                            Qualité des données
+                        </h3>
 
                         <p className="text-sm text-gray-500">
-                            Statistiques calculées automatiquement sur les
+                            Vérification des informations renseignées pour les
                             élèves actuellement affichés.
                         </p>
                     </div>
 
-                    {/* =================================================
-        1. EFFECTIF ET GENRE
-    ================================================= */}
+                    <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+                        <div className="rounded-xl border bg-white p-5 shadow-sm">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500">
+                                        Dossiers complets
+                                    </p>
 
-                    <div>
-                        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-                            Effectif et genre
-                        </h3>
+                                    <p className="mt-1 text-3xl font-bold text-green-600">
+                                        {statistiques.dossiersComplets}
+                                    </p>
 
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                            {/* Effectif total */}
+                                    <p className="mt-1 text-sm text-gray-500">
+                                        {statistiques.tauxDossiersComplets}% de
+                                        l'effectif
+                                    </p>
+                                </div>
 
-                            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-500">
-                                            Effectif total
-                                        </p>
-
-                                        <p className="mt-2 text-3xl font-bold text-gray-900">
-                                            {statistiques.total}
-                                        </p>
-
-                                        <p className="mt-1 text-xs text-gray-400">
-                                            élèves affichés
-                                        </p>
-                                    </div>
-
-                                    <div className="rounded-lg bg-blue-100 px-3 py-2 text-xl">
-                                        👥
-                                    </div>
+                                <div className="rounded-lg bg-green-100 px-3 py-2 text-xl">
+                                    ✓
                                 </div>
                             </div>
 
-                            {/* Filles */}
+                            <div className="mt-4 h-2 overflow-hidden rounded-full bg-gray-200">
+                                <div
+                                    className="h-full rounded-full bg-green-500"
+                                    style={{
+                                        width: `${statistiques.tauxDossiersComplets}%`,
+                                    }}
+                                />
+                            </div>
+                        </div>
 
-                            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-500">
-                                            Filles
-                                        </p>
+                        <div className="rounded-xl border bg-white p-5 shadow-sm">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <p className="text-sm font-medium text-gray-500">
+                                        Dossiers incomplets
+                                    </p>
 
-                                        <p className="mt-2 text-3xl font-bold text-pink-600">
-                                            {statistiques.filles}
-                                        </p>
+                                    <p className="mt-1 text-3xl font-bold text-red-600">
+                                        {statistiques.dossiersIncomplets}
+                                    </p>
 
-                                        <p className="mt-1 text-xs text-gray-500">
-                                            {statistiques.tauxFeminisation}% de
-                                            l'effectif
-                                        </p>
-                                    </div>
+                                    <p className="mt-1 text-sm text-gray-500">
+                                        {statistiques.tauxDossiersIncomplets}%
+                                        de l'effectif
+                                    </p>
+                                </div>
 
-                                    <div className="rounded-lg bg-pink-100 px-3 py-2 text-xl">
-                                        👧
-                                    </div>
+                                <div className="rounded-lg bg-red-100 px-3 py-2 text-xl">
+                                    !
                                 </div>
                             </div>
 
-                            {/* Garçons */}
-
-                            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-500">
-                                            Garçons
-                                        </p>
-
-                                        <p className="mt-2 text-3xl font-bold text-blue-600">
-                                            {statistiques.garcons}
-                                        </p>
-
-                                        <p className="mt-1 text-xs text-gray-500">
-                                            {statistiques.tauxGarcons}% de
-                                            l'effectif
-                                        </p>
-                                    </div>
-
-                                    <div className="rounded-lg bg-blue-100 px-3 py-2 text-xl">
-                                        👦
-                                    </div>
-                                </div>
+                            <div className="mt-4 h-2 overflow-hidden rounded-full bg-gray-200">
+                                <div
+                                    className="h-full rounded-full bg-red-500"
+                                    style={{
+                                        width: `${statistiques.tauxDossiersIncomplets}%`,
+                                    }}
+                                />
                             </div>
+                        </div>
 
-                            {/* Taux de féminisation */}
+                        <div className="rounded-xl border bg-white p-5 shadow-sm">
+                            <p className="text-sm font-medium text-gray-500">
+                                Taux de féminisation
+                            </p>
 
-                            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-500">
-                                            Taux de féminisation
-                                        </p>
+                            <p className="mt-1 text-3xl font-bold text-pink-600">
+                                {statistiques.tauxFeminisation}%
+                            </p>
 
-                                        <p className="mt-2 text-3xl font-bold text-purple-600">
-                                            {statistiques.tauxFeminisation}%
-                                        </p>
+                            <p className="mt-1 text-sm text-gray-500">
+                                {statistiques.filles} fille
+                                {statistiques.filles > 1 ? "s" : ""} sur{" "}
+                                {statistiques.total}
+                            </p>
 
-                                        <p className="mt-1 text-xs text-gray-500">
-                                            part des filles
-                                        </p>
-                                    </div>
-
-                                    <div className="rounded-lg bg-purple-100 px-3 py-2 text-xl">
-                                        ♀
-                                    </div>
-                                </div>
+                            <div className="mt-4 h-2 overflow-hidden rounded-full bg-gray-200">
+                                <div
+                                    className="h-full rounded-full bg-pink-500"
+                                    style={{
+                                        width: `${statistiques.tauxFeminisation}%`,
+                                    }}
+                                />
                             </div>
                         </div>
                     </div>
 
-                    {/* =================================================
-        2. SCOLARITÉ ET AFFECTATION
-    ================================================= */}
+                    <div className="rounded-xl border bg-white p-5 shadow-sm">
+                        <div className="mb-4">
+                            <h4 className="font-semibold text-gray-900">
+                                Informations manquantes
+                            </h4>
 
-                    <div>
-                        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-                            Scolarité et affectation
+                            <p className="text-sm text-gray-500">
+                                Nombre d'élèves pour lesquels chaque information
+                                n'est pas renseignée.
+                            </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            {[
+                                ["Sans matricule", statistiques.sansMatricule],
+                                [
+                                    "Sans date de naissance",
+                                    statistiques.sansDateNaissance,
+                                ],
+                                [
+                                    "Sans lieu de naissance",
+                                    statistiques.sansLieuNaissance,
+                                ],
+                                [
+                                    "Sans nationalité",
+                                    statistiques.sansNationalite,
+                                ],
+                                ["Sans sexe", statistiques.sansSexe],
+                                ["Sans niveau", statistiques.sansNiveau],
+                                ["Sans classe", statistiques.sansClasse],
+                                ["Sans statut", statistiques.sansStatut],
+                                ["Sans régime", statistiques.sansRegime],
+                                ["Sans téléphone", statistiques.sansTelephone],
+                                ["Sans email", statistiques.sansEmail],
+                                ["Sans adresse", statistiques.sansAdresse],
+                                [
+                                    "Sans responsable légal",
+                                    statistiques.sansResponsable,
+                                ],
+                                [
+                                    "Sans téléphone du responsable",
+                                    statistiques.sansTelephoneResponsable,
+                                ],
+                                [
+                                    "Sans email du responsable",
+                                    statistiques.sansEmailResponsable,
+                                ],
+                                [
+                                    "Sans profession du responsable",
+                                    statistiques.sansProfessionResponsable,
+                                ],
+                            ].map(([label, valeur]) => (
+                                <div
+                                    key={label}
+                                    className="rounded-lg bg-gray-50 p-4"
+                                >
+                                    <p className="text-sm text-gray-600">
+                                        {label}
+                                    </p>
+
+                                    <p className="mt-1 text-2xl font-bold text-orange-600">
+                                        {valeur}
+                                    </p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+
+                {/* =====================================================
+                    RÉPARTITION
+                ====================================================== */}
+
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    <div className="rounded-xl border bg-white p-5 shadow-sm">
+                        <h3 className="mb-4 font-semibold text-gray-900">
+                            Répartition par niveau
                         </h3>
 
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                            {/* Redoublants */}
+                        <div className="space-y-3">
+                            {Object.entries(statistiques.repartitionNiveaux)
+                                .sort((a, b) => b[1] - a[1])
+                                .map(([niveau, nombre]) => (
+                                    <div
+                                        key={niveau}
+                                        className="flex items-center justify-between border-b pb-2 last:border-b-0"
+                                    >
+                                        <span className="text-sm text-gray-700">
+                                            {niveau}
+                                        </span>
 
-                            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-500">
-                                            Redoublants
-                                        </p>
-
-                                        <p className="mt-2 text-3xl font-bold text-orange-600">
-                                            {statistiques.redoublants}
-                                        </p>
-
-                                        <p className="mt-1 text-xs text-gray-500">
-                                            {statistiques.tauxRedoublement}% de
-                                            l'effectif
-                                        </p>
+                                        <span className="font-semibold text-gray-900">
+                                            {nombre}
+                                        </span>
                                     </div>
+                                ))}
 
-                                    <div className="rounded-lg bg-orange-100 px-3 py-2 text-xl">
-                                        🔄
-                                    </div>
-                                </div>
-
-                                <div className="mt-4 grid grid-cols-2 gap-2">
-                                    <div className="rounded-lg bg-pink-50 p-2">
-                                        <p className="text-xs text-gray-500">
-                                            Filles
-                                        </p>
-
-                                        <p className="font-bold text-pink-600">
-                                            {statistiques.redoublantes}
-                                        </p>
-                                    </div>
-
-                                    <div className="rounded-lg bg-blue-50 p-2">
-                                        <p className="text-xs text-gray-500">
-                                            Garçons
-                                        </p>
-
-                                        <p className="font-bold text-blue-600">
-                                            {statistiques.redoublantsGarcons}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Affectés */}
-
-                            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-500">
-                                            Élèves affectés
-                                        </p>
-
-                                        <p className="mt-2 text-3xl font-bold text-green-600">
-                                            {statistiques.affectes}
-                                        </p>
-
-                                        <p className="mt-1 text-xs text-gray-500">
-                                            {statistiques.tauxAffectation}% de
-                                            l'effectif
-                                        </p>
-                                    </div>
-
-                                    <div className="rounded-lg bg-green-100 px-3 py-2 text-xl">
-                                        ✓
-                                    </div>
-                                </div>
-
-                                <div className="mt-4 grid grid-cols-2 gap-2">
-                                    <div className="rounded-lg bg-pink-50 p-2">
-                                        <p className="text-xs text-gray-500">
-                                            Filles
-                                        </p>
-
-                                        <p className="font-bold text-pink-600">
-                                            {statistiques.affecteesFilles}
-                                        </p>
-                                    </div>
-
-                                    <div className="rounded-lg bg-blue-50 p-2">
-                                        <p className="text-xs text-gray-500">
-                                            Garçons
-                                        </p>
-
-                                        <p className="font-bold text-blue-600">
-                                            {statistiques.affectesGarcons}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Non affectés */}
-
-                            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-500">
-                                            Élèves non affectés
-                                        </p>
-
-                                        <p className="mt-2 text-3xl font-bold text-red-600">
-                                            {statistiques.nonAffectes}
-                                        </p>
-
-                                        <p className="mt-1 text-xs text-gray-500">
-                                            {statistiques.tauxNonAffectation}%
-                                            de l'effectif
-                                        </p>
-                                    </div>
-
-                                    <div className="rounded-lg bg-red-100 px-3 py-2 text-xl">
-                                        !
-                                    </div>
-                                </div>
-
-                                <div className="mt-4 grid grid-cols-2 gap-2">
-                                    <div className="rounded-lg bg-pink-50 p-2">
-                                        <p className="text-xs text-gray-500">
-                                            Filles
-                                        </p>
-
-                                        <p className="font-bold text-pink-600">
-                                            {statistiques.nonAffecteesFilles}
-                                        </p>
-                                    </div>
-
-                                    <div className="rounded-lg bg-blue-50 p-2">
-                                        <p className="text-xs text-gray-500">
-                                            Garçons
-                                        </p>
-
-                                        <p className="font-bold text-blue-600">
-                                            {statistiques.nonAffectesGarcons}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Taux de redoublement */}
-
-                            <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                                <div className="flex items-start justify-between">
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-500">
-                                            Taux de redoublement
-                                        </p>
-
-                                        <p className="mt-2 text-3xl font-bold text-orange-600">
-                                            {statistiques.tauxRedoublement}%
-                                        </p>
-
-                                        <p className="mt-1 text-xs text-gray-500">
-                                            {statistiques.redoublants} élève(s)
-                                        </p>
-                                    </div>
-
-                                    <div className="rounded-lg bg-orange-100 px-3 py-2 text-xl">
-                                        %
-                                    </div>
-                                </div>
-                            </div>
+                            {Object.keys(statistiques.repartitionNiveaux)
+                                .length === 0 && (
+                                <p className="text-sm text-gray-500">
+                                    Aucune donnée.
+                                </p>
+                            )}
                         </div>
                     </div>
 
-                    {/* =================================================
-        3. QUALITÉ DES DOSSIERS
-    ================================================= */}
-
-                    <div>
-                        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-                            Qualité des dossiers
+                    <div className="rounded-xl border bg-white p-5 shadow-sm">
+                        <h3 className="mb-4 font-semibold text-gray-900">
+                            Répartition par classe
                         </h3>
 
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
-                            {/* Dossiers complets */}
+                        <div className="max-h-[400px] space-y-3 overflow-y-auto">
+                            {Object.entries(statistiques.repartitionClasses)
+                                .sort((a, b) => b[1] - a[1])
+                                .map(([classe, nombre]) => (
+                                    <div
+                                        key={classe}
+                                        className="flex items-center justify-between border-b pb-2 last:border-b-0"
+                                    >
+                                        <span className="text-sm text-gray-700">
+                                            {classe}
+                                        </span>
 
-                            <div className="rounded-xl border border-green-200 bg-white p-5 shadow-sm">
-                                <p className="text-sm font-medium text-gray-500">
-                                    Dossiers complets
+                                        <span className="font-semibold text-gray-900">
+                                            {nombre}
+                                        </span>
+                                    </div>
+                                ))}
+
+                            {Object.keys(statistiques.repartitionClasses)
+                                .length === 0 && (
+                                <p className="text-sm text-gray-500">
+                                    Aucune donnée.
                                 </p>
-
-                                <p className="mt-2 text-3xl font-bold text-green-600">
-                                    {statistiques.dossiersComplets}
-                                </p>
-
-                                <p className="mt-1 text-xs text-gray-500">
-                                    {statistiques.tauxDossiersComplets}% de
-                                    l'effectif
-                                </p>
-                            </div>
-
-                            {/* Dossiers incomplets */}
-
-                            <div className="rounded-xl border border-red-200 bg-white p-5 shadow-sm">
-                                <p className="text-sm font-medium text-gray-500">
-                                    Dossiers incomplets
-                                </p>
-
-                                <p className="mt-2 text-3xl font-bold text-red-600">
-                                    {statistiques.dossiersIncomplets}
-                                </p>
-
-                                <p className="mt-1 text-xs text-gray-500">
-                                    {statistiques.tauxDossiersIncomplets}% de
-                                    l'effectif
-                                </p>
-                            </div>
-
-                            {/* Sans matricule */}
-
-                            <div className="rounded-xl border border-yellow-200 bg-white p-5 shadow-sm">
-                                <p className="text-sm font-medium text-gray-500">
-                                    Sans matricule
-                                </p>
-
-                                <p className="mt-2 text-3xl font-bold text-yellow-600">
-                                    {statistiques.sansMatricule}
-                                </p>
-
-                                <p className="mt-1 text-xs text-gray-500">
-                                    information manquante
-                                </p>
-                            </div>
-
-                            {/* Sans date de naissance */}
-
-                            <div className="rounded-xl border border-yellow-200 bg-white p-5 shadow-sm">
-                                <p className="text-sm font-medium text-gray-500">
-                                    Sans date de naissance
-                                </p>
-
-                                <p className="mt-2 text-3xl font-bold text-yellow-600">
-                                    {statistiques.sansDateNaissance}
-                                </p>
-
-                                <p className="mt-1 text-xs text-gray-500">
-                                    information manquante
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* =================================================
-    4. INFORMATIONS MANQUANTES
-================================================= */}
-
-                    <div>
-                        <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-gray-500">
-                            Informations manquantes
-                        </h3>
-
-                        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-                            {/* Lieu naissance */}
-                            <div
-                                onClick={() =>
-                                    setFiltreQualite(
-                                        filtreQualite === "sans_lieu_naissance"
-                                            ? ""
-                                            : "sans_lieu_naissance",
-                                    )
-                                }
-                                className={`cursor-pointer rounded-lg border p-4 shadow-sm transition-all duration-200
-                ${
-                    filtreQualite === "sans_lieu_naissance"
-                        ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-                        : "border-gray-200 bg-white hover:bg-gray-50 hover:shadow-md"
-                }`}
-                            >
-                                <p className="text-xs text-gray-500">
-                                    Sans lieu de naissance
-                                </p>
-
-                                <p className="mt-2 text-2xl font-bold text-gray-700">
-                                    {statistiques.sansLieuNaissance}
-                                </p>
-                            </div>
-
-                            {/* Nationalité */}
-                            <div
-                                onClick={() =>
-                                    setFiltreQualite(
-                                        filtreQualite === "sans_nationalite"
-                                            ? ""
-                                            : "sans_nationalite",
-                                    )
-                                }
-                                className={`cursor-pointer rounded-lg border p-4 shadow-sm transition-all duration-200
-                ${
-                    filtreQualite === "sans_nationalite"
-                        ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-                        : "border-gray-200 bg-white hover:bg-gray-50 hover:shadow-md"
-                }`}
-                            >
-                                <p className="text-xs text-gray-500">
-                                    Sans nationalité
-                                </p>
-
-                                <p className="mt-2 text-2xl font-bold text-gray-700">
-                                    {statistiques.sansNationalite}
-                                </p>
-                            </div>
-
-                            {/* Téléphone */}
-                            <div
-                                onClick={() =>
-                                    setFiltreQualite(
-                                        filtreQualite === "sans_telephone"
-                                            ? ""
-                                            : "sans_telephone",
-                                    )
-                                }
-                                className={`cursor-pointer rounded-lg border p-4 shadow-sm transition-all duration-200
-                ${
-                    filtreQualite === "sans_telephone"
-                        ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-                        : "border-gray-200 bg-white hover:bg-gray-50 hover:shadow-md"
-                }`}
-                            >
-                                <p className="text-xs text-gray-500">
-                                    Sans téléphone
-                                </p>
-
-                                <p className="mt-2 text-2xl font-bold text-gray-700">
-                                    {statistiques.sansTelephone}
-                                </p>
-                            </div>
-
-                            {/* Email */}
-                            <div
-                                onClick={() =>
-                                    setFiltreQualite(
-                                        filtreQualite === "sans_email"
-                                            ? ""
-                                            : "sans_email",
-                                    )
-                                }
-                                className={`cursor-pointer rounded-lg border p-4 shadow-sm transition-all duration-200
-                ${
-                    filtreQualite === "sans_email"
-                        ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-                        : "border-gray-200 bg-white hover:bg-gray-50 hover:shadow-md"
-                }`}
-                            >
-                                <p className="text-xs text-gray-500">
-                                    Sans email
-                                </p>
-
-                                <p className="mt-2 text-2xl font-bold text-gray-700">
-                                    {statistiques.sansEmail}
-                                </p>
-                            </div>
-
-                            {/* Adresse */}
-                            <div
-                                onClick={() =>
-                                    setFiltreQualite(
-                                        filtreQualite === "sans_adresse"
-                                            ? ""
-                                            : "sans_adresse",
-                                    )
-                                }
-                                className={`cursor-pointer rounded-lg border p-4 shadow-sm transition-all duration-200
-                ${
-                    filtreQualite === "sans_adresse"
-                        ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-                        : "border-gray-200 bg-white hover:bg-gray-50 hover:shadow-md"
-                }`}
-                            >
-                                <p className="text-xs text-gray-500">
-                                    Sans adresse
-                                </p>
-
-                                <p className="mt-2 text-2xl font-bold text-gray-700">
-                                    {statistiques.sansAdresse}
-                                </p>
-                            </div>
-
-                            {/* Responsable */}
-                            <div
-                                onClick={() =>
-                                    setFiltreQualite(
-                                        filtreQualite === "sans_responsable"
-                                            ? ""
-                                            : "sans_responsable",
-                                    )
-                                }
-                                className={`cursor-pointer rounded-lg border p-4 shadow-sm transition-all duration-200
-                ${
-                    filtreQualite === "sans_responsable"
-                        ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-                        : "border-gray-200 bg-white hover:bg-gray-50 hover:shadow-md"
-                }`}
-                            >
-                                <p className="text-xs text-gray-500">
-                                    Sans responsable
-                                </p>
-
-                                <p className="mt-2 text-2xl font-bold text-gray-700">
-                                    {statistiques.sansResponsable}
-                                </p>
-                            </div>
-
-                            {/* Téléphone responsable */}
-                            <div
-                                onClick={() =>
-                                    setFiltreQualite(
-                                        filtreQualite ===
-                                            "sans_telephone_responsable"
-                                            ? ""
-                                            : "sans_telephone_responsable",
-                                    )
-                                }
-                                className={`cursor-pointer rounded-lg border p-4 shadow-sm transition-all duration-200
-                ${
-                    filtreQualite === "sans_telephone_responsable"
-                        ? "border-blue-500 bg-blue-50 ring-2 ring-blue-200"
-                        : "border-gray-200 bg-white hover:bg-gray-50 hover:shadow-md"
-                }`}
-                            >
-                                <p className="text-xs text-gray-500">
-                                    Sans tél. responsable
-                                </p>
-
-                                <p className="mt-2 text-2xl font-bold text-gray-700">
-                                    {statistiques.sansTelephoneResponsable}
-                                </p>
-                            </div>
+                            )}
                         </div>
                     </div>
                 </div>

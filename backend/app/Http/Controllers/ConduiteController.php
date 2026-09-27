@@ -25,8 +25,6 @@ class ConduiteController extends Controller
     |--------------------------------------------------------------------------
     */
 
-   
-
     /**
      * Vérifie qu'un utilisateur peut accéder à une classe.
      *
@@ -175,7 +173,8 @@ class ConduiteController extends Controller
     }
 
     /**
-     * Vérifie qu'un élève appartient réellement à la classe.
+     * Vérifie qu'un élève appartient réellement à la classe,
+     * à l'établissement et à l'année scolaire concernés.
      */
     private function getEleveForClasse(
         int $eleveId,
@@ -214,6 +213,14 @@ class ConduiteController extends Controller
 
     /**
      * Liste des notes de conduite.
+     *
+     * IMPORTANT :
+     * L'établissement de l'élève est la référence principale
+     * pour l'isolation des données.
+     *
+     * Cela permet notamment qu'un élève transféré vers un autre
+     * établissement ne continue pas à apparaître dans les conduites
+     * de son ancien établissement.
      */
     public function index(Request $request): Response
     {
@@ -240,11 +247,21 @@ class ConduiteController extends Controller
         |--------------------------------------------------------------------------
         | RESTRICTION DES DONNÉES
         |--------------------------------------------------------------------------
+        |
+        | RÈGLE CENTRALE :
+        |
+        | On filtre directement sur l'établissement ACTUEL de l'élève.
+        |
+        | Il ne faut pas se baser uniquement sur conduites.classe_id
+        | ou classes.etablissement_id car la classe peut représenter
+        | une ancienne situation scolaire de l'élève après transfert.
+        |
         */
 
         if ($isEducateur) {
 
             if (! $user->educateur_id) {
+
                 $query->whereRaw('1 = 0');
             } else {
 
@@ -253,6 +270,34 @@ class ConduiteController extends Controller
                         'educateur_id',
                         $user->educateur_id
                     )
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | ÉTABLISSEMENT ACTUEL DE L'ÉLÈVE
+                    |--------------------------------------------------------------------------
+                    */
+
+                    ->whereHas(
+                        'eleve',
+                        function ($q) use ($user) {
+
+                            $q->where(
+                                'etablissement_id',
+                                $user->etablissement_id
+                            )
+                                ->where(
+                                    'actif',
+                                    true
+                                );
+                        }
+                    )
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | CLASSE ACTUELLE / AFFECTATION ÉDUCATEUR
+                    |--------------------------------------------------------------------------
+                    */
+
                     ->whereHas(
                         'classe.affectationsEducateurs',
                         function ($q) use ($user) {
@@ -272,27 +317,55 @@ class ConduiteController extends Controller
                                 ->whereColumn(
                                     'educateur_classes.classe_id',
                                     'conduites.classe_id'
+                                )
+                                ->whereColumn(
+                                    'educateur_classes.etablissement_id',
+                                    'classes.etablissement_id'
                                 );
                         }
                     );
             }
         } elseif (! $isSuperAdmin) {
 
-            $query->whereHas(
-                'classe',
-                function ($q) use ($user) {
+            /*
+            |--------------------------------------------------------------------------
+            | ADMINISTRATEUR / DIRECTION
+            |--------------------------------------------------------------------------
+            |
+            | L'établissement actuel de l'élève est déterminant.
+            |--------------------------------------------------------------------------
+            */
 
-                    $q->where(
-                        'etablissement_id',
-                        $user->etablissement_id
-                    );
-                }
-            );
+            if (! $user->etablissement_id) {
+
+                $query->whereRaw('1 = 0');
+            } else {
+
+                $query->whereHas(
+                    'eleve',
+                    function ($q) use ($user) {
+
+                        $q->where(
+                            'etablissement_id',
+                            $user->etablissement_id
+                        )
+                            ->where(
+                                'actif',
+                                true
+                            );
+                    }
+                );
+            }
         }
 
         /*
         |--------------------------------------------------------------------------
-        | FILTRE ÉTABLISSEMENT
+        | FILTRE ÉTABLISSEMENT - SUPERADMIN
+        |--------------------------------------------------------------------------
+        |
+        | Le SuperAdmin peut sélectionner un établissement.
+        |
+        | Le filtre porte sur l'établissement ACTUEL de l'élève.
         |--------------------------------------------------------------------------
         */
 
@@ -302,13 +375,17 @@ class ConduiteController extends Controller
         ) {
 
             $query->whereHas(
-                'classe',
+                'eleve',
                 function ($q) use ($request) {
 
                     $q->where(
                         'etablissement_id',
                         $request->etablissement_id
-                    );
+                    )
+                        ->where(
+                            'actif',
+                            true
+                        );
                 }
             );
         }
@@ -321,9 +398,32 @@ class ConduiteController extends Controller
 
         if ($request->filled('classe_id')) {
 
+            $classeId = (int) $request->classe_id;
+
             $query->where(
                 'classe_id',
-                $request->classe_id
+                $classeId
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | SÉCURITÉ SUPPLÉMENTAIRE
+            |--------------------------------------------------------------------------
+            |
+            | On vérifie que l'élève actuellement lié à la conduite
+            | appartient bien à la classe sélectionnée.
+            |--------------------------------------------------------------------------
+            */
+
+            $query->whereHas(
+                'eleve',
+                function ($q) use ($classeId) {
+
+                    $q->where(
+                        'classe_id',
+                        $classeId
+                    );
+                }
             );
         }
 
@@ -490,7 +590,8 @@ class ConduiteController extends Controller
             'Conduites/Index',
             [
 
-                'conduites' => $conduites,
+                'conduites' =>
+                $conduites,
 
                 'etablissements' =>
                 $etablissements,
@@ -1073,8 +1174,6 @@ class ConduiteController extends Controller
             /*
             | Pour les utilisateurs autres que SuperAdmin,
             | l'éducateur doit être affecté à la classe.
-            |
-            | Le SuperAdmin conserve un accès global.
             */
 
             if (! $user->hasRole('SuperAdmin')) {
@@ -1233,6 +1332,38 @@ class ConduiteController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | VÉRIFICATION DE L'ÉLÈVE
+        |--------------------------------------------------------------------------
+        |
+        | Une conduite historique ne doit pas permettre de contourner
+        | l'isolation par établissement.
+        |--------------------------------------------------------------------------
+        */
+
+        $eleve = $conduite->eleve;
+
+        if (! $eleve) {
+
+            abort(
+                404,
+                'L’élève associé à cette note est introuvable.'
+            );
+        }
+
+        if (
+            ! $user->hasRole('SuperAdmin') &&
+            (int) $eleve->etablissement_id !==
+            (int) $user->etablissement_id
+        ) {
+
+            abort(
+                403,
+                'Vous n’êtes pas autorisé à accéder à cette note de conduite.'
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | SÉCURITÉ SUPPLÉMENTAIRE POUR L'ÉDUCATEUR
         |--------------------------------------------------------------------------
         */
@@ -1256,15 +1387,6 @@ class ConduiteController extends Controller
         |--------------------------------------------------------------------------
         | RETOUR
         |--------------------------------------------------------------------------
-        |
-        | L'édition ne permet de modifier que :
-        |
-        | - la note
-        | - l'observation
-        |
-        | L'élève, la classe, la période,
-        | l'année et l'éducateur restent figés.
-        |
         */
 
         return Inertia::render(
@@ -1329,6 +1451,38 @@ class ConduiteController extends Controller
 
         /*
         |--------------------------------------------------------------------------
+        | SÉCURITÉ ÉLÈVE
+        |--------------------------------------------------------------------------
+        |
+        | Important après un transfert :
+        | on vérifie l'établissement actuel de l'élève.
+        |--------------------------------------------------------------------------
+        */
+
+        $eleve = $conduite->eleve;
+
+        if (! $eleve) {
+
+            abort(
+                404,
+                'L’élève associé à cette note est introuvable.'
+            );
+        }
+
+        if (
+            ! $user->hasRole('SuperAdmin') &&
+            (int) $eleve->etablissement_id !==
+            (int) $user->etablissement_id
+        ) {
+
+            abort(
+                403,
+                'Vous n’êtes pas autorisé à modifier cette note de conduite.'
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | SÉCURITÉ ÉDUCATEUR
         |--------------------------------------------------------------------------
         */
@@ -1352,12 +1506,6 @@ class ConduiteController extends Controller
         |--------------------------------------------------------------------------
         | MISE À JOUR
         |--------------------------------------------------------------------------
-        |
-        | Le FormRequest ne contient que :
-        |
-        | note
-        | observation
-        |
         */
 
         $conduite->update(
@@ -1418,6 +1566,34 @@ class ConduiteController extends Controller
         $this->checkClasseAccess(
             $classe
         );
+
+        /*
+        |--------------------------------------------------------------------------
+        | SÉCURITÉ ÉLÈVE
+        |--------------------------------------------------------------------------
+        */
+
+        $eleve = $conduite->eleve;
+
+        if (! $eleve) {
+
+            abort(
+                404,
+                'L’élève associé à cette note est introuvable.'
+            );
+        }
+
+        if (
+            ! $user->hasRole('SuperAdmin') &&
+            (int) $eleve->etablissement_id !==
+            (int) $user->etablissement_id
+        ) {
+
+            abort(
+                403,
+                'Vous n’êtes pas autorisé à supprimer cette note de conduite.'
+            );
+        }
 
         /*
         |--------------------------------------------------------------------------

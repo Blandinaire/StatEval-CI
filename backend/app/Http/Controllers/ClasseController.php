@@ -12,6 +12,7 @@ use App\Models\Maquette;
 use App\Models\Niveau;
 use App\Models\Serie;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class ClasseController extends Controller
@@ -161,9 +162,21 @@ class ClasseController extends Controller
     /**
      * Liste des classes.
      */
-    public function index()
+    public function index(Request $request)
     {
         $user = Auth::user();
+
+        $estSuperAdmin = $this->estSuperAdmin($user);
+
+        /*
+    |--------------------------------------------------------------------------
+    | FILTRE ÉTABLISSEMENT
+    |--------------------------------------------------------------------------
+    |
+    | Seul le SuperAdmin peut choisir l'établissement.
+    |
+    */
+        $etablissementId = $request->input('etablissement_id');
 
         $query = Classe::with([
             'etablissement',
@@ -172,21 +185,37 @@ class ClasseController extends Controller
             'niveau',
             'serie',
             'maquette',
-        ]);
+        ])->withCount('eleves');
 
         /*
-        |--------------------------------------------------------------------------
-        | PROFESSEUR
-        |--------------------------------------------------------------------------
-        |
-        | Un professeur ne voit QUE ses classes affectées.
-        |
-        */
+    |--------------------------------------------------------------------------
+    | SUPERADMIN
+    |--------------------------------------------------------------------------
+    |
+    | Le SuperAdmin peut voir toutes les classes.
+    | Si un établissement est sélectionné, on filtre dessus.
+    |
+    */
+        if ($estSuperAdmin) {
 
-        if ($this->estProfesseur($user)) {
+            if ($etablissementId) {
+                $query->where(
+                    'etablissement_id',
+                    $etablissementId
+                );
+            }
 
-            $classesAutorisees =
-                $this->classesDuProfesseur($user);
+            /*
+    |--------------------------------------------------------------------------
+    | PROFESSEUR
+    |--------------------------------------------------------------------------
+    |
+    | Un professeur ne voit QUE ses classes affectées.
+    |
+    */
+        } elseif ($this->estProfesseur($user)) {
+
+            $classesAutorisees = $this->classesDuProfesseur($user);
 
             $query->whereIn(
                 'id',
@@ -194,22 +223,30 @@ class ClasseController extends Controller
             );
 
             /*
-        |--------------------------------------------------------------------------
-        | ÉDUCATEUR
-        |--------------------------------------------------------------------------
-        */
+    |--------------------------------------------------------------------------
+    | ÉDUCATEUR
+    |--------------------------------------------------------------------------
+    |
+    | Un éducateur ne voit QUE ses classes affectées.
+    |
+    */
         } elseif ($this->estEducateur($user)) {
+
             $query->whereIn(
                 'id',
                 $this->classesDeLEducateur($user)
             );
-        }
 
-        /*
-        |--------------------------------------------------------------------------
-        | AUTRES UTILISATEURS
-        |--------------------------------------------------------------------------
-        */ elseif (!$this->estSuperAdmin($user)) {
+            /*
+    |--------------------------------------------------------------------------
+    | AUTRES UTILISATEURS
+    |--------------------------------------------------------------------------
+    |
+    | Direction / Administrateur :
+    | uniquement les classes de leur établissement.
+    |
+    */
+        } else {
 
             $query->where(
                 'etablissement_id',
@@ -218,11 +255,35 @@ class ClasseController extends Controller
         }
 
         $classes = $query
+            ->orderBy('etablissement_id')
             ->orderBy('libelle')
             ->get();
 
+        /*
+    |--------------------------------------------------------------------------
+    | ÉTABLISSEMENTS DISPONIBLES
+    |--------------------------------------------------------------------------
+    |
+    | Nécessaire uniquement pour le filtre du SuperAdmin.
+    |
+    */
+        $etablissements = $estSuperAdmin
+            ? Etablissement::orderBy('nom')->get([
+                'id',
+                'nom',
+            ])
+            : collect();
+
         return Inertia::render('Classes/Index', [
             'classes' => $classes,
+
+            'etablissements' => $etablissements,
+
+            'isSuperAdmin' => $estSuperAdmin,
+
+            'filters' => [
+                'etablissement_id' => $etablissementId,
+            ],
         ]);
     }
 

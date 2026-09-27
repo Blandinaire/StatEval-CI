@@ -36,6 +36,10 @@ class StatistiqueController extends Controller
     /**
      * Retourne les affectations actives du professeur
      * pour l'année scolaire active.
+     *
+     * IMPORTANT :
+     * Les affectations sont également limitées à
+     * l'établissement du professeur.
      */
     private function affectationsDuProfesseur($user)
     {
@@ -43,6 +47,12 @@ class StatistiqueController extends Controller
             $user->enseignant_id,
             403,
             'Votre compte professeur n’est pas correctement rattaché à un enseignant.'
+        );
+
+        abort_unless(
+            $user->etablissement_id,
+            403,
+            'Votre compte professeur n’est pas rattaché à un établissement.'
         );
 
         return Affectation::query()
@@ -53,6 +63,10 @@ class StatistiqueController extends Controller
             ->where(
                 'annee_scolaire_id',
                 AnneeScolaire::activeId()
+            )
+            ->where(
+                'etablissement_id',
+                $user->etablissement_id
             )
             ->where('actif', true)
             ->get();
@@ -216,6 +230,11 @@ class StatistiqueController extends Controller
                 $validated['etablissement_id'] ?? null;
         } else {
 
+            /*
+            | Un utilisateur normal est toujours limité
+            | à son établissement.
+            */
+
             $etablissementId =
                 $user->etablissement_id;
         }
@@ -224,10 +243,6 @@ class StatistiqueController extends Controller
         |--------------------------------------------------------------------------
         | SÉCURITÉ PROFESSEUR
         |--------------------------------------------------------------------------
-        |
-        | Le professeur ne peut pas choisir une classe
-        | qui ne lui est pas affectée.
-        |
         */
 
         if ($isProfesseur) {
@@ -330,14 +345,24 @@ class StatistiqueController extends Controller
             );
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | NIVEAU
+        |--------------------------------------------------------------------------
+        */
+
         if (!empty($filtres['niveau_id'])) {
 
-            $query->whereHas('classe', function ($classeQuery) use ($filtres) {
-                $classeQuery->where(
-                    'niveau_id',
-                    $filtres['niveau_id']
-                );
-            });
+            $query->whereHas(
+                'classe',
+                function ($classeQuery) use ($filtres) {
+
+                    $classeQuery->where(
+                        'niveau_id',
+                        $filtres['niveau_id']
+                    );
+                }
+            );
         }
 
         /*
@@ -359,10 +384,8 @@ class StatistiqueController extends Controller
         | PROFESSEUR
         |--------------------------------------------------------------------------
         |
-        | C'est ici que la sécurité est essentielle.
-        |
-        | Un professeur ne récupère que les évaluations
-        | correspondant à ses propres affectations.
+        | Le professeur ne récupère que les évaluations
+        | correspondant à ses affectations.
         |
         */
 
@@ -382,6 +405,17 @@ class StatistiqueController extends Controller
                 'matiere_id',
                 $matieresProfesseur
             );
+
+            /*
+            | Sécurité supplémentaire :
+            | les évaluations doivent appartenir à
+            | l'établissement du professeur.
+            */
+
+            $query->where(
+                'etablissement_id',
+                $user->etablissement_id
+            );
         }
 
         /*
@@ -397,12 +431,88 @@ class StatistiqueController extends Controller
         |--------------------------------------------------------------------------
         | NOTES
         |--------------------------------------------------------------------------
+        |
+        | RÈGLE CENTRALE DE L'ISOLATION :
+        |
+        | Une note ne doit être conservée dans les statistiques
+        | que si l'élève actuellement rattaché à cette note
+        | appartient toujours à l'établissement de l'évaluation.
+        |
+        | Cela corrige le cas suivant :
+        |
+        | Évaluation établissement A
+        |       ↓
+        | Note
+        |       ↓
+        | Élève transféré vers établissement B
+        |
+        | L'évaluation historique reste en A mais la note
+        | de cet élève ne doit plus être comptabilisée
+        | dans les statistiques de A.
+        |
         */
 
         $notes = $evaluations
             ->flatMap(function ($evaluation) {
 
                 return $evaluation->notes
+                    ->filter(function ($note) use ($evaluation) {
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | ÉLÈVE EXISTANT
+                        |--------------------------------------------------------------------------
+                        */
+
+                        if (!$note->eleve) {
+                            return false;
+                        }
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | ÉLÈVE ACTIF
+                        |--------------------------------------------------------------------------
+                        */
+
+                        if (
+                            isset($note->eleve->actif) &&
+                            !$note->eleve->actif
+                        ) {
+                            return false;
+                        }
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | ÉTABLISSEMENT ACTUEL DE L'ÉLÈVE
+                        |--------------------------------------------------------------------------
+                        |
+                        | C'est ici que le transfert est pris en compte.
+                        |--------------------------------------------------------------------------
+                        */
+
+                        if (
+                            (int) $note->eleve->etablissement_id !==
+                            (int) $evaluation->etablissement_id
+                        ) {
+                            return false;
+                        }
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | COHÉRENCE ANNÉE SCOLAIRE
+                        |--------------------------------------------------------------------------
+                        */
+
+                        if (
+                            isset($note->eleve->annee_scolaire_id) &&
+                            (int) $note->eleve->annee_scolaire_id !==
+                            (int) $evaluation->annee_scolaire_id
+                        ) {
+                            return false;
+                        }
+
+                        return true;
+                    })
                     ->map(function ($note) use ($evaluation) {
 
                         $note->evaluation_reference =
@@ -1048,7 +1158,9 @@ class StatistiqueController extends Controller
                                     );
                             }
                         )
-                        ->filter()
+                        ->filter(function ($value) {
+                            return $value !== null;
+                        })
                         ->values();
 
                     if (
@@ -1137,7 +1249,9 @@ class StatistiqueController extends Controller
                                     );
                             }
                         )
-                        ->filter()
+                        ->filter(function ($value) {
+                            return $value !== null;
+                        })
                         ->values();
 
                     if (
@@ -1444,6 +1558,10 @@ class StatistiqueController extends Controller
                     'id',
                     $classesProfesseur
                 )
+                ->where(
+                    'etablissement_id',
+                    $user->etablissement_id
+                )
                 ->orderBy('libelle')
                 ->get([
                     'id',
@@ -1466,6 +1584,23 @@ class StatistiqueController extends Controller
                 );
             }
 
+            /*
+            | SuperAdmin :
+            | si un établissement est sélectionné,
+            | limiter également la liste des classes.
+            */
+
+            if (
+                $isSuperAdmin &&
+                !empty($etablissementId)
+            ) {
+
+                $classesQuery->where(
+                    'etablissement_id',
+                    $etablissementId
+                );
+            }
+
             $classes =
                 $classesQuery->get([
                     'id',
@@ -1475,6 +1610,12 @@ class StatistiqueController extends Controller
                     'libelle',
                 ]);
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | NIVEAUX
+        |--------------------------------------------------------------------------
+        */
 
         $niveaux = Niveau::query()
             ->orderBy('ordre')

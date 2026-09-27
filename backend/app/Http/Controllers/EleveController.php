@@ -5,14 +5,23 @@ namespace App\Http\Controllers;
 use App\Exports\ElevesTemplateExport;
 use App\Imports\ElevesImport;
 use App\Http\Requests\StoreEleveRequest;
+use App\Http\Requests\UpdateElevesBulkRequest;
 use App\Models\Affectation;
 use App\Models\AnneeScolaire;
 use App\Models\Classe;
 use App\Models\Eleve;
+use App\Models\Note;
+use App\Models\Conduite;
+use App\Models\Absence;
+use App\Models\Retard;
 use App\Models\EducateurClasse;
 use App\Models\Etablissement;
+use App\Exports\ElevesCorrectionExport;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 use Maatwebsite\Excel\Facades\Excel;
@@ -49,20 +58,33 @@ class EleveController extends Controller
         ]);
 
         /*
+    |--------------------------------------------------------------------------
+    | SUPERADMIN
+    |--------------------------------------------------------------------------
+    */
+
+        if ($user->hasRole('SuperAdmin')) {
+
+            /*
         |--------------------------------------------------------------------------
-        | SUPERADMIN
+        | FILTRE ÉTABLISSEMENT
         |--------------------------------------------------------------------------
         */
 
-        if ($user->hasRole('SuperAdmin')) {
-            // Aucun filtrage.
+            if (request()->filled('etablissement_id')) {
+
+                $query->where(
+                    'etablissement_id',
+                    request('etablissement_id')
+                );
+            }
         }
 
         /*
-        |--------------------------------------------------------------------------
-        | PROFESSEUR
-        |--------------------------------------------------------------------------
-        */ elseif ($user->hasRole('Professeur')) {
+    |--------------------------------------------------------------------------
+    | PROFESSEUR
+    |--------------------------------------------------------------------------
+    */ elseif ($user->hasRole('Professeur')) {
 
             $this->verifierCompteProfesseur();
 
@@ -70,10 +92,10 @@ class EleveController extends Controller
         }
 
         /*
-        |--------------------------------------------------------------------------
-        | AUTRES UTILISATEURS
-        |--------------------------------------------------------------------------
-        */ else {
+    |--------------------------------------------------------------------------
+    | AUTRES UTILISATEURS
+    |--------------------------------------------------------------------------
+    */ else {
 
             $this->verifierEtablissementUtilisateur();
 
@@ -89,17 +111,38 @@ class EleveController extends Controller
             ->get();
 
         /*
-        |--------------------------------------------------------------------------
-        | CLASSES ACCESSIBLES POUR LES FILTRES
-        |--------------------------------------------------------------------------
-        */
+    |--------------------------------------------------------------------------
+    | CLASSES ACCESSIBLES POUR LES FILTRES ET LA MODIFICATION GROUPÉE
+    |--------------------------------------------------------------------------
+    |
+    | On charge ici les relations cycle / niveau / série afin que le
+    | frontend puisse construire les listes dépendantes :
+    |
+    | Établissement
+    |      ↓
+    | Année scolaire
+    |      ↓
+    | Cycle
+    |      ↓
+    | Niveau
+    |      ↓
+    | Classe
+    |      ↓
+    | Série
+    |
+    |--------------------------------------------------------------------------
+    */
 
-        $classesQuery = Classe::query()
-            ->orderBy('libelle');
+        $classesQuery = Classe::with([
+            'niveau',
+            'cycle',
+            'serie',
+        ])->orderBy('libelle');
 
         if ($user->hasRole('SuperAdmin')) {
 
-            // Toutes les classes.
+            // Toutes les classes sont accessibles.
+
         } elseif ($user->hasRole('Professeur')) {
 
             $this->verifierCompteProfesseur();
@@ -109,8 +152,14 @@ class EleveController extends Controller
                 ->whereIn(
                     'id',
                     Affectation::query()
-                        ->where('enseignant_id', $user->enseignant_id)
-                        ->where('etablissement_id', $user->etablissement_id)
+                        ->where(
+                            'enseignant_id',
+                            $user->enseignant_id
+                        )
+                        ->where(
+                            'etablissement_id',
+                            $user->etablissement_id
+                        )
                         ->where('actif', true)
                         ->pluck('classe_id')
                         ->unique()
@@ -125,103 +174,135 @@ class EleveController extends Controller
             );
         }
 
-        $classes = $classesQuery
+        $classes = $classesQuery->get([
+            'id',
+            'libelle',
+            'etablissement_id',
+            'annee_scolaire_id',
+            'cycle_id',
+            'niveau_id',
+            'serie_id',
+        ]);
+
+        /*
+    |--------------------------------------------------------------------------
+    | ANNÉES SCOLAIRES
+    |--------------------------------------------------------------------------
+    |
+    | Elles sont utilisées par la modification groupée.
+    |
+    |--------------------------------------------------------------------------
+    */
+
+        $annees = AnneeScolaire::query()
+            ->orderByDesc('id')
             ->get([
                 'id',
                 'libelle',
-                'etablissement_id',
-                'annee_scolaire_id',
             ]);
 
-        return Inertia::render('Eleves/Index', [
-            'eleves' => $eleves,
-            'classes' => $classes,
-            'elevesModifiables' => $user->hasRole('Educateur')
-                ? $this->elevesModifiablesPourEducateur($user, $eleves)
-                : null,
-            'peutSupprimer' => $user->hasAnyRole([
-                'SuperAdmin',
-                'Administrateur',
-                'Directeur',
-            ]),
-        ]);
-    }
-
-
-    /**
-     * =========================================================================
-     * FORMULAIRE DE CRÉATION
-     * =========================================================================
-     */
-    public function create(): Response
-    {
-        $user = auth()->user();
-
         /*
-        |--------------------------------------------------------------------------
-        | PROFESSEUR : PAS DE CRÉATION D'ÉLÈVE
-        |--------------------------------------------------------------------------
-        */
+    |--------------------------------------------------------------------------
+    | ÉTABLISSEMENTS POUR LE SUPERADMIN
+    |--------------------------------------------------------------------------
+    */
 
-        if ($user->hasRole('Professeur')) {
-            abort(403);
+        $etablissements = collect();
+
+        if ($user->hasRole('SuperAdmin')) {
+
+            $etablissements = Etablissement::query()
+                ->orderBy('nom')
+                ->get([
+                    'id',
+                    'nom',
+                ]);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | ÉTABLISSEMENTS ACCESSIBLES
-        |--------------------------------------------------------------------------
-        */
+        $elevesModifiables = $user->hasRole('Educateur')
+            ? $this->elevesModifiablesPourEducateur($user, $eleves)
+            : null;
 
-        $etablissementsQuery = Etablissement::query()
-            ->where('actif', true)
-            ->orderBy('nom');
-
-        if (!$user->hasRole('SuperAdmin')) {
-
-            $this->verifierEtablissementUtilisateur();
-
-            $etablissementsQuery->where(
-                'id',
-                $user->etablissement_id
+        $peutModifierGroupe = !$user->hasRole('Professeur')
+            && (
+                !$user->hasRole('Educateur')
+                || $elevesModifiables->count() > 0
             );
-        }
-
-        $etablissements = $etablissementsQuery->get();
 
         /*
+    |--------------------------------------------------------------------------
+    | RÉPONSE INERTIA
+    |--------------------------------------------------------------------------
+    */
+
+        return Inertia::render('Eleves/Index', [
+
+            /*
+        |--------------------------------------------------------------------------
+        | ÉLÈVES
+        |--------------------------------------------------------------------------
+        */
+
+            'eleves' => $eleves,
+
+            /*
+        |--------------------------------------------------------------------------
+        | CLASSES
+        |--------------------------------------------------------------------------
+        |
+        | Les relations niveau / cycle / série sont maintenant disponibles
+        | côté React.
+        |
+        |--------------------------------------------------------------------------
+        */
+
+            'classes' => $classes,
+
+            /*
         |--------------------------------------------------------------------------
         | ANNÉES SCOLAIRES
         |--------------------------------------------------------------------------
         */
 
-        $annees = AnneeScolaire::query()
-            ->orderByDesc('date_debut')
-            ->get();
+            'annees' => $annees,
 
-        /*
+            /*
         |--------------------------------------------------------------------------
-        | CLASSES ACCESSIBLES
+        | ÉTABLISSEMENTS
         |--------------------------------------------------------------------------
         */
 
-        $classesQuery = Classe::query()
-            ->orderBy('libelle');
-
-        if (!$user->hasRole('SuperAdmin')) {
-
-            $classesQuery->where(
-                'etablissement_id',
-                $user->etablissement_id
-            );
-        }
-
-        $classes = $classesQuery->get();
-
-        return Inertia::render('Eleves/Create', [
             'etablissements' => $etablissements,
-            'annees' => $annees,
-            'classes' => $classes,
+
+            /*
+        |--------------------------------------------------------------------------
+        | FILTRES
+        |--------------------------------------------------------------------------
+        */
+
+            'filtres' => [
+                'etablissement_id' => request('etablissement_id'),
+            ],
+
+            /*
+        |--------------------------------------------------------------------------
+        | DROITS
+        |--------------------------------------------------------------------------
+        */
+
+            'peutModifierGroupe' => $peutModifierGroupe,
+
+            'isSuperAdmin' => $user->hasRole('SuperAdmin'),
+
+            'elevesModifiables' => $user->hasRole('Educateur')
+                ? $this->elevesModifiablesPourEducateur($user, $eleves)
+                : null,
+
+            'peutSupprimer' => $user->hasAnyRole([
+                'SuperAdmin',
+                'Administrateur',
+                'Directeur',
+            ]),
         ]);
     }
 
@@ -908,6 +989,399 @@ class EleveController extends Controller
             );
     }
 
+    /**
+     * =========================================================================
+     * MODIFICATION GROUPÉE DES ÉLÈVES
+     * =========================================================================
+     */
+    /**
+     * =========================================================================
+     * MODIFICATION GROUPÉE DES ÉLÈVES
+     * =========================================================================
+     */
+    public function updateBulk(
+        UpdateElevesBulkRequest $request
+    ) {
+        $user = auth()->user();
+
+        /*
+    |--------------------------------------------------------------------------
+    | PROFESSEUR INTERDIT
+    |--------------------------------------------------------------------------
+    */
+
+        if ($user->hasRole('Professeur')) {
+            abort(403);
+        }
+
+        $eleves = $request->validated()['eleves'];
+
+        /*
+    |--------------------------------------------------------------------------
+    | CHAMPS AUTORISÉS
+    |--------------------------------------------------------------------------
+    */
+
+        $champsAutorises = [
+            'matricule',
+            'nom',
+            'prenoms',
+            'sexe',
+            'date_naissance',
+            'lieu_naissance',
+            'nationalite',
+            'telephone',
+            'email',
+            'adresse',
+            'statut',
+            'statut_affectation',
+            'regime',
+            'redoublant',
+            'boursier',
+
+            'type_tuteur',
+
+            'pere_nom',
+            'pere_prenoms',
+            'pere_telephone',
+            'pere_email',
+            'pere_profession',
+            'pere_adresse',
+
+            'mere_nom',
+            'mere_prenoms',
+            'mere_telephone',
+            'mere_email',
+            'mere_profession',
+            'mere_adresse',
+
+            'tuteur_nom',
+            'tuteur_prenoms',
+            'tuteur_telephone',
+            'tuteur_email',
+            'tuteur_profession',
+            'tuteur_adresse',
+
+            'etablissement_id',
+            'annee_scolaire_id',
+            'classe_id',
+
+            'actif',
+        ];
+
+        DB::transaction(function () use (
+            $eleves,
+            $user,
+            $champsAutorises
+        ) {
+            foreach ($eleves as $index => $data) {
+
+                /*
+            |--------------------------------------------------------------------------
+            | ÉLÈVE
+            |--------------------------------------------------------------------------
+            */
+
+                $eleve = Eleve::findOrFail($data['id']);
+
+                $this->verifierAccesEleve($eleve);
+
+                /*
+            |--------------------------------------------------------------------------
+            | ÉTABLISSEMENT
+            |--------------------------------------------------------------------------
+            */
+
+                if (!$user->hasRole('SuperAdmin')) {
+
+                    $this->verifierEtablissementUtilisateur();
+
+                    $etablissementId =
+                        $user->etablissement_id;
+                } else {
+
+                    $etablissementId =
+                        $data['etablissement_id']
+                        ?? $eleve->etablissement_id;
+                }
+
+                /*
+            |--------------------------------------------------------------------------
+            | ANNÉE / CLASSE
+            |--------------------------------------------------------------------------
+            */
+
+                $anneeScolaireId =
+                    $data['annee_scolaire_id']
+                    ?? $eleve->annee_scolaire_id;
+
+                $classeId =
+                    $data['classe_id']
+                    ?? $eleve->classe_id;
+
+                $classe = Classe::findOrFail($classeId);
+
+                /*
+            |--------------------------------------------------------------------------
+            | COHÉRENCE ÉTABLISSEMENT / CLASSE
+            |--------------------------------------------------------------------------
+            */
+
+                if (
+                    (int) $classe->etablissement_id !==
+                    (int) $etablissementId
+                ) {
+                    throw ValidationException::withMessages([
+                        "eleves.$index.classe_id" =>
+                        "La classe sélectionnée n'appartient pas à l'établissement choisi.",
+                    ]);
+                }
+
+                /*
+            |--------------------------------------------------------------------------
+            | COHÉRENCE ANNÉE SCOLAIRE
+            |--------------------------------------------------------------------------
+            */
+
+                if (
+                    isset($classe->annee_scolaire_id) &&
+                    (int) $classe->annee_scolaire_id !==
+                    (int) $anneeScolaireId
+                ) {
+                    throw ValidationException::withMessages([
+                        "eleves.$index.classe_id" =>
+                        "La classe sélectionnée n'appartient pas à l'année scolaire choisie.",
+                    ]);
+                }
+
+                /*
+            |--------------------------------------------------------------------------
+            | ÉDUCATEUR
+            |--------------------------------------------------------------------------
+            */
+
+                if ($user->hasRole('Educateur')) {
+
+                    $autorise =
+                        EducateurClasse::query()
+                        ->where(
+                            'educateur_id',
+                            $user->educateur_id
+                        )
+                        ->where(
+                            'classe_id',
+                            $classe->id
+                        )
+                        ->where(
+                            'annee_scolaire_id',
+                            $anneeScolaireId
+                        )
+                        ->where('actif', true)
+                        ->exists();
+
+                    abort_unless($autorise, 403);
+                }
+
+                /*
+            |--------------------------------------------------------------------------
+            | MATRICULE
+            |--------------------------------------------------------------------------
+            */
+
+                if (
+                    array_key_exists(
+                        'matricule',
+                        $data
+                    ) &&
+                    !empty($data['matricule'])
+                ) {
+
+                    $existe =
+                        Eleve::query()
+                        ->where(
+                            'matricule',
+                            $data['matricule']
+                        )
+                        ->where(
+                            'id',
+                            '!=',
+                            $eleve->id
+                        )
+                        ->exists();
+
+                    if ($existe) {
+                        throw ValidationException::withMessages([
+                            "eleves.$index.matricule" =>
+                            "Ce matricule est déjà attribué à un autre élève.",
+                        ]);
+                    }
+                }
+
+                /*
+            |--------------------------------------------------------------------------
+            | FILTRAGE DES CHAMPS
+            |--------------------------------------------------------------------------
+            */
+
+                $modifications = [];
+
+                foreach ($champsAutorises as $champ) {
+                    if (array_key_exists($champ, $data)) {
+                        $modifications[$champ] = $data[$champ];
+                    }
+                }
+
+                /*
+            |--------------------------------------------------------------------------
+            | FORCER L'ÉTABLISSEMENT POUR LES UTILISATEURS
+            | QUI NE SONT PAS SUPERADMIN
+            |--------------------------------------------------------------------------
+            */
+
+                if (!$user->hasRole('SuperAdmin')) {
+                    $modifications['etablissement_id'] =
+                        $etablissementId;
+                }
+
+                /*
+            |--------------------------------------------------------------------------
+            | RESPONSABLE LÉGAL
+            |--------------------------------------------------------------------------
+            */
+
+                $champsTuteur = [
+                    'type_tuteur',
+
+                    'pere_nom',
+                    'pere_prenoms',
+                    'pere_telephone',
+                    'pere_email',
+                    'pere_profession',
+                    'pere_adresse',
+
+                    'mere_nom',
+                    'mere_prenoms',
+                    'mere_telephone',
+                    'mere_email',
+                    'mere_profession',
+                    'mere_adresse',
+
+                    'tuteur_nom',
+                    'tuteur_prenoms',
+                    'tuteur_telephone',
+                    'tuteur_email',
+                    'tuteur_profession',
+                    'tuteur_adresse',
+                ];
+
+                $tuteurModifie = false;
+
+                foreach ($champsTuteur as $champ) {
+                    if (array_key_exists($champ, $data)) {
+                        $tuteurModifie = true;
+                        break;
+                    }
+                }
+
+                if ($tuteurModifie) {
+
+                    /*
+                |--------------------------------------------------------------------------
+                | On travaille uniquement avec les attributs
+                | de la table, pas avec les relations.
+                |--------------------------------------------------------------------------
+                */
+
+                    $donneesComplete =
+                        array_merge(
+                            $eleve->getAttributes(),
+                            $modifications
+                        );
+
+                    $donneesComplete =
+                        $this->preparerResponsableLegal(
+                            $donneesComplete
+                        );
+
+                    /*
+                |--------------------------------------------------------------------------
+                | On ne conserve que les champs autorisés
+                |--------------------------------------------------------------------------
+                */
+
+                    foreach (
+                        array_keys($donneesComplete)
+                        as $champ
+                    ) {
+                        if (
+                            !in_array(
+                                $champ,
+                                array_merge(
+                                    $champsAutorises,
+                                    [
+                                        'responsable_nom',
+                                        'responsable_prenoms',
+                                        'responsable_telephone',
+                                        'responsable_email',
+                                        'responsable_profession',
+                                        'responsable_adresse',
+                                        'type_tuteur_legal',
+                                    ]
+                                )
+                            )
+                        ) {
+                            unset($donneesComplete[$champ]);
+                        }
+                    }
+
+                    $modifications =
+                        $donneesComplete;
+                }
+
+                /*
+            |--------------------------------------------------------------------------
+            | CLASSE / ANNÉE
+            |--------------------------------------------------------------------------
+            */
+
+                if (
+                    array_key_exists(
+                        'classe_id',
+                        $data
+                    )
+                ) {
+                    $modifications['classe_id'] =
+                        $classeId;
+                }
+
+                if (
+                    array_key_exists(
+                        'annee_scolaire_id',
+                        $data
+                    )
+                ) {
+                    $modifications['annee_scolaire_id'] =
+                        $anneeScolaireId;
+                }
+
+                /*
+            |--------------------------------------------------------------------------
+            | ENREGISTREMENT
+            |--------------------------------------------------------------------------
+            */
+
+                $eleve->update($modifications);
+            }
+        });
+
+        return redirect()
+            ->route('eleves.index')
+            ->with(
+                'success',
+                count($eleves) .
+                    ' élève(s) modifié(s) avec succès.'
+            );
+    }
 
     /**
      * =========================================================================
@@ -1167,20 +1641,20 @@ class EleveController extends Controller
         $user = auth()->user();
 
         /*
-        |--------------------------------------------------------------------------
-        | PROFESSEUR INTERDIT
-        |--------------------------------------------------------------------------
-        */
+    |--------------------------------------------------------------------------
+    | PROFESSEUR INTERDIT
+    |--------------------------------------------------------------------------
+    */
 
         if ($user->hasRole('Professeur')) {
             abort(403);
         }
 
         /*
-        |--------------------------------------------------------------------------
-        | VALIDATION
-        |--------------------------------------------------------------------------
-        */
+    |--------------------------------------------------------------------------
+    | VALIDATION DU FORMULAIRE
+    |--------------------------------------------------------------------------
+    */
 
         $validated = $request->validate(
             [
@@ -1229,10 +1703,10 @@ class EleveController extends Controller
         );
 
         /*
-        |--------------------------------------------------------------------------
-        | SÉCURITÉ ÉTABLISSEMENT
-        |--------------------------------------------------------------------------
-        */
+    |--------------------------------------------------------------------------
+    | SÉCURITÉ ÉTABLISSEMENT
+    |--------------------------------------------------------------------------
+    */
 
         if (!$user->hasRole('SuperAdmin')) {
 
@@ -1250,83 +1724,158 @@ class EleveController extends Controller
         }
 
         /*
-        |--------------------------------------------------------------------------
-        | IMPORT
-        |--------------------------------------------------------------------------
-        */
+    |--------------------------------------------------------------------------
+    | IMPORT
+    |--------------------------------------------------------------------------
+    */
 
         try {
 
-            $import =
-                new ElevesImport(
-                    (int) $validated['etablissement_id'],
-                    (int) $validated['annee_scolaire_id']
-                );
+            $import = new ElevesImport(
+                (int) $validated['etablissement_id'],
+                (int) $validated['annee_scolaire_id']
+            );
 
             Excel::import(
                 $import,
                 $validated['fichier']
             );
 
-            return redirect()
-                ->route('eleves.index')
-                ->with(
-                    'success',
-                    $import->nombreImportes .
-                        ' élève(s) importé(s) avec succès.'
+            /*
+        |--------------------------------------------------------------------------
+        | RÉCUPÉRATION DU RAPPORT
+        |--------------------------------------------------------------------------
+        */
+
+            $nombreImportes =
+                $import->nombreImportes;
+
+            $erreursBrutes =
+                $import->getErreurs();
+
+            $lignesRejetees = $import->getLignesRejetees();
+
+            /*
+        |--------------------------------------------------------------------------
+        | NORMALISATION DU RAPPORT POUR REACT
+        |--------------------------------------------------------------------------
+        */
+
+            $erreurs = collect($erreursBrutes)
+                ->map(function ($erreur) {
+
+                    return [
+                        'ligne' =>
+                        $erreur['ligne'] ?? null,
+
+                        'champ' =>
+                        $erreur['champ'] ?? '—',
+
+                        'valeur' =>
+                        $erreur['valeur'] ?? null,
+
+                        'erreurs' =>
+                        is_array($erreur['erreurs'] ?? null)
+                            ? $erreur['erreurs']
+                            : [
+                                (string) ($erreur['erreurs'] ?? 'Erreur inconnue.'),
+                            ],
+
+                        'matricule' =>
+                        $erreur['matricule'] ?? null,
+
+                        'nom' =>
+                        $erreur['nom'] ?? null,
+
+                        'prenoms' =>
+                        $erreur['prenoms'] ?? null,
+
+                        'statut' =>
+                        $erreur['statut'] ?? 'Erreur',
+                    ];
+                })
+                ->values()
+                ->all();
+
+            $correctionToken = null;
+
+            if (count($lignesRejetees) > 0) {
+
+                $correctionToken = Str::random(48);
+
+                $directory = storage_path(
+                    'app/import_corrections'
                 );
-        }
 
-        /*
+                if (!is_dir($directory)) {
+                    mkdir($directory, 0755, true);
+                }
+
+                $path = $directory . '/' . $correctionToken . '.xlsx';
+
+                Excel::store(
+                    new ElevesCorrectionExport(
+                        $lignesRejetees,
+                        (int) $validated['etablissement_id'],
+                        (int) $validated['annee_scolaire_id']
+                    ),
+                    'import_corrections/' . $correctionToken . '.xlsx',
+                    'local'
+                );
+
+                session()->put(
+                    'import_correction_file',
+                    $correctionToken
+                );
+            }
+            /*
         |--------------------------------------------------------------------------
-        | ERREURS EXCEL
+        | AUCUNE ERREUR
         |--------------------------------------------------------------------------
-        */ catch (
-            \Maatwebsite\Excel\Validators\ValidationException $e
-        ) {
+        */
 
-            $erreurs = [];
+            if (count($erreurs) === 0) {
 
-            foreach ($e->failures() as $failure) {
-
-                $valeurs =
-                    $failure->values();
-
-                $attribute =
-                    $failure->attribute();
-
-                $erreurs[] = [
-                    'ligne' =>
-                    $failure->row(),
-
-                    'champ' =>
-                    $attribute,
-
-                    'erreurs' =>
-                    $failure->errors(),
-
-                    'valeur' =>
-                    $valeurs[$attribute] ?? null,
-                ];
+                return redirect()
+                    ->route('eleves.index')
+                    ->with(
+                        'success',
+                        $nombreImportes .
+                            ' élève(s) importé(s) avec succès.'
+                    );
             }
 
-            return back()
+            /*
+        |--------------------------------------------------------------------------
+        | IMPORT PARTIEL
+        |--------------------------------------------------------------------------
+        |
+        | Certaines lignes ont été importées et d'autres rejetées.
+        |
+        */
+
+            $nombreLignesRejetees = count($erreurs);
+
+            return redirect()
+                ->route('eleves.import.form')
                 ->with(
-                    'import_errors',
-                    $erreurs
+                    'success',
+                    $nombreImportes . ' élève(s) importé(s) avec succès. '
+                        . $nombreLignesRejetees . ' ligne(s) rejetée(s).'
                 )
-                ->withErrors([
-                    'fichier' =>
-                    "Le fichier contient des erreurs. Aucun élève n'a été importé.",
+                ->with('import_errors', $erreurs)
+                ->with('import_summary', [
+                    'importes' => $nombreImportes,
+                    'erreurs' => $nombreLignesRejetees,
                 ])
-                ->withInput();
+                ->with('import_correction_token', $correctionToken);
         }
 
         /*
-        |--------------------------------------------------------------------------
-        | AUTRE ERREUR
-        |--------------------------------------------------------------------------
-        */ catch (\Throwable $e) {
+    |--------------------------------------------------------------------------
+    | ERREUR GÉNÉRALE
+    |--------------------------------------------------------------------------
+    */ catch (\Throwable $e) {
 
             return back()
                 ->withErrors([
@@ -1337,6 +1886,133 @@ class EleveController extends Controller
         }
     }
 
+    public function downloadCorrection(string $token)
+    {
+        $user = auth()->user();
+
+        if ($user->hasRole('Professeur')) {
+            abort(403);
+        }
+
+        $sessionToken = session('import_correction_file');
+
+        if (!$sessionToken || !hash_equals($sessionToken, $token)) {
+            abort(403);
+        }
+
+        $relativePath =
+            'import_corrections/' . $token . '.xlsx';
+
+        if (!Storage::disk('local')->exists($relativePath)) {
+            abort(404);
+        }
+
+        $path = Storage::disk('local')->path($relativePath);
+
+        return response()
+            ->download(
+                $path,
+                'eleves_a_corriger.xlsx'
+            )
+            ->deleteFileAfterSend(true);
+    }
+
+    public function suppressionGroupee(Request $request)
+    {
+        $user = auth()->user();
+
+        // Les professeurs ne peuvent pas supprimer des élèves.
+        if ($user->hasRole('Professeur')) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'eleves' => [
+                'required',
+                'array',
+                'min:1',
+            ],
+
+            'eleves.*' => [
+                'required',
+                'integer',
+                'exists:eleves,id',
+            ],
+        ], [
+            'eleves.required' => 'Veuillez sélectionner au moins un élève.',
+            'eleves.min' => 'Veuillez sélectionner au moins un élève.',
+            'eleves.*.exists' => 'Un ou plusieurs élèves sélectionnés n’existent plus.',
+        ]);
+
+        $eleveIds = collect($validated['eleves'])
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        /*
+    |--------------------------------------------------------------------------
+    | Vérification de l'établissement
+    |--------------------------------------------------------------------------
+    |
+    | Le SuperAdmin peut supprimer dans l'établissement sélectionné.
+    | Les autres utilisateurs sont strictement limités à leur établissement.
+    |
+    */
+
+        if (!$user->hasRole('SuperAdmin')) {
+
+            $this->verifierEtablissementUtilisateur();
+
+            $nombreAutorises = Eleve::query()
+                ->whereIn('id', $eleveIds)
+                ->where(
+                    'etablissement_id',
+                    $user->etablissement_id
+                )
+                ->count();
+
+            if ($nombreAutorises !== $eleveIds->count()) {
+                abort(403);
+            }
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Suppression transactionnelle
+    |--------------------------------------------------------------------------
+    */
+
+        DB::transaction(function () use ($eleveIds) {
+
+            /*
+         * Suppression des données dépendantes.
+         *
+         * On supprime d'abord les enregistrements liés
+         * afin d'éviter les erreurs de contraintes étrangères.
+         */
+
+            Note::whereIn('eleve_id', $eleveIds)->delete();
+
+            Conduite::whereIn('eleve_id', $eleveIds)->delete();
+
+            Absence::whereIn('eleve_id', $eleveIds)->delete();
+
+            Retard::whereIn('eleve_id', $eleveIds)->delete();
+
+            /*
+         * Suppression des élèves.
+         */
+            Eleve::whereIn('id', $eleveIds)->delete();
+        });
+
+        return redirect()
+            ->route('eleves.index')
+            ->with(
+                'success',
+                $eleveIds->count() .
+                    ' élève(s) et leurs données associées ont été supprimés avec succès.'
+            );
+    }
 
     /**
      * =========================================================================
