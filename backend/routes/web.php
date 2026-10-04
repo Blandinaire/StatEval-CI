@@ -136,6 +136,10 @@ Route::middleware('auth')->group(function () {
             ->name('creneaux-horaires.store');
         Route::put('/creneaux-horaires/{creneau}', [CreneauHoraireController::class, 'update'])
             ->name('creneaux-horaires.update');
+        Route::patch(
+            '/creneaux-horaires/{creneau}/toggle',
+            [CreneauHoraireController::class, 'toggle']
+        )->name('creneaux-horaires.toggle');
         Route::delete('/creneaux-horaires/{creneau}', [CreneauHoraireController::class, 'destroy'])
             ->name('creneaux-horaires.destroy');
     });
