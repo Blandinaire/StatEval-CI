@@ -513,6 +513,21 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                         </MenuItem>
                     </>
                 )}
+
+                {canManageClasses && (
+                    <>
+                        <SectionTitle>Organisation</SectionTitle>
+
+                        <MenuItem
+                            href="/emplois-du-temps"
+                            icon={CalendarDays}
+                            activeMatch={["/emplois-du-temps"]}
+                            onClick={closeSidebar}
+                        >
+                            Emploi du temps
+                        </MenuItem>
+                    </>
+                )}
             </nav>
         </aside>
     );

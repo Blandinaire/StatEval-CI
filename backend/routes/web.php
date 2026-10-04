@@ -24,6 +24,8 @@ use App\Http\Controllers\RetardController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\EtablissementResponsableController;
 use App\Http\Controllers\EducateurClasseController;
+use App\Http\Controllers\EmploiDuTempsController;
+use App\Http\Controllers\CreneauHoraireController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -116,6 +118,26 @@ Route::middleware('auth')->group(function () {
             '/maquettes/{maquette}/matieres/{maquetteMatiere}/descendre',
             [MaquetteMatiereController::class, 'descendre']
         )->name('maquettes.matieres.descendre');
+    });
+
+    Route::middleware('role:SuperAdmin|Administrateur|Direction')->group(function () {
+        Route::get('/emplois-du-temps', [EmploiDuTempsController::class, 'index'])
+            ->name('emplois-du-temps.index');
+        Route::post('/emplois-du-temps/creer', [EmploiDuTempsController::class, 'creer'])
+            ->name('emplois-du-temps.creer');
+        Route::post('/emplois-du-temps/ligne', [EmploiDuTempsController::class, 'enregistrerLigne'])
+            ->name('emplois-du-temps.ligne.enregistrer');
+        Route::patch('/emplois-du-temps/{emploi}/ordre-classes', [EmploiDuTempsController::class, 'reordonnerClasses'])
+            ->name('emplois-du-temps.classes.reordonner');
+        Route::delete('/emplois-du-temps/ligne/{ligne}', [EmploiDuTempsController::class, 'supprimerLigne'])
+            ->name('emplois-du-temps.ligne.supprimer');
+
+        Route::post('/creneaux-horaires', [CreneauHoraireController::class, 'store'])
+            ->name('creneaux-horaires.store');
+        Route::put('/creneaux-horaires/{creneau}', [CreneauHoraireController::class, 'update'])
+            ->name('creneaux-horaires.update');
+        Route::delete('/creneaux-horaires/{creneau}', [CreneauHoraireController::class, 'destroy'])
+            ->name('creneaux-horaires.destroy');
     });
 
     /*
