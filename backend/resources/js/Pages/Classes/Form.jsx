@@ -103,7 +103,7 @@ export default function Form({
     |--------------------------------------------------------------------------
     */
 
-    const maquettesAnneeEtablissement = maquettesListe.filter((maquette) => {
+    const maquettesAnneeActives = maquettesListe.filter((maquette) => {
         if (
             String(maquette.annee_scolaire_id) !==
             String(data.annee_scolaire_id)
@@ -111,7 +111,16 @@ export default function Form({
             return false;
         }
 
-        return Boolean(maquette.active);
+        /*
+         * Une version active est proposée.
+         *
+         * Une version inactive déjà utilisée par une classe
+         * reste disponible dans le formulaire de modification.
+         */
+        return (
+            Boolean(maquette.active) ||
+            String(maquette.id) === String(data.maquette_id)
+        );
     });
 
     /*
@@ -121,7 +130,7 @@ export default function Form({
     */
 
     const niveauxDisponibles = niveauxListe.filter((niveau) => {
-        return maquettesAnneeEtablissement.some(
+        return maquettesAnneeActives.some(
             (maquette) =>
                 String(maquette.cycle_id) === String(data.cycle_id) &&
                 String(maquette.niveau_id) === String(niveau.id),
@@ -147,35 +156,33 @@ export default function Form({
     |--------------------------------------------------------------------------
     */
 
-    const maquettesDisponibles = maquettesAnneeEtablissement.filter(
-        (maquette) => {
-            if (String(maquette.cycle_id) !== String(data.cycle_id)) {
-                return false;
-            }
+    const maquettesDisponibles = maquettesAnneeActives.filter((maquette) => {
+        if (String(maquette.cycle_id) !== String(data.cycle_id)) {
+            return false;
+        }
 
-            if (String(maquette.niveau_id) !== String(data.niveau_id)) {
-                return false;
-            }
+        if (String(maquette.niveau_id) !== String(data.niveau_id)) {
+            return false;
+        }
 
-            /*
+        /*
                 |----------------------------------------------------------
                 | Sans série
                 |----------------------------------------------------------
                 */
 
-            if (!data.serie_id) {
-                return !maquette.serie_id;
-            }
+        if (!data.serie_id) {
+            return !maquette.serie_id;
+        }
 
-            /*
+        /*
                 |----------------------------------------------------------
                 | Avec série
                 |----------------------------------------------------------
                 */
 
-            return String(maquette.serie_id) === String(data.serie_id);
-        },
-    );
+        return String(maquette.serie_id) === String(data.serie_id);
+    });
 
     /*
     |--------------------------------------------------------------------------
@@ -518,7 +525,11 @@ export default function Form({
 
                     {maquettesDisponibles.map((maquette) => (
                         <option key={maquette.id} value={maquette.id}>
-                            {maquette.libelle}
+                            V{maquette.version ?? 1} — {maquette.libelle}
+                            {maquette.nom_version
+                                ? ` · ${maquette.nom_version}`
+                                : ""}
+                            {!maquette.active ? " (inactive)" : ""}
                         </option>
                     ))}
                 </select>

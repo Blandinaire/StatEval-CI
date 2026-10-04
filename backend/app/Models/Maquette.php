@@ -15,6 +15,8 @@ class Maquette extends Model
         'niveau_id',
         'serie_id',
         'libelle',
+        'nom_version',
+        'description',
         'version',
         'active',
     ];
@@ -23,42 +25,47 @@ class Maquette extends Model
         'active' => 'boolean',
     ];
 
-    /**
-     * Relations
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | Relations
+    |--------------------------------------------------------------------------
+    */
 
     public function anneeScolaire()
     {
-        return $this->belongsTo(AnneeScolaire::class);
+        return $this->belongsTo(
+            AnneeScolaire::class
+        );
     }
 
     public function cycle()
     {
-        return $this->belongsTo(Cycle::class);
+        return $this->belongsTo(
+            Cycle::class
+        );
     }
 
     public function niveau()
     {
-        return $this->belongsTo(Niveau::class);
+        return $this->belongsTo(
+            Niveau::class
+        );
     }
 
     public function serie()
     {
-        return $this->belongsTo(Serie::class);
+        return $this->belongsTo(
+            Serie::class
+        );
     }
 
-    /**
-     * Lignes de la maquette (table pivot enrichie)
-     */
     public function lignes()
     {
-        return $this->hasMany(MaquetteMatiere::class)
-            ->orderBy('ordre');
+        return $this->hasMany(
+            MaquetteMatiere::class
+        )->orderBy('ordre');
     }
 
-    /**
-     * Matières de la maquette
-     */
     public function matieres()
     {
         return $this->belongsToMany(
@@ -75,5 +82,18 @@ class Maquette extends Model
         ])
             ->withTimestamps()
             ->orderByPivot('ordre');
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Classes utilisant cette version
+    |--------------------------------------------------------------------------
+    */
+
+    public function classes()
+    {
+        return $this->hasMany(
+            Classe::class
+        );
     }
 }

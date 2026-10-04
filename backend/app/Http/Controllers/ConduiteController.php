@@ -1239,7 +1239,7 @@ class ConduiteController extends Controller
                     |
                     | Une seule conduite par :
                     |
-                    | élève + année + classe + période
+                    | élève + année + période
                     |
                     */
 
@@ -1252,9 +1252,6 @@ class ConduiteController extends Controller
                             'annee_scolaire_id' =>
                             $classe->annee_scolaire_id,
 
-                            'classe_id' =>
-                            $classe->id,
-
                             'periode' =>
                             $validated['periode'],
                         ],
@@ -1262,6 +1259,9 @@ class ConduiteController extends Controller
                         [
                             'educateur_id' =>
                             $educateurId,
+
+                            'classe_id' =>
+                            $classe->id,
 
                             'note' =>
                             $ligne['note'],

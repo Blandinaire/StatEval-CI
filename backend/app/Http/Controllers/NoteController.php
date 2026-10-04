@@ -272,15 +272,21 @@ class NoteController extends Controller
             'classes',
         ]);
 
-        $classesEvaluation = $evaluation->classes;
+        if ($evaluation->origine === 'administration') {
+            $classesEvaluation = $evaluation->classes;
 
-        if ($this->estProfesseur($user)) {
-            $classesEvaluation = $classesEvaluation
-                ->filter(
-                    fn($classe) =>
-                    (int) $classe->pivot->enseignant_id === (int) $user->enseignant_id
-                )
-                ->values();
+            if ($this->estProfesseur($user)) {
+                $classesEvaluation = $classesEvaluation
+                    ->filter(
+                        fn($classe) =>
+                        (int) $classe->pivot->enseignant_id === (int) $user->enseignant_id
+                    )
+                    ->values();
+            }
+        } else {
+            $classesEvaluation = $evaluation->classe
+                ? collect([$evaluation->classe])
+                : collect();
         }
 
         abort_unless(

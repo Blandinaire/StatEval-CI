@@ -7,6 +7,8 @@ export default function Index({
     classes = [],
     etablissements = [],
     isSuperAdmin = false,
+    isProfesseur = false,
+    isEducateur = false,
     filters = {},
 }) {
     const [etablissementId, setEtablissementId] = useState(
@@ -100,12 +102,14 @@ export default function Index({
                         </p>
                     </div>
 
-                    <Link
-                        href={route("classes.create")}
-                        className="rounded-lg bg-blue-600 px-5 py-3 text-center text-white hover:bg-blue-700"
-                    >
-                        + Nouvelle classe
-                    </Link>
+                    {!isProfesseur && !isEducateur && (
+                        <Link
+                            href={route("classes.create")}
+                            className="rounded-lg bg-blue-600 px-5 py-3 text-center text-white hover:bg-blue-700"
+                        >
+                            + Nouvelle classe
+                        </Link>
+                    )}
                 </div>
 
                 {/* --------------------------------------------------------- */}
@@ -198,9 +202,11 @@ export default function Index({
                                         colSpan={nombreColonnes}
                                         className="p-8 text-center text-gray-500"
                                     >
-                                        {isSuperAdmin && etablissementId
-                                            ? "Aucune classe enregistrée dans cet établissement."
-                                            : "Aucune classe enregistrée."}
+                                        {isProfesseur || isEducateur
+                                            ? "Aucune classe ne vous est affectée pour l’année scolaire active."
+                                            : isSuperAdmin && etablissementId
+                                              ? "Aucune classe enregistrée dans cet établissement."
+                                              : "Aucune classe enregistrée."}
                                     </td>
                                 </tr>
                             ) : (
@@ -249,23 +255,40 @@ export default function Index({
                                             <div className="flex justify-center gap-2">
                                                 <Link
                                                     href={route(
-                                                        "classes.edit",
+                                                        "classes.show",
                                                         classe.id,
                                                     )}
-                                                    className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                                                    className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
                                                 >
-                                                    Modifier
+                                                    Voir
                                                 </Link>
 
-                                                <button
-                                                    type="button"
-                                                    onClick={() =>
-                                                        supprimer(classe.id)
-                                                    }
-                                                    className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
-                                                >
-                                                    Supprimer
-                                                </button>
+                                                {!isProfesseur &&
+                                                    !isEducateur && (
+                                                        <>
+                                                            <Link
+                                                                href={route(
+                                                                    "classes.edit",
+                                                                    classe.id,
+                                                                )}
+                                                                className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                                                            >
+                                                                Modifier
+                                                            </Link>
+
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    supprimer(
+                                                                        classe.id,
+                                                                    )
+                                                                }
+                                                                className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+                                                            >
+                                                                Supprimer
+                                                            </button>
+                                                        </>
+                                                    )}
                                             </div>
                                         </td>
                                     </tr>

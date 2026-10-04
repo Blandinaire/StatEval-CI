@@ -273,6 +273,23 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                     </>
                 )}
 
+                {(isProfesseur || isEducateur) && (
+                    <>
+                        <SectionTitle>
+                            {isProfesseur ? "Mes classes" : "Classes"}
+                        </SectionTitle>
+
+                        <MenuItem
+                            href="/classes"
+                            icon={BookOpen}
+                            activeMatch={["/classes"]}
+                            onClick={closeSidebar}
+                        >
+                            Classes
+                        </MenuItem>
+                    </>
+                )}
+
                 {/* =================================================
                     PERSONNEL
                 ================================================= */}

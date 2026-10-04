@@ -336,20 +336,25 @@ Route::middleware('auth')->group(function () {
     |--------------------------------------------------------------------------
     */
 
-        Route::get(
-            'maquette/create',
-            fn() => redirect()->route('maquettes.create')
-        );
-
-        Route::resource(
+        Route::post(
             'maquettes',
-            MaquetteController::class
-        )->only([
-            'store',
-            'edit',
-            'update',
-            'destroy',
-        ]);
+            [MaquetteController::class, 'store']
+        )->name('maquettes.store');
+
+        Route::delete(
+            'maquettes/{maquette}',
+            [MaquetteController::class, 'destroy']
+        )->name('maquettes.destroy');
+
+        Route::post(
+            'maquettes/{maquette}/versions',
+            [MaquetteController::class, 'storeVersion']
+        )->name('maquettes.versions.store');
+
+        Route::patch(
+            'maquettes/{maquette}/statut',
+            [MaquetteController::class, 'toggleActive']
+        )->name('maquettes.toggle-active');
     });
 
 

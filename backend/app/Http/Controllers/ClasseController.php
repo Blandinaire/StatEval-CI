@@ -8,6 +8,7 @@ use App\Models\Affectation;
 use App\Models\Classe;
 use App\Models\Cycle;
 use App\Models\Etablissement;
+use App\Models\Evaluation;
 use App\Models\Maquette;
 use App\Models\Niveau;
 use App\Models\Serie;
@@ -280,6 +281,8 @@ class ClasseController extends Controller
             'etablissements' => $etablissements,
 
             'isSuperAdmin' => $estSuperAdmin,
+            'isProfesseur' => $this->estProfesseur($user),
+            'isEducateur' => $this->estEducateur($user),
 
             'filters' => [
                 'etablissement_id' => $etablissementId,
@@ -288,18 +291,107 @@ class ClasseController extends Controller
     }
 
     /**
+     * Consultation d'une classe, de ses élèves et des notes déjà saisies.
+     */
+    public function show(Classe $classe)
+    {
+        $this->verifierAccesClasse(Auth::user(), $classe);
+
+        $classe->load([
+            'etablissement',
+            'anneeScolaire',
+            'niveau',
+        ]);
+
+        $eleves = $classe->eleves()
+            ->orderBy('nom')
+            ->orderBy('prenoms')
+            ->get([
+                'id',
+                'classe_id',
+                'nom',
+                'prenoms',
+                'matricule',
+                'sexe',
+                'redoublant',
+            ]);
+
+        $eleveIds = $eleves->pluck('id');
+
+        $queryEvaluations = Evaluation::query()
+            ->where('annee_scolaire_id', $classe->annee_scolaire_id)
+            ->where(function ($query) use ($classe) {
+                $query->where('classe_id', $classe->id)
+                    ->orWhereHas('classes', function ($classesQuery) use ($classe) {
+                        $classesQuery->where('classes.id', $classe->id);
+                    });
+            });
+
+        if ($this->estProfesseur(Auth::user())) {
+            $matieresAutorisees = Affectation::query()
+                ->where('enseignant_id', Auth::user()->enseignant_id)
+                ->where('classe_id', $classe->id)
+                ->where('annee_scolaire_id', $classe->annee_scolaire_id)
+                ->where('actif', true)
+                ->pluck('matiere_id');
+
+            $queryEvaluations->whereIn('matiere_id', $matieresAutorisees);
+        }
+
+        $evaluations = $eleveIds->isEmpty()
+            ? collect()
+            : $queryEvaluations
+            ->whereHas('notes', function ($query) use ($eleveIds) {
+                $query->whereIn('eleve_id', $eleveIds);
+            })
+            ->with([
+                'matiere:id,libelle',
+                'notes' => function ($query) use ($eleveIds) {
+                    $query->whereIn('eleve_id', $eleveIds);
+                },
+            ])
+            ->orderBy('date_evaluation')
+            ->orderBy('id')
+            ->get()
+            ->map(function (Evaluation $evaluation) {
+                return [
+                    'id' => $evaluation->id,
+                    'libelle' => $evaluation->libelle,
+                    'matiere_id' => $evaluation->matiere_id,
+                    'matiere' => $evaluation->matiere?->libelle,
+                    'type' => $evaluation->type,
+                    'periode' => $evaluation->periode,
+                    'date' => $evaluation->date_evaluation?->format('d/m/Y'),
+                    'bareme' => $evaluation->bareme,
+                    'notes' => $evaluation->notes->map(fn($note) => [
+                        'eleve_id' => $note->eleve_id,
+                        'note' => $note->note,
+                        'absent' => $note->absent,
+                    ])->values(),
+                ];
+            })
+            ->values();
+
+        return Inertia::render('Classes/Show', [
+            'classe' => $classe,
+            'eleves' => $eleves,
+            'evaluations' => $evaluations,
+        ]);
+    }
+
+    /**
      * Formulaire de création.
      *
-     * Un professeur ne peut pas créer de classe.
+     * Les professeurs et éducateurs ne peuvent pas créer de classe.
      */
     public function create()
     {
         $user = Auth::user();
 
         abort_unless(
-            !$this->estProfesseur($user),
+            !$this->estProfesseur($user) && !$this->estEducateur($user),
             403,
-            'Les professeurs ne peuvent pas créer de classe.'
+            'Les professeurs et éducateurs ne peuvent pas créer de classe.'
         );
 
         $anneeActive = AnneeScolaire::active();
@@ -352,9 +444,9 @@ class ClasseController extends Controller
         */
 
         abort_unless(
-            !$this->estProfesseur($user),
+            !$this->estProfesseur($user) && !$this->estEducateur($user),
             403,
-            'Les professeurs ne peuvent pas créer de classe.'
+            'Les professeurs et éducateurs ne peuvent pas créer de classe.'
         );
 
         $data = $request->validated();
@@ -410,14 +502,14 @@ class ClasseController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | PROFESSEUR : consultation uniquement
+        | PROFESSEUR ET ÉDUCATEUR : consultation uniquement
         |--------------------------------------------------------------------------
         */
 
         abort_unless(
-            !$this->estProfesseur($user),
+            !$this->estProfesseur($user) && !$this->estEducateur($user),
             403,
-            'Les professeurs ne peuvent pas modifier une classe.'
+            'Les professeurs et éducateurs ne peuvent pas modifier une classe.'
         );
 
         $etablissements = Etablissement::query()
@@ -466,7 +558,15 @@ class ClasseController extends Controller
                 ->get(),
 
             'maquettes' =>
-            Maquette::where('active', true)->get(),
+            Maquette::where(function ($query) use ($classe) {
+                $query
+                    ->where('active', true)
+                    ->orWhere('id', $classe->maquette_id);
+            })
+                ->orderBy('annee_scolaire_id')
+                ->orderBy('niveau_id')
+                ->orderBy('version')
+                ->get(),
         ]);
     }
 
@@ -492,14 +592,14 @@ class ClasseController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | PROFESSEUR INTERDIT
+        | PROFESSEUR ET ÉDUCATEUR INTERDITS
         |--------------------------------------------------------------------------
         */
 
         abort_unless(
-            !$this->estProfesseur($user),
+            !$this->estProfesseur($user) && !$this->estEducateur($user),
             403,
-            'Les professeurs ne peuvent pas modifier une classe.'
+            'Les professeurs et éducateurs ne peuvent pas modifier une classe.'
         );
 
         $validated =
@@ -556,14 +656,14 @@ class ClasseController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | PROFESSEUR INTERDIT
+        | PROFESSEUR ET ÉDUCATEUR INTERDITS
         |--------------------------------------------------------------------------
         */
 
         abort_unless(
-            !$this->estProfesseur($user),
+            !$this->estProfesseur($user) && !$this->estEducateur($user),
             403,
-            'Les professeurs ne peuvent pas supprimer une classe.'
+            'Les professeurs et éducateurs ne peuvent pas supprimer une classe.'
         );
 
         $classe->delete();
