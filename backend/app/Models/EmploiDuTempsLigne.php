@@ -12,15 +12,14 @@ class EmploiDuTempsLigne extends Model
         'classe_id',
         'matiere_id',
         'enseignant_id',
+        'regroupement_id',
         'jour',
         'salle',
     ];
 
     public function emploiDuTemps()
     {
-        return $this->belongsTo(
-            EmploiDuTemps::class
-        );
+        return $this->belongsTo(EmploiDuTemps::class);
     }
 
     public function creneau()
@@ -33,22 +32,26 @@ class EmploiDuTempsLigne extends Model
 
     public function classe()
     {
-        return $this->belongsTo(
-            Classe::class
-        );
+        return $this->belongsTo(Classe::class);
     }
 
     public function matiere()
     {
-        return $this->belongsTo(
-            Matiere::class
-        );
+        return $this->belongsTo(Matiere::class);
     }
 
     public function enseignant()
     {
-        return $this->belongsTo(
-            Enseignant::class
-        );
+        return $this->belongsTo(Enseignant::class);
+    }
+
+    public function lignesRegroupees()
+    {
+        return $this->hasMany(
+            self::class,
+            'regroupement_id',
+            'regroupement_id'
+        )
+            ->where('id', '!=', $this->id);
     }
 }

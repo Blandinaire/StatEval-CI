@@ -26,6 +26,7 @@ use App\Http\Controllers\EtablissementResponsableController;
 use App\Http\Controllers\EducateurClasseController;
 use App\Http\Controllers\EmploiDuTempsController;
 use App\Http\Controllers\CreneauHoraireController;
+use App\Http\Controllers\SalleController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -120,7 +121,7 @@ Route::middleware('auth')->group(function () {
         )->name('maquettes.matieres.descendre');
     });
 
-    Route::middleware('role:SuperAdmin|Administrateur|Direction')->group(function () {
+    Route::middleware('role:SuperAdmin|Administrateur|Directeur|Direction')->group(function () {
         Route::get('/emplois-du-temps', [EmploiDuTempsController::class, 'index'])
             ->name('emplois-du-temps.index');
         Route::post('/emplois-du-temps/creer', [EmploiDuTempsController::class, 'creer'])
@@ -131,6 +132,40 @@ Route::middleware('auth')->group(function () {
             ->name('emplois-du-temps.classes.reordonner');
         Route::delete('/emplois-du-temps/ligne/{ligne}', [EmploiDuTempsController::class, 'supprimerLigne'])
             ->name('emplois-du-temps.ligne.supprimer');
+        Route::patch(
+            '/emplois-du-temps/lignes/{ligne}/deplacer',
+            [EmploiDuTempsController::class, 'deplacerLigne']
+        )->name('emplois-du-temps.ligne.deplacer');
+
+        Route::patch(
+            '/emplois-du-temps/{emploi}/publier',
+            [EmploiDuTempsController::class, 'publier']
+        )->name('emplois-du-temps.publier');
+
+        Route::patch(
+            '/emplois-du-temps/{emploi}/depublier',
+            [EmploiDuTempsController::class, 'depublier']
+        )->name('emplois-du-temps.depublier');
+
+        Route::post(
+            '/salles',
+            [SalleController::class, 'store']
+        )->name('salles.store');
+
+        Route::put(
+            '/salles/{salle}',
+            [SalleController::class, 'update']
+        )->name('salles.update');
+
+        Route::patch(
+            '/salles/{salle}/toggle',
+            [SalleController::class, 'toggle']
+        )->name('salles.toggle');
+
+        Route::delete(
+            '/salles/{salle}',
+            [SalleController::class, 'destroy']
+        )->name('salles.destroy');
 
         Route::post('/creneaux-horaires', [CreneauHoraireController::class, 'store'])
             ->name('creneaux-horaires.store');

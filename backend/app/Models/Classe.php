@@ -19,6 +19,8 @@ class Classe extends Model
         'serie_id',
         'maquette_id',
         'libelle',
+        'salle_par_defaut',
+        'salle_id',
         'capacite',
         'active',
     ];
@@ -71,5 +73,10 @@ class Classe extends Model
     public function eleves(): HasMany
     {
         return $this->hasMany(Eleve::class);
+    }
+
+    public function salle()
+    {
+        return $this->belongsTo(Salle::class);
     }
 }

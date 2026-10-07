@@ -15,7 +15,7 @@ class CreneauHoraireController extends Controller
     {
         $user = $request->user();
 
-        abort_unless($user->hasAnyRole(['SuperAdmin', 'Administrateur', 'Direction']), 403);
+        abort_unless($user->hasAnyRole(['SuperAdmin', 'Administrateur','Directeur', 'Direction']), 403);
 
         return redirect()->route('emplois-du-temps.index');
     }
@@ -159,6 +159,18 @@ class CreneauHoraireController extends Controller
         );
 
         $this->verifierAcces($user, $creneau);
+
+        // Si le créneau est désactivé, on vérifie
+        // qu'il peut être réactivé sans chevaucher
+        // un autre créneau actif.
+        if (!$creneau->actif) {
+            $this->verifierAbsenceChevauchement(
+                (int) $creneau->etablissement_id,
+                $creneau->heure_debut,
+                $creneau->heure_fin,
+                (int) $creneau->id
+            );
+        }
 
         $creneau->update([
             'actif' => !$creneau->actif,

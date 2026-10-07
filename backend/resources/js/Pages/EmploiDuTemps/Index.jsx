@@ -7,10 +7,13 @@ import {
     Clock3,
     Pencil,
     Plus,
+    Power,
+    RotateCcw,
+    Send,
     Trash2,
     X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 const JOURS = [
     { key: "lundi", label: "Lundi" },
@@ -24,6 +27,7 @@ const nouvelleLigne = {
     jour: "lundi",
     creneau_horaire_id: "",
     classe_id: "",
+    classe_ids: [],
     matiere_id: "",
     enseignant_id: "",
     salle: "",
@@ -57,6 +61,106 @@ export default function Index({
     const [creneauForm, setCreneauForm] = useState(nouveauCreneau);
     const [erreur, setErreur] = useState("");
 
+    const [classesOrdonnees, setClassesOrdonnees] = useState(classes);
+    const [organisationClasses, setOrganisationClasses] = useState(false);
+    const [ordreClassesModifie, setOrdreClassesModifie] = useState(false);
+
+    const [coursDeplace, setCoursDeplace] = useState(null);
+    const [celluleSurvolee, setCelluleSurvolee] = useState(null);
+
+    useEffect(() => {
+        if (!organisationClasses || !ordreClassesModifie) {
+            setClassesOrdonnees(classes);
+        }
+    }, [classes, organisationClasses, ordreClassesModifie]);
+
+    useEffect(() => {
+        if (!cours.matiere_id) {
+            return;
+        }
+
+        const classeIds =
+            cours.classe_ids?.length > 0
+                ? cours.classe_ids
+                : coursModal?.classe?.id
+                  ? [String(coursModal.classe.id)]
+                  : [];
+
+        if (classeIds.length === 0) {
+            return;
+        }
+
+        // ============================================================
+        // ENSEIGNANT AUTOMATIQUE
+        // ============================================================
+
+        const enseignantsParClasse = classeIds.map((classeId) => {
+            return (
+                enseignantsParClasseMatiere?.[classeId]?.[cours.matiere_id] ??
+                []
+            );
+        });
+
+        let enseignantsCommuns = [];
+
+        if (
+            enseignantsParClasse.length > 0 &&
+            enseignantsParClasse.every((liste) => liste.length > 0)
+        ) {
+            enseignantsCommuns = enseignantsParClasse[0].filter((enseignant) =>
+                enseignantsParClasse.every((liste) =>
+                    liste.some(
+                        (item) => Number(item.id) === Number(enseignant.id),
+                    ),
+                ),
+            );
+        }
+
+        // Un seul enseignant commun = sélection automatique
+        if (enseignantsCommuns.length === 1) {
+            setCours((ancien) => ({
+                ...ancien,
+                enseignant_id: String(enseignantsCommuns[0].id),
+            }));
+        }
+
+        // ============================================================
+        // SALLE PAR DÉFAUT
+        // ============================================================
+
+        const salles = classeIds
+            .map(
+                (classeId) =>
+                    classesOrdonnees.find(
+                        (classe) => String(classe.id) === String(classeId),
+                    )?.salle_par_defaut,
+            )
+            .filter(Boolean);
+
+        const sallesUniques = [...new Set(salles.map((salle) => salle.trim()))];
+
+        // Une seule salle commune = proposition automatique
+        if (sallesUniques.length === 1) {
+            setCours((ancien) => ({
+                ...ancien,
+                salle: sallesUniques[0],
+            }));
+        } else if (sallesUniques.length > 1) {
+            // Classes ayant des salles différentes :
+            // on ne choisit pas arbitrairement.
+            setCours((ancien) => ({
+                ...ancien,
+                salle: "",
+            }));
+        }
+    }, [
+        cours.matiere_id,
+        cours.classe_ids,
+        coursModal?.classe?.id,
+        enseignantsParClasseMatiere,
+        classesOrdonnees,
+    ]);
+
     const annee = annees.find(
         (item) => Number(item.id) === Number(filtres.annee_scolaire_id),
     );
@@ -74,24 +178,96 @@ export default function Index({
         return result;
     }, [emploi?.lignes]);
 
-    const matieresClasse = matieresParClasse[coursModal?.classe?.id] ?? [];
+    const matieresClasse = useMemo(() => {
+        const classeIds =
+            cours.classe_ids?.length > 0
+                ? cours.classe_ids
+                : coursModal?.classe?.id
+                  ? [String(coursModal.classe.id)]
+                  : [];
+
+        if (classeIds.length === 0) {
+            return [];
+        }
+
+        const listes = classeIds.map(
+            (classeId) => matieresParClasse[classeId] ?? [],
+        );
+
+        if (listes.some((liste) => liste.length === 0)) {
+            return [];
+        }
+
+        const premiereListe = listes[0];
+
+        return premiereListe
+            .filter((matiere) =>
+                listes.every((liste) =>
+                    liste.some((item) => item.id === matiere.id),
+                ),
+            )
+            .sort((a, b) => a.libelle.localeCompare(b.libelle));
+    }, [cours.classe_ids, coursModal?.classe?.id, matieresParClasse]);
     const enseignantsCours =
         enseignantsParClasseMatiere[cours.classe_id]?.[cours.matiere_id] ?? [];
+    function commencerOrganisationClasses() {
+        setClassesOrdonnees([...classes]);
+        setOrdreClassesModifie(false);
+        setOrganisationClasses(true);
+        setErreur("");
+    }
 
     function deplacerClasse(index, direction) {
-        const prochaineListe = [...classes];
+        const prochaineListe = [...classesOrdonnees];
         const cible = index + direction;
-        if (cible < 0 || cible >= prochaineListe.length || !emploi?.id) return;
+
+        if (cible < 0 || cible >= prochaineListe.length) {
+            return;
+        }
 
         [prochaineListe[index], prochaineListe[cible]] = [
             prochaineListe[cible],
             prochaineListe[index],
         ];
 
+        setClassesOrdonnees(prochaineListe);
+        setOrdreClassesModifie(true);
+    }
+
+    function annulerOrganisationClasses() {
+        setClassesOrdonnees([...classes]);
+        setOrdreClassesModifie(false);
+        setOrganisationClasses(false);
+        setErreur("");
+    }
+
+    function validerOrdreClasses() {
+        if (!emploi?.id || !ordreClassesModifie) {
+            return;
+        }
+
+        setErreur("");
+
         router.patch(
             route("emplois-du-temps.classes.reordonner", emploi.id),
-            { ordre_classes: prochaineListe.map((classe) => classe.id) },
-            { preserveScroll: true },
+            {
+                ordre_classes: classesOrdonnees.map((classe) => classe.id),
+            },
+            {
+                preserveScroll: true,
+
+                onSuccess: () => {
+                    setOrganisationClasses(false);
+                    setOrdreClassesModifie(false);
+                },
+
+                onError: (errors) => {
+                    setErreur(
+                        Object.values(errors)[0] ??
+                            "Impossible d'enregistrer l'ordre des classes.",
+                    );
+                },
+            },
         );
     }
 
@@ -133,34 +309,90 @@ export default function Index({
 
     function ouvrirCours(jour, creneau, classe, ligne = null) {
         setErreur("");
+
+        const classesDuCours =
+            ligne?.regroupement_id && emploi?.lignes
+                ? emploi.lignes
+                      .filter(
+                          (item) =>
+                              item.regroupement_id === ligne.regroupement_id,
+                      )
+                      .map((item) => String(item.classe_id))
+                : [String(classe.id)];
+
+        const classesUniques = [...new Set(classesDuCours)];
+
         setCours({
             jour,
             creneau_horaire_id: String(creneau.id),
             classe_id: String(classe.id),
+            classe_ids: classesUniques,
             matiere_id: ligne?.matiere_id ? String(ligne.matiere_id) : "",
             enseignant_id: ligne?.enseignant_id
                 ? String(ligne.enseignant_id)
                 : "",
             salle: ligne?.salle ?? "",
         });
-        setCoursModal({ jour, creneau, classe, ligne });
+
+        setCoursModal({
+            jour,
+            creneau,
+            classe,
+            ligne,
+            classeIds: classesUniques,
+            groupe: classesUniques.length > 1 ? classesUniques : null,
+        });
     }
 
     function enregistrerCours(event) {
         event.preventDefault();
-        if (!emploi?.id) return;
+
+        if (!emploi?.id) {
+            return;
+        }
+
+        const classeIds = [
+            ...new Set(
+                (cours.classe_ids ?? [])
+                    .filter(Boolean)
+                    .map((id) => Number(id)),
+            ),
+        ];
+
+        if (classeIds.length === 0 && cours.classe_id) {
+            classeIds.push(Number(cours.classe_id));
+        }
+
+        if (classeIds.length === 0) {
+            setErreur("Sélectionnez au moins une classe.");
+            return;
+        }
 
         router.post(
             route("emplois-du-temps.ligne.enregistrer"),
-            { emploi_du_temps_id: emploi.id, ...cours },
+            {
+                emploi_du_temps_id: emploi.id,
+                jour: cours.jour,
+                creneau_horaire_id: cours.creneau_horaire_id,
+                classe_id: classeIds[0],
+                classe_ids: classeIds,
+                matiere_id: cours.matiere_id,
+                enseignant_id: cours.enseignant_id || null,
+                salle: cours.salle || null,
+            },
             {
                 preserveScroll: true,
-                onSuccess: () => setCoursModal(null),
-                onError: (errors) =>
+
+                onSuccess: () => {
+                    setCoursModal(null);
+                },
+
+                onError: (errors) => {
                     setErreur(
                         Object.values(errors)[0] ??
                             "Enregistrement impossible.",
-                    ),
+                    );
+                },
             },
         );
     }
@@ -171,6 +403,103 @@ export default function Index({
         router.delete(route("emplois-du-temps.ligne.supprimer", ligne.id), {
             preserveScroll: true,
         });
+    }
+
+    function commencerDeplacement(event, ligne) {
+        event.dataTransfer.effectAllowed = "move";
+
+        event.dataTransfer.setData("text/plain", String(ligne.id));
+
+        setCoursDeplace(ligne);
+    }
+
+    function terminerDeplacement() {
+        setCoursDeplace(null);
+        setCelluleSurvolee(null);
+    }
+
+    function survolerCellule(event, jour, creneau) {
+        if (!coursDeplace) {
+            return;
+        }
+
+        if (pause(creneau)) {
+            return;
+        }
+
+        event.preventDefault();
+
+        event.dataTransfer.dropEffect = "move";
+
+        setCelluleSurvolee({
+            jour,
+            creneauId: creneau.id,
+        });
+    }
+
+    function quitterCellule(event) {
+        /*
+         * Évite les clignotements lorsque le curseur passe
+         * entre les éléments enfants de la cellule.
+         */
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+            setCelluleSurvolee(null);
+        }
+    }
+
+    function deposerCours(event, jour, creneau) {
+        event.preventDefault();
+
+        if (!coursDeplace) {
+            return;
+        }
+
+        if (pause(creneau)) {
+            terminerDeplacement();
+            return;
+        }
+
+        /*
+         * Si le cours est déjà exactement à cet emplacement,
+         * inutile d'envoyer une requête.
+         */
+        if (
+            coursDeplace.jour === jour &&
+            Number(coursDeplace.creneau_horaire_id) === Number(creneau.id)
+        ) {
+            terminerDeplacement();
+            return;
+        }
+
+        setErreur("");
+
+        router.patch(
+            route("emplois-du-temps.ligne.deplacer", coursDeplace.id),
+            {
+                jour,
+                creneau_horaire_id: creneau.id,
+            },
+            {
+                preserveScroll: true,
+
+                onSuccess: () => {
+                    terminerDeplacement();
+                },
+
+                onError: (errors) => {
+                    setErreur(
+                        Object.values(errors)[0] ??
+                            "Impossible de déplacer ce cours.",
+                    );
+
+                    terminerDeplacement();
+                },
+
+                onFinish: () => {
+                    setCoursDeplace(null);
+                },
+            },
+        );
     }
 
     function ouvrirCreneau(creneau = null) {
@@ -229,12 +558,94 @@ export default function Index({
         });
     }
 
+    function basculerCreneau(creneau) {
+        const action = creneau.actif ? "désactiver" : "activer";
+
+        if (
+            !confirm(
+                `Voulez-vous ${action} le créneau « ${creneau.libelle} » ?`,
+            )
+        ) {
+            return;
+        }
+
+        router.patch(
+            route("creneaux-horaires.toggle", creneau.id),
+            {},
+            {
+                preserveScroll: true,
+            },
+        );
+    }
+
     const selectionComplete = Boolean(
         filtres.etablissement_id && filtres.annee_scolaire_id,
     );
     const pause = (creneau) =>
         creneau.type === "pause" ||
         /pause|récré|recre/i.test(creneau.libelle ?? "");
+
+    function publierEmploi() {
+        if (!emploi?.id) {
+            return;
+        }
+
+        if (
+            !confirm(
+                "Voulez-vous publier cet emploi du temps ?\n\nAprès publication, les modifications seront verrouillées.",
+            )
+        ) {
+            return;
+        }
+
+        setErreur("");
+
+        router.patch(
+            route("emplois-du-temps.publier", emploi.id),
+            {},
+            {
+                preserveScroll: true,
+
+                onError: (errors) => {
+                    setErreur(
+                        Object.values(errors)[0] ??
+                            "Impossible de publier l'emploi du temps.",
+                    );
+                },
+            },
+        );
+    }
+
+    function depublierEmploi() {
+        if (!emploi?.id) {
+            return;
+        }
+
+        if (
+            !confirm(
+                "Voulez-vous repasser cet emploi du temps en brouillon ?\n\nIl pourra alors être modifié à nouveau.",
+            )
+        ) {
+            return;
+        }
+
+        setErreur("");
+
+        router.patch(
+            route("emplois-du-temps.depublier", emploi.id),
+            {},
+            {
+                preserveScroll: true,
+
+                onError: (errors) => {
+                    setErreur(
+                        Object.values(errors)[0] ??
+                            "Impossible de repasser l'emploi du temps en brouillon.",
+                    );
+                },
+            },
+        );
+    }
 
     return (
         <AdminLayout>
@@ -357,13 +768,14 @@ export default function Index({
                                 creneaux.map((creneau) => (
                                     <div
                                         key={creneau.id}
-                                        className="flex flex-wrap items-center justify-between gap-3 py-3"
+                                        className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 py-3 last:border-b-0"
                                     >
-                                        <div>
+                                        <div className="flex flex-wrap items-center gap-2">
                                             <span className="font-semibold text-gray-800">
                                                 {creneau.libelle}
                                             </span>
-                                            <span className="ml-3 text-sm tabular-nums text-gray-500">
+
+                                            <span className="text-sm tabular-nums text-gray-500">
                                                 {creneau.heure_debut?.slice(
                                                     0,
                                                     5,
@@ -371,28 +783,71 @@ export default function Index({
                                                 –
                                                 {creneau.heure_fin?.slice(0, 5)}
                                             </span>
-                                            <span className="ml-3 text-xs text-gray-400">
+
+                                            <span className="text-xs text-gray-400">
                                                 Ordre {creneau.ordre}
                                             </span>
+
+                                            <span
+                                                className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                                    creneau.actif
+                                                        ? "bg-green-100 text-green-700"
+                                                        : "bg-gray-100 text-gray-500"
+                                                }`}
+                                            >
+                                                {creneau.actif
+                                                    ? "Actif"
+                                                    : "Désactivé"}
+                                            </span>
+
+                                            {creneau.type === "pause" && (
+                                                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                                                    Pause
+                                                </span>
+                                            )}
                                         </div>
-                                        <div className="flex gap-1">
+
+                                        <div className="flex items-center gap-1">
+                                            {/* Modifier */}
                                             <button
                                                 type="button"
                                                 title="Modifier l’horaire"
                                                 onClick={() =>
                                                     ouvrirCreneau(creneau)
                                                 }
-                                                className="rounded p-2 text-gray-500 hover:bg-gray-100 hover:text-teal-800"
+                                                className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 hover:text-teal-800"
                                             >
                                                 <Pencil size={16} />
                                             </button>
+
+                                            {/* Activer / Désactiver */}
+                                            <button
+                                                type="button"
+                                                title={
+                                                    creneau.actif
+                                                        ? "Désactiver l’horaire"
+                                                        : "Activer l’horaire"
+                                                }
+                                                onClick={() =>
+                                                    basculerCreneau(creneau)
+                                                }
+                                                className={`rounded-lg p-2 transition ${
+                                                    creneau.actif
+                                                        ? "text-gray-500 hover:bg-orange-50 hover:text-orange-700"
+                                                        : "text-green-600 hover:bg-green-50 hover:text-green-700"
+                                                }`}
+                                            >
+                                                <Power size={16} />
+                                            </button>
+
+                                            {/* Supprimer */}
                                             <button
                                                 type="button"
                                                 title="Supprimer l’horaire"
                                                 onClick={() =>
                                                     supprimerCreneau(creneau)
                                                 }
-                                                className="rounded p-2 text-gray-500 hover:bg-red-50 hover:text-red-700"
+                                                className="rounded-lg p-2 text-gray-500 transition hover:bg-red-50 hover:text-red-700"
                                             >
                                                 <Trash2 size={16} />
                                             </button>
@@ -406,6 +861,116 @@ export default function Index({
 
                 {selectionComplete && (
                     <>
+                        <div
+                            className={`mb-4 flex flex-col gap-3 rounded-xl border p-4 sm:flex-row sm:items-center sm:justify-between ${
+                                emploi?.statut === "publie"
+                                    ? "border-green-200 bg-green-50"
+                                    : "border-amber-200 bg-amber-50"
+                            }`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div
+                                    className={`flex h-10 w-10 items-center justify-center rounded-full ${
+                                        emploi?.statut === "publie"
+                                            ? "bg-green-100 text-green-700"
+                                            : "bg-amber-100 text-amber-700"
+                                    }`}
+                                >
+                                    {emploi?.statut === "publie" ? (
+                                        <Send size={18} />
+                                    ) : (
+                                        <Pencil size={18} />
+                                    )}
+                                </div>
+
+                                <div>
+                                    <div
+                                        className={`text-sm font-bold uppercase ${
+                                            emploi?.statut === "publie"
+                                                ? "text-green-800"
+                                                : "text-amber-800"
+                                        }`}
+                                    >
+                                        {emploi?.statut === "publie"
+                                            ? "Emploi du temps publié"
+                                            : "Emploi du temps en brouillon"}
+                                    </div>
+
+                                    <p className="text-xs text-gray-600">
+                                        {emploi?.statut === "publie"
+                                            ? "Version officielle — les modifications sont verrouillées."
+                                            : "Version de travail — vous pouvez encore modifier l'emploi du temps."}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                                {emploi?.statut === "publie" ? (
+                                    <button
+                                        type="button"
+                                        onClick={depublierEmploi}
+                                        className="inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 shadow-sm transition hover:bg-gray-50"
+                                    >
+                                        <RotateCcw size={16} />
+                                        Repasser en brouillon
+                                    </button>
+                                ) : (
+                                    <button
+                                        type="button"
+                                        onClick={publierEmploi}
+                                        className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-green-700"
+                                    >
+                                        <Send size={16} />
+                                        Publier l'emploi du temps
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-white p-3 shadow-sm">
+                            <div>
+                                <h3 className="font-semibold text-gray-800">
+                                    Organisation des classes
+                                </h3>
+
+                                <p className="text-sm text-gray-500">
+                                    {organisationClasses
+                                        ? "Déplacez les classes puis validez l'ordre."
+                                        : "Vous pouvez modifier l'ordre d'affichage des classes."}
+                                </p>
+                            </div>
+
+                            {!organisationClasses ? (
+                                <button
+                                    type="button"
+                                    onClick={commencerOrganisationClasses}
+                                    className="inline-flex items-center gap-2 rounded-lg bg-gray-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-gray-700"
+                                >
+                                    <Pencil className="h-4 w-4" />
+                                    Organiser les classes
+                                </button>
+                            ) : (
+                                <div className="flex flex-wrap gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={annulerOrganisationClasses}
+                                        className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                                    >
+                                        <X className="h-4 w-4" />
+                                        Annuler
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        onClick={validerOrdreClasses}
+                                        disabled={!ordreClassesModifie}
+                                        className="inline-flex items-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        ✓ Valider l'ordre
+                                    </button>
+                                </div>
+                            )}
+                        </div>
                         <nav
                             className="flex gap-1 overflow-x-auto border-b border-gray-200"
                             aria-label="Jours de la semaine"
@@ -456,71 +1021,75 @@ export default function Index({
                                                 <th className="sticky left-0 z-20 w-40 min-w-40 border-b border-r border-gray-200 bg-gray-100 px-4 py-3 text-left">
                                                     Horaires
                                                 </th>
-                                                {classes.map((classe) => (
-                                                    <th
-                                                        key={classe.id}
-                                                        className="min-w-44 border-b border-r border-gray-200 px-3 py-3 text-center last:border-r-0"
-                                                    >
-                                                        <span className="mb-1 flex justify-center gap-1">
-                                                            <button
-                                                                type="button"
-                                                                title={`Déplacer ${classe.libelle} à gauche`}
-                                                                aria-label={`Déplacer ${classe.libelle} à gauche`}
-                                                                disabled={
-                                                                    classes[0]
-                                                                        ?.id ===
-                                                                    classe.id
-                                                                }
-                                                                onClick={() =>
-                                                                    deplacerClasse(
-                                                                        classes.indexOf(
-                                                                            classe,
-                                                                        ),
-                                                                        -1,
-                                                                    )
-                                                                }
-                                                                className="rounded p-1 text-gray-500 hover:bg-white hover:text-teal-800 disabled:opacity-30"
-                                                            >
-                                                                <ChevronLeft
-                                                                    size={15}
-                                                                />
-                                                            </button>
-                                                            <button
-                                                                type="button"
-                                                                title={`Déplacer ${classe.libelle} à droite`}
-                                                                aria-label={`Déplacer ${classe.libelle} à droite`}
-                                                                disabled={
-                                                                    classes[
-                                                                        classes.length -
-                                                                            1
-                                                                    ]?.id ===
-                                                                    classe.id
-                                                                }
-                                                                onClick={() =>
-                                                                    deplacerClasse(
-                                                                        classes.indexOf(
-                                                                            classe,
-                                                                        ),
-                                                                        1,
-                                                                    )
-                                                                }
-                                                                className="rounded p-1 text-gray-500 hover:bg-white hover:text-teal-800 disabled:opacity-30"
-                                                            >
-                                                                <ChevronRight
-                                                                    size={15}
-                                                                />
-                                                            </button>
-                                                        </span>
-                                                        <span className="block text-sm font-bold normal-case text-gray-900">
-                                                            {classe.libelle}
-                                                        </span>
-                                                        <span className="mt-0.5 block text-[10px] font-medium normal-case text-gray-500">
-                                                            {classe.niveau
-                                                                ?.libelle ??
-                                                                "Classe"}
-                                                        </span>
-                                                    </th>
-                                                ))}
+                                                {classesOrdonnees.map(
+                                                    (classe, index) => (
+                                                        <th
+                                                            key={classe.id}
+                                                            className="min-w-44 border-b border-r border-gray-200 px-3 py-3 text-center last:border-r-0"
+                                                        >
+                                                            {organisationClasses && (
+                                                                <span className="mb-2 flex justify-center gap-1">
+                                                                    <button
+                                                                        type="button"
+                                                                        title={`Déplacer ${classe.libelle} à gauche`}
+                                                                        aria-label={`Déplacer ${classe.libelle} à gauche`}
+                                                                        disabled={
+                                                                            index ===
+                                                                            0
+                                                                        }
+                                                                        onClick={() =>
+                                                                            deplacerClasse(
+                                                                                index,
+                                                                                -1,
+                                                                            )
+                                                                        }
+                                                                        className="rounded-md border border-gray-200 bg-white p-1 text-gray-500 transition hover:bg-gray-50 hover:text-teal-800 disabled:cursor-not-allowed disabled:opacity-30"
+                                                                    >
+                                                                        <ChevronLeft
+                                                                            size={
+                                                                                15
+                                                                            }
+                                                                        />
+                                                                    </button>
+
+                                                                    <button
+                                                                        type="button"
+                                                                        title={`Déplacer ${classe.libelle} à droite`}
+                                                                        aria-label={`Déplacer ${classe.libelle} à droite`}
+                                                                        disabled={
+                                                                            index ===
+                                                                            classesOrdonnees.length -
+                                                                                1
+                                                                        }
+                                                                        onClick={() =>
+                                                                            deplacerClasse(
+                                                                                index,
+                                                                                1,
+                                                                            )
+                                                                        }
+                                                                        className="rounded-md border border-gray-200 bg-white p-1 text-gray-500 transition hover:bg-gray-50 hover:text-teal-800 disabled:cursor-not-allowed disabled:opacity-30"
+                                                                    >
+                                                                        <ChevronRight
+                                                                            size={
+                                                                                15
+                                                                            }
+                                                                        />
+                                                                    </button>
+                                                                </span>
+                                                            )}
+
+                                                            <span className="block text-sm font-bold normal-case text-gray-900">
+                                                                {classe.libelle}
+                                                            </span>
+
+                                                            <span className="mt-0.5 block text-[10px] font-medium normal-case text-gray-500">
+                                                                {classe.niveau
+                                                                    ?.libelle ??
+                                                                    "Classe"}
+                                                            </span>
+                                                        </th>
+                                                    ),
+                                                )}
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -530,6 +1099,7 @@ export default function Index({
                                                         <span className="block text-xs font-bold uppercase text-gray-700">
                                                             {creneau.libelle}
                                                         </span>
+
                                                         <span className="mt-1 block text-sm font-semibold tabular-nums text-gray-900">
                                                             {creneau.heure_debut?.slice(
                                                                 0,
@@ -542,10 +1112,11 @@ export default function Index({
                                                             )}
                                                         </span>
                                                     </th>
+
                                                     {pause(creneau) ? (
                                                         <td
                                                             colSpan={
-                                                                classes.length
+                                                                classesOrdonnees.length
                                                             }
                                                             className="border-b border-gray-200 bg-amber-50 px-4 py-3 text-center text-xs font-bold uppercase tracking-wider text-amber-800"
                                                         >
@@ -553,7 +1124,7 @@ export default function Index({
                                                                 "Récréation / Pause"}
                                                         </td>
                                                     ) : (
-                                                        classes.map(
+                                                        classesOrdonnees.map(
                                                             (classe) => {
                                                                 const ligne =
                                                                     grille.get(
@@ -565,11 +1136,60 @@ export default function Index({
                                                                         key={
                                                                             classe.id
                                                                         }
-                                                                        className="h-24 border-b border-r border-gray-200 p-1.5 align-top last:border-r-0"
+                                                                        onDragOver={(
+                                                                            event,
+                                                                        ) =>
+                                                                            survolerCellule(
+                                                                                event,
+                                                                                jourActif,
+                                                                                creneau,
+                                                                            )
+                                                                        }
+                                                                        onDrop={(
+                                                                            event,
+                                                                        ) =>
+                                                                            deposerCours(
+                                                                                event,
+                                                                                jourActif,
+                                                                                creneau,
+                                                                            )
+                                                                        }
+                                                                        onDragLeave={
+                                                                            quitterCellule
+                                                                        }
+                                                                        className={`h-24 border-b border-r border-gray-200 p-1.5 align-top transition last:border-r-0 ${
+                                                                            celluleSurvolee?.jour ===
+                                                                                jourActif &&
+                                                                            Number(
+                                                                                celluleSurvolee?.creneauId,
+                                                                            ) ===
+                                                                                Number(
+                                                                                    creneau.id,
+                                                                                )
+                                                                                ? "bg-teal-50 ring-2 ring-inset ring-teal-500"
+                                                                                : ""
+                                                                        }`}
                                                                     >
                                                                         {ligne ? (
                                                                             <article
-                                                                                className="group relative h-full min-h-20 border-l-4 p-2.5"
+                                                                                draggable
+                                                                                onDragStart={(
+                                                                                    event,
+                                                                                ) =>
+                                                                                    commencerDeplacement(
+                                                                                        event,
+                                                                                        ligne,
+                                                                                    )
+                                                                                }
+                                                                                onDragEnd={
+                                                                                    terminerDeplacement
+                                                                                }
+                                                                                className={`group relative h-full min-h-20 cursor-grab border-l-4 p-2.5 transition active:cursor-grabbing ${
+                                                                                    coursDeplace?.id ===
+                                                                                    ligne.id
+                                                                                        ? "scale-[0.98] opacity-40"
+                                                                                        : "hover:shadow-sm"
+                                                                                }`}
                                                                                 style={{
                                                                                     borderLeftColor:
                                                                                         /^#[\da-f]{6}$/i.test(
@@ -582,7 +1202,19 @@ export default function Index({
                                                                                                   .matiere
                                                                                                   .couleur
                                                                                             : "#0f766e",
-                                                                                    backgroundColor: `color-mix(in srgb, ${/^#[\da-f]{6}$/i.test(ligne.matiere?.couleur ?? "") ? ligne.matiere.couleur : "#0f766e"} 13%, white)`,
+
+                                                                                    backgroundColor: `color-mix(in srgb, ${
+                                                                                        /^#[\da-f]{6}$/i.test(
+                                                                                            ligne
+                                                                                                .matiere
+                                                                                                ?.couleur ??
+                                                                                                "",
+                                                                                        )
+                                                                                            ? ligne
+                                                                                                  .matiere
+                                                                                                  .couleur
+                                                                                            : "#0f766e"
+                                                                                    } 13%, white)`,
                                                                                 }}
                                                                             >
                                                                                 <h3 className="pr-12 text-sm font-bold leading-snug text-gray-900">
@@ -591,6 +1223,7 @@ export default function Index({
                                                                                         ?.libelle ??
                                                                                         "Matière"}
                                                                                 </h3>
+
                                                                                 {ligne.enseignant && (
                                                                                     <p className="mt-1 text-xs text-gray-600">
                                                                                         {
@@ -605,6 +1238,7 @@ export default function Index({
                                                                                         }
                                                                                     </p>
                                                                                 )}
+
                                                                                 {ligne.salle && (
                                                                                     <p className="mt-1 text-xs text-gray-500">
                                                                                         Salle{" "}
@@ -613,6 +1247,7 @@ export default function Index({
                                                                                         }
                                                                                     </p>
                                                                                 )}
+
                                                                                 <div className="absolute right-1 top-1 flex opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
                                                                                     <button
                                                                                         type="button"
@@ -633,6 +1268,7 @@ export default function Index({
                                                                                             }
                                                                                         />
                                                                                     </button>
+
                                                                                     <button
                                                                                         type="button"
                                                                                         title="Supprimer le cours"
@@ -661,7 +1297,18 @@ export default function Index({
                                                                                         classe,
                                                                                     )
                                                                                 }
-                                                                                className="flex h-full min-h-20 w-full items-center justify-center border border-dashed border-gray-200 text-gray-300 transition hover:border-teal-500 hover:bg-teal-50 hover:text-teal-700"
+                                                                                className={`flex h-full min-h-20 w-full items-center justify-center border border-dashed transition ${
+                                                                                    celluleSurvolee?.jour ===
+                                                                                        jourActif &&
+                                                                                    Number(
+                                                                                        celluleSurvolee?.creneauId,
+                                                                                    ) ===
+                                                                                        Number(
+                                                                                            creneau.id,
+                                                                                        )
+                                                                                        ? "border-teal-500 bg-teal-50 text-teal-700"
+                                                                                        : "border-gray-200 text-gray-300 hover:border-teal-500 hover:bg-teal-50 hover:text-teal-700"
+                                                                                }`}
                                                                                 title={`Ajouter un cours pour ${classe.libelle}`}
                                                                             >
                                                                                 <Plus
@@ -712,8 +1359,10 @@ export default function Index({
                             <div className="flex items-start justify-between border-b border-gray-200 px-5 py-4">
                                 <div>
                                     <p className="text-xs font-bold uppercase text-teal-700">
-                                        {coursModal.classe.libelle} ·{" "}
-                                        {coursModal.jour}
+                                        {cours.classe_ids?.length > 1
+                                            ? `${cours.classe_ids.length} classes regroupées`
+                                            : coursModal.classe.libelle}{" "}
+                                        · {coursModal.jour}
                                     </p>
                                     <h2
                                         id="cours-titre"
@@ -749,6 +1398,131 @@ export default function Index({
                                 onSubmit={enregistrerCours}
                                 className="space-y-4 p-5"
                             >
+                                <div className="block text-sm font-semibold text-gray-700">
+                                    <div className="flex items-center justify-between">
+                                        <span>Classes concernées</span>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const toutesLesClasses =
+                                                    classesOrdonnees.map(
+                                                        (classe) =>
+                                                            String(classe.id),
+                                                    );
+
+                                                const toutesSelectionnees =
+                                                    toutesLesClasses.every(
+                                                        (id) =>
+                                                            cours.classe_ids?.includes(
+                                                                id,
+                                                            ),
+                                                    );
+
+                                                setCours({
+                                                    ...cours,
+                                                    classe_ids:
+                                                        toutesSelectionnees
+                                                            ? [
+                                                                  String(
+                                                                      coursModal
+                                                                          .classe
+                                                                          .id,
+                                                                  ),
+                                                              ]
+                                                            : toutesLesClasses,
+                                                    classe_id:
+                                                        toutesSelectionnees
+                                                            ? String(
+                                                                  coursModal
+                                                                      .classe
+                                                                      .id,
+                                                              )
+                                                            : (toutesLesClasses[0] ??
+                                                              ""),
+                                                });
+                                            }}
+                                            className="text-xs font-semibold text-teal-700 hover:text-teal-900"
+                                        >
+                                            {classesOrdonnees.length > 0 &&
+                                            classesOrdonnees.every((classe) =>
+                                                cours.classe_ids?.includes(
+                                                    String(classe.id),
+                                                ),
+                                            )
+                                                ? "Tout désélectionner"
+                                                : "Tout sélectionner"}
+                                        </button>
+                                    </div>
+
+                                    <div className="mt-2 max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-gray-50 p-2">
+                                        <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
+                                            {classesOrdonnees.map((classe) => {
+                                                const classeId = String(
+                                                    classe.id,
+                                                );
+
+                                                const selectionnee =
+                                                    cours.classe_ids?.includes(
+                                                        classeId,
+                                                    );
+
+                                                return (
+                                                    <label
+                                                        key={classe.id}
+                                                        className={`flex cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm transition ${
+                                                            selectionnee
+                                                                ? "bg-teal-50 text-teal-900"
+                                                                : "hover:bg-white"
+                                                        }`}
+                                                    >
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={
+                                                                selectionnee
+                                                            }
+                                                            onChange={() => {
+                                                                const nouvellesClasses =
+                                                                    selectionnee
+                                                                        ? cours.classe_ids.filter(
+                                                                              (
+                                                                                  id,
+                                                                              ) =>
+                                                                                  id !==
+                                                                                  classeId,
+                                                                          )
+                                                                        : [
+                                                                              ...(cours.classe_ids ??
+                                                                                  []),
+                                                                              classeId,
+                                                                          ];
+
+                                                                setCours({
+                                                                    ...cours,
+                                                                    classe_ids:
+                                                                        nouvellesClasses,
+                                                                    classe_id:
+                                                                        nouvellesClasses[0] ??
+                                                                        "",
+                                                                });
+                                                            }}
+                                                            className="rounded border-gray-300 text-teal-700 focus:ring-teal-600"
+                                                        />
+
+                                                        <span className="font-medium">
+                                                            {classe.libelle}
+                                                        </span>
+                                                    </label>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+
+                                    <p className="mt-1 text-xs font-normal text-gray-500">
+                                        Sélectionnez plusieurs classes pour
+                                        créer un cours regroupé.
+                                    </p>
+                                </div>
                                 <label className="block text-sm font-semibold text-gray-700">
                                     Matière
                                     <select

@@ -14,6 +14,7 @@ class EmploiDuTemps extends Model
         'nom',
         'statut',
         'ordre_classes',
+        'salle_id',
     ];
 
     protected $casts = [
@@ -39,5 +40,10 @@ class EmploiDuTemps extends Model
         return $this->hasMany(
             EmploiDuTempsLigne::class
         );
+    }
+
+    public function salle()
+    {
+        return $this->belongsTo(Salle::class);
     }
 }
