@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">StatEval-CI</string>
+    <string name="title_activity_main">StatEval-CI</string>
+    <string name="package_name">ci.stateval.mobile</string>
+    <string name="custom_url_scheme">ci.stateval.mobile</string>
+</resources>

@@ -1,0 +1,5 @@
+{
+  "appId": "ci.stateval.mobile",
+  "appName": "StatEval-CI",
+  "webDir": "dist"
+}

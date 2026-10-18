@@ -1,0 +1,17 @@
+﻿# Dépendances et fichiers générés
+node_modules/
+dist/
+coverage/
+
+# Fichiers d'environnement et secrets
+.env
+.env.*
+!.env.example
+
+# Fichiers temporaires
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
