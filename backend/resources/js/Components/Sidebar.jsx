@@ -13,6 +13,7 @@ import {
     ClipboardCheck,
     FileText,
     UserRound,
+    DoorOpen,
     UserX,
     Clock,
     X,
@@ -275,6 +276,22 @@ export default function Sidebar({ isOpen, closeSidebar }) {
 
                 {(isProfesseur || isEducateur) && (
                     <>
+                        <SectionTitle>Consultation</SectionTitle>
+                        <MenuItem
+                            href="/emplois-du-temps"
+                            icon={CalendarDays}
+                            activeMatch={["/emplois-du-temps"]}
+                            onClick={closeSidebar}
+                        >
+                            {isProfesseur
+                                ? "Mon emploi du temps"
+                                : "Emploi du temps des classes"}
+                        </MenuItem>
+                    </>
+                )}
+
+                {(isProfesseur || isEducateur) && (
+                    <>
                         <SectionTitle>
                             {isProfesseur ? "Mes classes" : "Classes"}
                         </SectionTitle>
@@ -517,6 +534,15 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                 {canManageClasses && (
                     <>
                         <SectionTitle>Organisation</SectionTitle>
+
+                        <MenuItem
+                            href="/salles"
+                            icon={DoorOpen}
+                            activeMatch={["/salles"]}
+                            onClick={closeSidebar}
+                        >
+                            Salles
+                        </MenuItem>
 
                         <MenuItem
                             href="/emplois-du-temps"

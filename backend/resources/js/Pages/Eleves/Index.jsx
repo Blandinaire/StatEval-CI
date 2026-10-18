@@ -35,6 +35,7 @@ export default function Index({
     const [classeId, setClasseId] = useState("");
     const [filtresOuverts, setFiltresOuverts] = useState(false);
     const [filtreQualite, setFiltreQualite] = useState("");
+    const [nombreLignes, setNombreLignes] = useState(10);
 
     const [etablissementId, setEtablissementId] = useState(
         filtres?.etablissement_id ? String(filtres.etablissement_id) : "",
@@ -635,6 +636,13 @@ export default function Index({
         });
     }, [eleves, recherche, niveauId, classeId, filtreQualite]);
 
+    const elevesAffiches = elevesFiltres.slice(0, nombreLignes);
+    const nombreLignesMaximum = Math.max(
+        10,
+        nombreLignes,
+        Math.ceil(elevesFiltres.length / 10) * 10,
+    );
+
     /*
     |--------------------------------------------------------------------------
     | STATISTIQUES
@@ -1229,15 +1237,15 @@ export default function Index({
         });
     };
 
-    const elevesModifiablesFiltres = elevesFiltres.filter(peutModifierEleve);
+    const elevesModifiablesAffiches = elevesAffiches.filter(peutModifierEleve);
 
     const tousLesElevesSelectionnes =
-        elevesModifiablesFiltres.length > 0 &&
-        elevesModifiablesFiltres.every((eleve) => estSelectionne(eleve.id));
+        elevesModifiablesAffiches.length > 0 &&
+        elevesModifiablesAffiches.every((eleve) => estSelectionne(eleve.id));
 
     const selectionnerTousLesEleves = () => {
         setElevesSelectionnes(
-            elevesModifiablesFiltres.map((eleve) => eleve.id),
+            elevesModifiablesAffiches.map((eleve) => eleve.id),
         );
     };
 
@@ -2054,7 +2062,7 @@ export default function Index({
                                         type="button"
                                         onClick={selectionnerTousLesEleves}
                                         disabled={
-                                            elevesModifiablesFiltres.length ===
+                                            elevesModifiablesAffiches.length ===
                                             0
                                         }
                                         className="inline-flex items-center gap-2 rounded-lg border border-indigo-300 bg-white px-3 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50"
@@ -2716,7 +2724,32 @@ export default function Index({
                             </p>
                         </div>
 
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap items-end gap-3">
+                            <label className="flex items-center gap-2 text-sm text-gray-700">
+                                <span>Lignes à afficher</span>
+                                <select
+                                    value={nombreLignes}
+                                    onChange={(event) =>
+                                        setNombreLignes(
+                                            Number(event.target.value),
+                                        )
+                                    }
+                                    className="rounded-lg border-gray-300 py-2 text-sm focus:border-blue-500 focus:ring-blue-500"
+                                >
+                                    {Array.from(
+                                        {
+                                            length:
+                                                nombreLignesMaximum / 10,
+                                        },
+                                        (_, index) => (index + 1) * 10,
+                                    ).map((nombre) => (
+                                        <option key={nombre} value={nombre}>
+                                            {nombre}
+                                        </option>
+                                    ))}
+                                </select>
+                            </label>
+
                             <button
                                 type="button"
                                 onClick={exporterExcel}
@@ -2847,7 +2880,7 @@ export default function Index({
 
                     {/* TABLEAU */}
 
-                    <div className="overflow-x-auto">
+                    <div className="max-h-[65vh] overflow-x-auto overflow-y-scroll">
                         <table className="min-w-max w-full">
                             <thead className="bg-gray-100">
                                
@@ -2913,7 +2946,7 @@ export default function Index({
                                         </td>
                                     </tr>
                                 ) : (
-                                    elevesFiltres.map((eleve) => {
+                                    elevesAffiches.map((eleve) => {
                                         const selectionne = estSelectionne(
                                             eleve.id,
                                         );

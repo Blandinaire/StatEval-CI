@@ -43,6 +43,8 @@ class StoreEleveRequest extends FormRequest
                 'exists:classes,id',
             ],
 
+            'groupe' => ['nullable', 'string', 'max:50'],
+
             /*
             |--------------------------------------------------------------------------
             | IDENTIFICATION DE L'ÉLÈVE

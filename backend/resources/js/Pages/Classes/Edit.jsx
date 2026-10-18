@@ -12,6 +12,7 @@ export default function Edit({
     niveaux,
     series,
     maquettes,
+    salles,
 }) {
     /*
     |--------------------------------------------------------------------------
@@ -77,6 +78,9 @@ export default function Edit({
 
         maquette_id:
             classe?.maquette_id || "",
+
+        salle_id:
+            classe?.salle_id || "",
 
         suffixe,
 
@@ -171,6 +175,12 @@ export default function Edit({
                         maquettes={
                             Array.isArray(maquettes)
                                 ? maquettes
+                                : []
+                        }
+
+                        salles={
+                            Array.isArray(salles)
+                                ? salles
                                 : []
                         }
 

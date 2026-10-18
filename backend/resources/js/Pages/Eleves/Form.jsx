@@ -168,9 +168,10 @@ export default function Form({
 
                         <select
                             value={data.classe_id}
-                            onChange={(e) =>
-                                setData("classe_id", e.target.value)
-                            }
+                            onChange={(e) => {
+                                setData("classe_id", e.target.value);
+                                setData("groupe", "");
+                            }}
                             disabled={
                                 !data.etablissement_id ||
                                 !data.annee_scolaire_id ||
@@ -200,6 +201,31 @@ export default function Form({
                         {errors.classe_id && (
                             <p className="mt-1 text-sm text-red-600">
                                 {errors.classe_id}
+                            </p>
+                        )}
+                    </div>
+
+                    <div className="col-span-2">
+                        <label className="mb-2 block font-semibold">
+                            Groupe d’option (facultatif)
+                        </label>
+                        <input
+                            type="text"
+                            maxLength={50}
+                            value={data.groupe ?? ""}
+                            onChange={(event) =>
+                                setData("groupe", event.target.value)
+                            }
+                            placeholder="Ex. Allemand ou Espagnol"
+                            className="w-full rounded-lg border p-3"
+                        />
+                        <p className="mt-1 text-sm text-gray-500">
+                            Utilisez le même nom que dans l’emploi du temps.
+                            Laissez vide si l’élève suit les cours de toute la classe.
+                        </p>
+                        {errors.groupe && (
+                            <p className="mt-1 text-sm text-red-600">
+                                {errors.groupe}
                             </p>
                         )}
                     </div>

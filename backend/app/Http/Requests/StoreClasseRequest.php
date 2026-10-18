@@ -122,6 +122,12 @@ class StoreClasseRequest extends FormRequest
                 'exists:maquettes,id',
             ],
 
+            'salle_id' => [
+                'nullable',
+                'integer',
+                'exists:salles,id',
+            ],
+
             'libelle' => [
                 'required',
                 'string',

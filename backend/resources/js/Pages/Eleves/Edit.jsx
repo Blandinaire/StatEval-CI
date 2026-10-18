@@ -39,6 +39,7 @@ export default function Edit({
         etablissement_id: eleve.etablissement_id ?? "",
         annee_scolaire_id: eleve.annee_scolaire_id ?? "",
         classe_id: eleve.classe_id ?? "",
+        groupe: eleve.groupe ?? "",
 
         /*
         |--------------------------------------------------------------------------

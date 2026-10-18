@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Etablissement;
+use App\Models\EmploiDuTempsLigne;
 
 class Salle extends Model
 {

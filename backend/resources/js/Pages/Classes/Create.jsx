@@ -11,7 +11,8 @@ export default function Create({
     niveaux,
     series,
     maquettes,
-}) {
+    salles,
+   }) {
     const { data, setData, post, processing, errors } = useForm({
         etablissement_id: estSuperAdmin
             ? ""
@@ -23,6 +24,8 @@ export default function Create({
         niveau_id: "",
         serie_id: "",
         maquette_id: "",
+
+        salle_id: "",
 
         suffixe: "",
 
@@ -70,6 +73,7 @@ export default function Create({
                         niveaux={niveaux}
                         series={series}
                         maquettes={maquettes}
+                        salles={salles}
                         errors={errors}
                         processing={processing}
                         submit={submit}

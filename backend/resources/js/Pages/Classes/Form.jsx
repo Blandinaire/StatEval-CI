@@ -11,6 +11,7 @@ export default function Form({
     niveaux,
     series,
     maquettes,
+    salles,
     errors = {},
     processing = false,
     submit,
@@ -34,6 +35,20 @@ export default function Form({
 
     const maquettesListe = Array.isArray(maquettes) ? maquettes : [];
 
+    const sallesListe = Array.isArray(salles) ? salles : [];
+
+    /*
+|--------------------------------------------------------------------------
+| SALLES DE L'ÉTABLISSEMENT
+|--------------------------------------------------------------------------
+*/
+
+    const sallesDisponibles = sallesListe.filter((salle) => {
+        return (
+            !data.etablissement_id ||
+            String(salle.etablissement_id) === String(data.etablissement_id)
+        );
+    });
     /*
     |--------------------------------------------------------------------------
     | PRÉFIXES DES CLASSES
@@ -200,6 +215,7 @@ export default function Form({
             niveau_id: "",
             serie_id: "",
             maquette_id: "",
+            salle_id: "",
 
             suffixe: "",
             libelle: "",
@@ -696,6 +712,53 @@ export default function Form({
                         {errors.capacite}
                     </p>
                 )}
+            </div>
+
+            {/* ========================================================
+    SALLE PAR DÉFAUT
+======================================================== */}
+
+            <div>
+                <label htmlFor="salle_id" className="block font-semibold mb-2">
+                    Salle par défaut
+                </label>
+
+                <select
+                    id="salle_id"
+                    value={data.salle_id || ""}
+                    onChange={(e) => setData("salle_id", e.target.value || "")}
+                    disabled={!data.etablissement_id}
+                    className="
+            w-full
+            border
+            rounded-lg
+            p-3
+            disabled:bg-gray-100
+            disabled:cursor-not-allowed
+        "
+                >
+                    <option value="">-- Aucune salle définie --</option>
+
+                    {sallesDisponibles.map((salle) => (
+                        <option key={salle.id} value={salle.id}>
+                            {salle.nom}
+                            {salle.capacite
+                                ? ` — ${salle.capacite} places`
+                                : ""}
+                        </option>
+                    ))}
+                </select>
+
+                {errors.salle_id && (
+                    <p className="text-red-600 text-sm mt-1">
+                        {errors.salle_id}
+                    </p>
+                )}
+
+                <p className="text-sm text-gray-500 mt-1">
+                    Cette salle sera proposée automatiquement dans l'emploi du
+                    temps de cette classe.
+                </p>
             </div>
 
             {/* ========================================================

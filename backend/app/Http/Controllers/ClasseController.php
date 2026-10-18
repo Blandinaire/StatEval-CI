@@ -186,6 +186,7 @@ class ClasseController extends Controller
             'niveau',
             'serie',
             'maquette',
+            'salle',
         ])->withCount('eleves');
 
         /*
@@ -396,6 +397,26 @@ class ClasseController extends Controller
 
         $anneeActive = AnneeScolaire::active();
 
+        $salles = \App\Models\Salle::query()
+            ->where('active', true)
+            ->when(
+                !$this->estSuperAdmin($user),
+                function ($query) use ($user) {
+                    $query->where(
+                        'etablissement_id',
+                        $user->etablissement_id
+                    );
+                }
+            )
+            ->orderBy('nom')
+            ->get([
+                'id',
+                'etablissement_id',
+                'nom',
+                'type',
+                'capacite',
+            ]);
+
         return Inertia::render('Classes/Create', [
 
             'etablissements' => $this->estSuperAdmin($user)
@@ -427,6 +448,9 @@ class ClasseController extends Controller
 
             'maquettes' =>
             Maquette::where('active', true)->get(),
+
+            'salles' =>
+            $salles,
         ]);
     }
 
@@ -529,6 +553,26 @@ class ClasseController extends Controller
         $anneeActive =
             AnneeScolaire::active();
 
+        $salles = \App\Models\Salle::query()
+            ->where('active', true)
+            ->when(
+                !$this->estSuperAdmin($user),
+                function ($query) use ($user) {
+                    $query->where(
+                        'etablissement_id',
+                        $user->etablissement_id
+                    );
+                }
+            )
+            ->orderBy('nom')
+            ->get([
+                'id',
+                'etablissement_id',
+                'nom',
+                'type',
+                'capacite',
+            ]);
+
         return Inertia::render('Classes/Edit', [
 
             'classe' =>
@@ -567,6 +611,9 @@ class ClasseController extends Controller
                 ->orderBy('niveau_id')
                 ->orderBy('version')
                 ->get(),
+
+            'salles' =>
+            $salles,
         ]);
     }
 

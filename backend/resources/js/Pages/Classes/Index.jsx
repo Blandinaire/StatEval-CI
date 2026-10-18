@@ -1,6 +1,7 @@
 import AdminLayout from "@/Layouts/AdminLayout";
 import ResponsiveTable from "@/Components/ResponsiveTable";
 import { Head, Link, router } from "@inertiajs/react";
+import { Eye, Pencil, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 
 export default function Index({
@@ -80,7 +81,7 @@ export default function Index({
     | Nombre de colonnes
     |--------------------------------------------------------------------------
     */
-    const nombreColonnes = isSuperAdmin ? 7 : 6;
+    const nombreColonnes = isSuperAdmin ? 8 : 7;
 
     return (
         <AdminLayout>
@@ -169,7 +170,7 @@ export default function Index({
 
                 <div className="rounded-xl bg-white shadow">
                     <ResponsiveTable
-                        minWidth={isSuperAdmin ? "1050px" : "850px"}
+                        minWidth={isSuperAdmin ? "1150px" : "950px"}
                     >
                         <thead className="bg-gray-100">
                             <tr>
@@ -186,6 +187,8 @@ export default function Index({
                                 <th className="p-4 text-left">
                                     Année scolaire
                                 </th>
+
+                                <th className="p-4 text-left">Salle</th>
 
                                 <th className="p-4 text-center">Capacité</th>
 
@@ -241,6 +244,13 @@ export default function Index({
                                                 "—"}
                                         </td>
 
+                                        {/* SALLE */}
+                                        <td className="p-4">
+                                            {classe.salle?.nom ??
+                                                classe.salle_par_defaut ??
+                                                "—"}
+                                        </td>
+
                                         {/* CAPACITÉ */}
                                         <td className="p-4 text-center">
                                             {classe.capacite}
@@ -258,9 +268,17 @@ export default function Index({
                                                         "classes.show",
                                                         classe.id,
                                                     )}
-                                                    className="rounded-lg border border-gray-300 px-4 py-2 text-gray-700 hover:bg-gray-50"
+                                                    aria-label="Voir la classe"
+                                                    title="Voir"
+                                                    className="inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-300 px-2 py-2 text-gray-700 hover:bg-gray-50 sm:px-4"
                                                 >
-                                                    Voir
+                                                    <Eye
+                                                        size={16}
+                                                        aria-hidden="true"
+                                                    />
+                                                    <span className="hidden sm:inline">
+                                                        Voir
+                                                    </span>
                                                 </Link>
 
                                                 {!isProfesseur &&
@@ -271,21 +289,37 @@ export default function Index({
                                                                     "classes.edit",
                                                                     classe.id,
                                                                 )}
-                                                                className="rounded-lg bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+                                                                aria-label="Modifier la classe"
+                                                                title="Modifier"
+                                                                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-2 py-2 text-white hover:bg-blue-700 sm:px-4"
                                                             >
-                                                                Modifier
+                                                                <Pencil
+                                                                    size={16}
+                                                                    aria-hidden="true"
+                                                                />
+                                                                <span className="hidden sm:inline">
+                                                                    Modifier
+                                                                </span>
                                                             </Link>
 
                                                             <button
                                                                 type="button"
+                                                                aria-label="Supprimer la classe"
+                                                                title="Supprimer"
                                                                 onClick={() =>
                                                                     supprimer(
                                                                         classe.id,
                                                                     )
                                                                 }
-                                                                className="rounded-lg bg-red-600 px-4 py-2 text-white hover:bg-red-700"
+                                                                className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-red-600 px-2 py-2 text-white hover:bg-red-700 sm:px-4"
                                                             >
-                                                                Supprimer
+                                                                <Trash2
+                                                                    size={16}
+                                                                    aria-hidden="true"
+                                                                />
+                                                                <span className="hidden sm:inline">
+                                                                    Supprimer
+                                                                </span>
                                                             </button>
                                                         </>
                                                     )}

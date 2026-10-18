@@ -11,6 +11,7 @@ class Eleve extends Model
         'etablissement_id',
         'annee_scolaire_id',
         'classe_id',
+        'groupe',
 
         'code_eleve',
         'matricule',

@@ -121,9 +121,11 @@ Route::middleware('auth')->group(function () {
         )->name('maquettes.matieres.descendre');
     });
 
+    Route::get('/emplois-du-temps', [EmploiDuTempsController::class, 'index'])
+        ->middleware('role:SuperAdmin|Administrateur|Directeur|Direction|Professeur|Educateur')
+        ->name('emplois-du-temps.index');
+
     Route::middleware('role:SuperAdmin|Administrateur|Directeur|Direction')->group(function () {
-        Route::get('/emplois-du-temps', [EmploiDuTempsController::class, 'index'])
-            ->name('emplois-du-temps.index');
         Route::post('/emplois-du-temps/creer', [EmploiDuTempsController::class, 'creer'])
             ->name('emplois-du-temps.creer');
         Route::post('/emplois-du-temps/ligne', [EmploiDuTempsController::class, 'enregistrerLigne'])
@@ -146,6 +148,11 @@ Route::middleware('auth')->group(function () {
             '/emplois-du-temps/{emploi}/depublier',
             [EmploiDuTempsController::class, 'depublier']
         )->name('emplois-du-temps.depublier');
+
+        Route::get(
+            '/salles',
+            [SalleController::class, 'index']
+        )->name('salles.index');
 
         Route::post(
             '/salles',
@@ -184,6 +191,18 @@ Route::middleware('auth')->group(function () {
 | CONSULTATION ET MODIFICATION
 |--------------------------------------------------------------------------
 */
+
+    Route::middleware('role:SuperAdmin')->group(function () {
+        Route::get(
+            'etablissements/create',
+            [EtablissementController::class, 'create']
+        )->name('etablissements.create');
+
+        Route::post(
+            'etablissements',
+            [EtablissementController::class, 'store']
+        )->name('etablissements.store');
+    });
 
     Route::get(
         'etablissements',

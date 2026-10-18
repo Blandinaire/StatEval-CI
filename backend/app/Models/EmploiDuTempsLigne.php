@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Models\Salle;
 
 class EmploiDuTempsLigne extends Model
 {
@@ -10,9 +11,14 @@ class EmploiDuTempsLigne extends Model
         'emploi_du_temps_id',
         'creneau_horaire_id',
         'classe_id',
+        'groupe',
         'matiere_id',
+        'activite',
         'enseignant_id',
+        'educateur_id',
+        'salle_id',
         'regroupement_id',
+        'bloc_id',
         'jour',
         'salle',
     ];
@@ -45,6 +51,11 @@ class EmploiDuTempsLigne extends Model
         return $this->belongsTo(Enseignant::class);
     }
 
+    public function educateur()
+    {
+        return $this->belongsTo(Educateur::class);
+    }
+
     public function lignesRegroupees()
     {
         return $this->hasMany(
@@ -53,5 +64,15 @@ class EmploiDuTempsLigne extends Model
             'regroupement_id'
         )
             ->where('id', '!=', $this->id);
+    }
+
+    public function salle()
+    {
+        return $this->belongsTo(Salle::class);
+    }
+
+    public function salleAssociee()
+    {
+        return $this->belongsTo(Salle::class, 'salle_id');
     }
 }

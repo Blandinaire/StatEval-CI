@@ -13,6 +13,7 @@ export default function Create({ etablissements, annees, classes }) {
         etablissement_id: "",
         annee_scolaire_id: "",
         classe_id: "",
+        groupe: "",
 
         /*
         |--------------------------------------------------------------------------
