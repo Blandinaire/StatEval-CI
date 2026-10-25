@@ -4,6 +4,7 @@
 use App\Http\Controllers\Api\MobileAuthController;
 use App\Models\Etablissement;
 use App\Models\User;
+use App\Http\Controllers\Api\MobileDataController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -71,4 +72,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::post('/mobile/logout', [MobileAuthController::class, 'logout'])
         ->middleware('abilities:*');
+
+    Route::get('/mobile/classes', [
+        MobileDataController::class,
+        'classes',
+    ])->middleware('abilities:*');
+
+    Route::get('/mobile/eleves', [
+        MobileDataController::class,
+        'eleves',
+    ])->middleware('abilities:*');
 });
