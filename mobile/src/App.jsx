@@ -132,6 +132,12 @@ export default function App() {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   const [activePage, setActivePage] = useState("dashboard");
+  const [eleves, setEleves] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [rechercheEleve, setRechercheEleve] = useState("");
+  const [classeSelectionnee, setClasseSelectionnee] = useState("");
+  const [chargementEleves, setChargementEleves] = useState(false);
+  const [erreurEleves, setErreurEleves] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [loadingEstablishments, setLoadingEstablishments] = useState(true);
@@ -171,6 +177,53 @@ export default function App() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!token || activePage !== "eleves") return;
+
+    let annule = false;
+
+    async function chargerElevesEtClasses() {
+      setChargementEleves(true);
+      setErreurEleves("");
+
+      try {
+        const params = new URLSearchParams();
+
+        if (rechercheEleve.trim()) {
+          params.set("q", rechercheEleve.trim());
+        }
+
+        if (classeSelectionnee) {
+          params.set("classe_id", classeSelectionnee);
+        }
+
+        const [resultatClasses, resultatEleves] = await Promise.all([
+          apiRequest("/mobile/classes", { token }),
+          apiRequest(`/mobile/eleves?${params.toString()}`, { token }),
+        ]);
+
+        if (!annule) {
+          setClasses(resultatClasses.data || []);
+          setEleves(resultatEleves.data || []);
+        }
+      } catch (err) {
+        if (!annule) {
+          setErreurEleves(err.message);
+        }
+      } finally {
+        if (!annule) {
+          setChargementEleves(false);
+        }
+      }
+    }
+
+    chargerElevesEtClasses();
+
+    return () => {
+      annule = true;
+    };
+  }, [token, activePage, rechercheEleve, classeSelectionnee]);
 
   useEffect(() => {
     if (mode !== "personnel" || !etablissementId || !role) {
@@ -843,8 +896,8 @@ export default function App() {
             </>
           )}
 
-          {activePage !== "dashboard" && activePage !== "profil" && (
-            <div className="module-placeholder">
+          {activePage === "eleves" && (
+            <section className="eleves-mobile">
               <button
                 type="button"
                 className="back-link"
@@ -854,33 +907,130 @@ export default function App() {
                 Retour au tableau de bord
               </button>
 
-              <div className="placeholder-icon">
-                <ActiveIcon size={34} />
+              <div className="page-intro">
+                <div className="page-icon">
+                  <GraduationCap size={25} />
+                </div>
+                <div>
+                  <h1>Élèves et classes</h1>
+                  <p>Consultation des données scolaires</p>
+                </div>
               </div>
 
-              <h1>{currentModule.label}</h1>
-              <p>{currentModule.description}</p>
+              <div className="eleves-filtres">
+                <label htmlFor="recherche-eleve">Rechercher un élève</label>
+                <input
+                  id="recherche-eleve"
+                  type="search"
+                  placeholder="Nom, prénom ou matricule"
+                  value={rechercheEleve}
+                  onChange={(e) => setRechercheEleve(e.target.value)}
+                />
 
-              <div className="coming-soon">
-                <span className="coming-soon-dot" />
-                Module à connecter à l’API
+                <label htmlFor="filtre-classe">Classe</label>
+                <select
+                  id="filtre-classe"
+                  value={classeSelectionnee}
+                  onChange={(e) => setClasseSelectionnee(e.target.value)}
+                >
+                  <option value="">Toutes les classes accessibles</option>
+                  {classes.map((classe) => (
+                    <option key={classe.id} value={classe.id}>
+                      {classe.libelle}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <p className="placeholder-help">
-                L’interface est prête. La prochaine étape sera de relier ce
-                module aux données de StatEval-CI, avec les autorisations
-                correspondant à votre rôle.
-              </p>
+              {erreurEleves && (
+                <div className="notice error" role="alert">
+                  {erreurEleves}
+                </div>
+              )}
 
-              <button
-                type="button"
-                className="secondary-button"
-                onClick={() => openPage("dashboard")}
-              >
-                Revenir à l’accueil
-              </button>
-            </div>
+              <div className="eleves-resultats">
+                <div className="eleves-resultats-entete">
+                  <strong>Liste des élèves</strong>
+                  <span>{eleves.length} résultat(s) affiché(s)</span>
+                </div>
+
+                {chargementEleves ? (
+                  <p className="eleves-etat">Chargement des données...</p>
+                ) : eleves.length === 0 ? (
+                  <p className="eleves-etat">
+                    Aucun élève ne correspond à cette recherche.
+                  </p>
+                ) : (
+                  <div className="eleves-liste">
+                    {eleves.map((eleve) => (
+                      <article className="eleve-mobile-card" key={eleve.id}>
+                        <div className="eleve-mobile-initiales">
+                          {(eleve.nom || "?").charAt(0)}
+                        </div>
+
+                        <div className="eleve-mobile-infos">
+                          <strong>
+                            {eleve.nom} {eleve.prenoms}
+                          </strong>
+                          <span>
+                            {eleve.classe?.libelle || "Classe non renseignée"}
+                          </span>
+                          <span>
+                            Matricule :{" "}
+                            {eleve.matricule || eleve.code_eleve || "—"}
+                          </span>
+                        </div>
+
+                        <span className="eleve-mobile-statut">
+                          {eleve.statut || "—"}
+                        </span>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
           )}
+
+          {activePage !== "dashboard" &&
+            activePage !== "profil" &&
+            activePage !== "eleves" && (
+              <div className="module-placeholder">
+                <button
+                  type="button"
+                  className="back-link"
+                  onClick={() => openPage("dashboard")}
+                >
+                  <ArrowLeft size={17} />
+                  Retour au tableau de bord
+                </button>
+
+                <div className="placeholder-icon">
+                  <ActiveIcon size={34} />
+                </div>
+
+                <h1>{currentModule.label}</h1>
+                <p>{currentModule.description}</p>
+
+                <div className="coming-soon">
+                  <span className="coming-soon-dot" />
+                  Module à connecter à l’API
+                </div>
+
+                <p className="placeholder-help">
+                  Ce module sera raccordé aux données de StatEval-CI avec les
+                  autorisations correspondant à votre rôle.
+                </p>
+
+                <button
+                  type="button"
+                  className="secondary-button"
+                  onClick={() => openPage("dashboard")}
+                >
+                  Revenir à l’accueil
+                </button>
+              </div>
+            )}
         </div>
 
         <footer className="dashboard-footer">
