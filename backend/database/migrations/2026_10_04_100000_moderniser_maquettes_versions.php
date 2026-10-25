@@ -10,21 +10,21 @@ return new class extends Migration
     /**
      * Vérifie l'existence d'un index MySQL.
      */
+
+    /**
+     * Vérifie l'existence d'un index, quel que soit le moteur SQL.
+     */
     private function indexExiste(string $table, string $index): bool
     {
-        $resultat = DB::select(
-            "
-            SELECT COUNT(*) AS total
-            FROM information_schema.statistics
-            WHERE table_schema = DATABASE()
-              AND table_name = ?
-              AND index_name = ?
-            ",
-            [$table, $index]
-        );
+        foreach (Schema::getIndexes($table) as $indexInfo) {
+            if (($indexInfo['name'] ?? null) === $index) {
+                return true;
+            }
+        }
 
-        return (int) ($resultat[0]->total ?? 0) > 0;
+        return false;
     }
+
 
     public function up(): void
     {

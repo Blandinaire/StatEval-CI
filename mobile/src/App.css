@@ -1407,4 +1407,98 @@ button:disabled {
     grid-column: 2;
     grid-row: 1;
   }
+
+  .eleve-form-mobile {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 18px 0;
+    padding: 18px;
+    border: 1px solid #dbe4ef;
+    border-radius: 14px;
+    background: #fff;
+  }
+
+  .eleve-form-mobile h2,
+  .eleve-form-mobile .notice,
+  .eleve-form-actions {
+    grid-column: 1 / -1;
+  }
+
+  .eleve-form-mobile h2 {
+    margin: 0 0 4px;
+    font-size: 18px;
+  }
+
+  .eleve-form-mobile label {
+    align-self: end;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .eleve-form-mobile input,
+  .eleve-form-mobile select {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    padding: 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 9px;
+    background: #fff;
+  }
+
+  .eleve-form-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  }
+
+  .eleve-form-actions .primary-button,
+  .eleve-form-actions .secondary-button {
+    width: auto;
+    min-width: 130px;
+    margin-top: 4px;
+  }
+
+  .eleve-mobile-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .eleve-mobile-actions .icon-button {
+    width: 38px;
+    height: 38px;
+    border: 1px solid #dbe4ef;
+    border-radius: 9px;
+    background: #fff;
+    color: #173e75;
+  }
+
+  .eleve-mobile-actions .icon-button:last-child {
+    color: #b91c1c;
+  }
+
+  @media (max-width: 560px) {
+    .eleve-form-mobile {
+      grid-template-columns: 1fr;
+      padding: 14px;
+    }
+
+    .eleve-form-mobile h2,
+    .eleve-form-mobile .notice,
+    .eleve-form-actions {
+      grid-column: auto;
+    }
+
+    .eleve-form-actions {
+      flex-direction: column-reverse;
+    }
+
+    .eleve-form-actions .primary-button,
+    .eleve-form-actions .secondary-button {
+      width: 100%;
+    }
+  }
 }

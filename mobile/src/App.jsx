@@ -14,18 +14,15 @@ import {
   ArrowLeft,
   ShieldCheck,
   RefreshCw,
+  Plus,
+  Pencil,
+  Trash2,
 } from "lucide-react";
 import "./App.css";
 
 const API_URL = "http://192.168.100.6:8000/api";
 
-const JOURS_SEMAINE = [
-  "lundi",
-  "mardi",
-  "mercredi",
-  "jeudi",
-  "vendredi",
-];
+const JOURS_SEMAINE = ["lundi", "mardi", "mercredi", "jeudi", "vendredi"];
 
 function normaliserJour(jour) {
   return String(jour || "")
@@ -228,6 +225,26 @@ export default function App() {
   const [classeSelectionnee, setClasseSelectionnee] = useState("");
   const [chargementEleves, setChargementEleves] = useState(false);
   const [erreurEleves, setErreurEleves] = useState("");
+  const [modeFormulaireEleve, setModeFormulaireEleve] = useState("");
+  const [eleveSelectionne, setEleveSelectionne] = useState(null);
+  const [enregistrementEleve, setEnregistrementEleve] = useState(false);
+  const [formEleve, setFormEleve] = useState({
+    classe_id: "",
+    matricule: "",
+    nom: "",
+    prenoms: "",
+    sexe: "Masculin",
+    date_naissance: "",
+    lieu_naissance: "",
+    nationalite: "Ivoirienne",
+    telephone: "",
+    email: "",
+    adresse: "",
+    regime: "Externe",
+    statut: "Actif",
+    statut_affectation: "NON AFFECTÉ",
+    type_tuteur: "Père",
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [loadingEstablishments, setLoadingEstablishments] = useState(true);
@@ -510,6 +527,135 @@ export default function App() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  function ouvrirCreationEleve() {
+    setEleveSelectionne(null);
+    setFormEleve({
+      classe_id: classes[0] ? String(classes[0].id) : "",
+      matricule: "",
+      nom: "",
+      prenoms: "",
+      sexe: "Masculin",
+      date_naissance: "",
+      lieu_naissance: "",
+      nationalite: "Ivoirienne",
+      telephone: "",
+      email: "",
+      adresse: "",
+      regime: "Externe",
+      statut: "Actif",
+      statut_affectation: "NON AFFECTÉ",
+      type_tuteur: "Père",
+    });
+    setErreurEleves("");
+    setModeFormulaireEleve("creation");
+  }
+
+  async function ouvrirModificationEleve(eleve) {
+    setErreurEleves("");
+
+    try {
+      const resultat = await apiRequest(`/mobile/eleves/${eleve.id}`, {
+        token,
+      });
+      const detail = resultat.data;
+
+      setEleveSelectionne(detail);
+      setFormEleve({
+        classe_id: String(detail.classe_id || ""),
+        matricule: detail.matricule || "",
+        nom: detail.nom || "",
+        prenoms: detail.prenoms || "",
+        sexe: detail.sexe || "Masculin",
+        date_naissance: detail.date_naissance
+          ? String(detail.date_naissance).slice(0, 10)
+          : "",
+        lieu_naissance: detail.lieu_naissance || "",
+        nationalite: detail.nationalite || "",
+        telephone: detail.telephone || "",
+        email: detail.email || "",
+        adresse: detail.adresse || "",
+        regime: detail.regime || "Externe",
+        statut: detail.statut || "Actif",
+        statut_affectation: detail.statut_affectation || "NON AFFECTÉ",
+        type_tuteur: detail.type_tuteur || "Père",
+      });
+
+      setModeFormulaireEleve("modification");
+    } catch (err) {
+      setErreurEleves(err.message);
+    }
+  }
+
+  async function enregistrerEleve(event) {
+    event.preventDefault();
+    setErreurEleves("");
+    setEnregistrementEleve(true);
+
+    try {
+      const payload = {
+        ...formEleve,
+        classe_id: Number(formEleve.classe_id),
+        date_naissance: formEleve.date_naissance || null,
+      };
+
+      const modification = modeFormulaireEleve === "modification";
+
+      await apiRequest(
+        modification
+          ? `/mobile/eleves/${eleveSelectionne.id}`
+          : "/mobile/eleves",
+        {
+          method: modification ? "PUT" : "POST",
+          token,
+          body: JSON.stringify(payload),
+        },
+      );
+
+      setModeFormulaireEleve("");
+      setEleveSelectionne(null);
+      setMessage(
+        modification ? "Élève modifié avec succès." : "Élève créé avec succès.",
+      );
+
+      const params = new URLSearchParams();
+      if (rechercheEleve.trim()) params.set("q", rechercheEleve.trim());
+      if (classeSelectionnee) params.set("classe_id", classeSelectionnee);
+
+      const resultat = await apiRequest(`/mobile/eleves?${params.toString()}`, {
+        token,
+      });
+      setEleves(resultat.data || []);
+    } catch (err) {
+      setErreurEleves(err.message);
+    } finally {
+      setEnregistrementEleve(false);
+    }
+  }
+
+  async function supprimerEleve(eleve) {
+    if (
+      !window.confirm(
+        `Confirmer la suppression de ${eleve.nom} ${eleve.prenoms} ?`,
+      )
+    ) {
+      return;
+    }
+
+    setErreurEleves("");
+
+    try {
+      const resultat = await apiRequest(`/mobile/eleves/${eleve.id}`, {
+        method: "DELETE",
+        token,
+      });
+
+      setEleves((liste) => liste.filter((item) => item.id !== eleve.id));
+      setMessage(resultat.message || "Élève supprimé.");
+    } catch (err) {
+      setErreurEleves(err.message);
     }
   }
 
@@ -1068,6 +1214,255 @@ export default function App() {
                 </div>
               </div>
 
+              {[
+                "SuperAdmin",
+                "Administrateur",
+                "Direction",
+                "Educateur",
+              ].includes(userRole) && (
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={ouvrirCreationEleve}
+                >
+                  <Plus size={18} />
+                  Ajouter un élève
+                </button>
+              )}
+
+              {modeFormulaireEleve && (
+                <form className="eleve-form-mobile" onSubmit={enregistrerEleve}>
+                  <h2>
+                    {modeFormulaireEleve === "creation"
+                      ? "Nouvel élève"
+                      : "Modifier l'élève"}
+                  </h2>
+
+                  <label htmlFor="eleve-classe">Classe *</label>
+                  <select
+                    id="eleve-classe"
+                    value={formEleve.classe_id}
+                    onChange={(e) =>
+                      setFormEleve({ ...formEleve, classe_id: e.target.value })
+                    }
+                    required
+                  >
+                    <option value="">Choisir une classe</option>
+                    {classes.map((classe) => (
+                      <option key={classe.id} value={classe.id}>
+                        {classe.libelle}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label htmlFor="eleve-nom">Nom *</label>
+                  <input
+                    id="eleve-nom"
+                    value={formEleve.nom}
+                    onChange={(e) =>
+                      setFormEleve({ ...formEleve, nom: e.target.value })
+                    }
+                    required
+                  />
+
+                  <label htmlFor="eleve-prenoms">Prénoms *</label>
+                  <input
+                    id="eleve-prenoms"
+                    value={formEleve.prenoms}
+                    onChange={(e) =>
+                      setFormEleve({ ...formEleve, prenoms: e.target.value })
+                    }
+                    required
+                  />
+
+                  <label htmlFor="eleve-matricule">Matricule national</label>
+                  <input
+                    id="eleve-matricule"
+                    value={formEleve.matricule}
+                    onChange={(e) =>
+                      setFormEleve({ ...formEleve, matricule: e.target.value })
+                    }
+                    placeholder="8 chiffres suivis d'une lettre"
+                  />
+
+                  <label htmlFor="eleve-sexe">Sexe *</label>
+                  <select
+                    id="eleve-sexe"
+                    value={formEleve.sexe}
+                    onChange={(e) =>
+                      setFormEleve({ ...formEleve, sexe: e.target.value })
+                    }
+                    required
+                  >
+                    <option value="Masculin">Masculin</option>
+                    <option value="Féminin">Féminin</option>
+                  </select>
+
+                  <label htmlFor="eleve-naissance">Date de naissance</label>
+                  <input
+                    id="eleve-naissance"
+                    type="date"
+                    value={formEleve.date_naissance}
+                    onChange={(e) =>
+                      setFormEleve({
+                        ...formEleve,
+                        date_naissance: e.target.value,
+                      })
+                    }
+                  />
+
+                  <label htmlFor="eleve-lieu">Lieu de naissance</label>
+                  <input
+                    id="eleve-lieu"
+                    value={formEleve.lieu_naissance}
+                    onChange={(e) =>
+                      setFormEleve({
+                        ...formEleve,
+                        lieu_naissance: e.target.value,
+                      })
+                    }
+                  />
+
+                  <label htmlFor="eleve-nationalite">Nationalité</label>
+                  <input
+                    id="eleve-nationalite"
+                    value={formEleve.nationalite}
+                    onChange={(e) =>
+                      setFormEleve({
+                        ...formEleve,
+                        nationalite: e.target.value,
+                      })
+                    }
+                  />
+
+                  <label htmlFor="eleve-telephone">Téléphone</label>
+                  <input
+                    id="eleve-telephone"
+                    type="tel"
+                    value={formEleve.telephone}
+                    onChange={(e) =>
+                      setFormEleve({ ...formEleve, telephone: e.target.value })
+                    }
+                  />
+
+                  <label htmlFor="eleve-email">E-mail</label>
+                  <input
+                    id="eleve-email"
+                    type="email"
+                    value={formEleve.email}
+                    onChange={(e) =>
+                      setFormEleve({ ...formEleve, email: e.target.value })
+                    }
+                  />
+
+                  <label htmlFor="eleve-adresse">Adresse</label>
+                  <input
+                    id="eleve-adresse"
+                    value={formEleve.adresse}
+                    onChange={(e) =>
+                      setFormEleve({ ...formEleve, adresse: e.target.value })
+                    }
+                  />
+
+                  <label htmlFor="eleve-regime">Régime *</label>
+                  <select
+                    id="eleve-regime"
+                    value={formEleve.regime}
+                    onChange={(e) =>
+                      setFormEleve({ ...formEleve, regime: e.target.value })
+                    }
+                    required
+                  >
+                    <option value="Externe">Externe</option>
+                    <option value="Demi-pensionnaire">Demi-pensionnaire</option>
+                    <option value="Interne">Interne</option>
+                  </select>
+
+                  <label htmlFor="eleve-statut">Statut *</label>
+                  <select
+                    id="eleve-statut"
+                    value={formEleve.statut}
+                    onChange={(e) =>
+                      setFormEleve({ ...formEleve, statut: e.target.value })
+                    }
+                    required
+                  >
+                    {[
+                      "Actif",
+                      "Transféré",
+                      "Exclu",
+                      "Abandonné",
+                      "Diplômé",
+                    ].map((statut) => (
+                      <option key={statut} value={statut}>
+                        {statut}
+                      </option>
+                    ))}
+                  </select>
+
+                  <label htmlFor="eleve-affectation">
+                    Statut d'affectation *
+                  </label>
+                  <select
+                    id="eleve-affectation"
+                    value={formEleve.statut_affectation}
+                    onChange={(e) =>
+                      setFormEleve({
+                        ...formEleve,
+                        statut_affectation: e.target.value,
+                      })
+                    }
+                    required
+                  >
+                    <option value="AFFECTÉ">AFFECTÉ</option>
+                    <option value="NON AFFECTÉ">NON AFFECTÉ</option>
+                  </select>
+
+                  <label htmlFor="eleve-tuteur">Responsable légal *</label>
+                  <select
+                    id="eleve-tuteur"
+                    value={formEleve.type_tuteur}
+                    onChange={(e) =>
+                      setFormEleve({
+                        ...formEleve,
+                        type_tuteur: e.target.value,
+                      })
+                    }
+                    required
+                  >
+                    <option value="Père">Père</option>
+                    <option value="Mère">Mère</option>
+                    <option value="Autre">Autre</option>
+                  </select>
+
+                  {erreurEleves && (
+                    <div className="notice error" role="alert">
+                      {erreurEleves}
+                    </div>
+                  )}
+
+                  <div className="eleve-form-actions">
+                    <button
+                      type="button"
+                      className="secondary-button"
+                      onClick={() => setModeFormulaireEleve("")}
+                      disabled={enregistrementEleve}
+                    >
+                      Annuler
+                    </button>
+                    <button
+                      type="submit"
+                      className="primary-button"
+                      disabled={enregistrementEleve}
+                    >
+                      {enregistrementEleve
+                        ? "Enregistrement..."
+                        : "Enregistrer"}
+                    </button>
+                  </div>
+                </form>
+              )}
+
               <div className="eleves-filtres">
                 <label htmlFor="recherche-eleve">Rechercher un élève</label>
                 <input
@@ -1135,6 +1530,34 @@ export default function App() {
                         <span className="eleve-mobile-statut">
                           {eleve.statut || "—"}
                         </span>
+
+                        {[
+                          "SuperAdmin",
+                          "Administrateur",
+                          "Direction",
+                          "Educateur",
+                        ].includes(userRole) && (
+                          <div className="eleve-mobile-actions">
+                            <button
+                              type="button"
+                              className="icon-button"
+                              onClick={() => ouvrirModificationEleve(eleve)}
+                              aria-label={`Modifier ${eleve.nom} ${eleve.prenoms}`}
+                              title="Modifier"
+                            >
+                              <Pencil size={17} />
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-button"
+                              onClick={() => supprimerEleve(eleve)}
+                              aria-label={`Supprimer ${eleve.nom} ${eleve.prenoms}`}
+                              title="Supprimer"
+                            >
+                              <Trash2 size={17} />
+                            </button>
+                          </div>
+                        )}
                       </article>
                     ))}
                   </div>
@@ -1185,9 +1608,7 @@ export default function App() {
                         </button>
                         <button
                           type="button"
-                          className={
-                            modeVueEmploi === "classe" ? "active" : ""
-                          }
+                          className={modeVueEmploi === "classe" ? "active" : ""}
                           onClick={() => setModeVueEmploi("classe")}
                         >
                           Par classe
@@ -1252,7 +1673,6 @@ export default function App() {
                       ) : null}
                     </label>
                   )}
-
                 </div>
               )}
 
@@ -1324,8 +1744,10 @@ export default function App() {
                                     }
 
                                     if (modeActif === "enseignant") {
-                                      return String(ligne.enseignant_id) ===
-                                        enseignantEmploiActif;
+                                      return (
+                                        String(ligne.enseignant_id) ===
+                                        enseignantEmploiActif
+                                      );
                                     }
 
                                     if (modeActif === "classe") {
@@ -1344,12 +1766,11 @@ export default function App() {
                                     {cours.length > 0 ? (
                                       <div className="emploi-cellule-cours">
                                         {cours.map((ligne) => {
-                                          const couleur =
-                                            /^#[\da-f]{6}$/i.test(
-                                              ligne.matiere_couleur || "",
-                                            )
-                                              ? ligne.matiere_couleur
-                                              : "#0f766e";
+                                          const couleur = /^#[\da-f]{6}$/i.test(
+                                            ligne.matiere_couleur || "",
+                                          )
+                                            ? ligne.matiere_couleur
+                                            : "#0f766e";
                                           const activites = {
                                             HE: "Heure d’étude (HE)",
                                             CDI: "Bibliothèque (CDI)",
@@ -1378,9 +1799,7 @@ export default function App() {
                                               )}
                                               {modeActif !== "classe" &&
                                                 ligne.classe && (
-                                                  <span>
-                                                    {ligne.classe}
-                                                  </span>
+                                                  <span>{ligne.classe}</span>
                                                 )}
                                               {modeActif !== "enseignant" &&
                                                 ligne.enseignant && (
@@ -1389,9 +1808,7 @@ export default function App() {
                                                   </span>
                                                 )}
                                               {ligne.salle && (
-                                                <span>
-                                                  Salle {ligne.salle}
-                                                </span>
+                                                <span>Salle {ligne.salle}</span>
                                               )}
                                             </article>
                                           );

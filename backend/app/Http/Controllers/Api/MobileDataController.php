@@ -14,6 +14,8 @@ use App\Models\CreneauHoraire;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class MobileDataController extends Controller
 {
@@ -220,6 +222,299 @@ class MobileDataController extends Controller
                 'per_page' => $paginator->perPage(),
                 'total' => $paginator->total(),
             ],
+        ]);
+    }
+
+    /**
+     * Vérifie que le compte peut gérer les élèves.
+     */
+    private function autoriserGestionEleves(Request $request): User
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user && $user->hasAnyRole([
+                'SuperAdmin',
+                'Administrateur',
+                'Direction',
+                'Educateur',
+            ]),
+            403,
+            'Votre profil ne permet pas de gérer les élèves.'
+        );
+
+        return $user;
+    }
+
+    /**
+     * Vérifie qu'un élève appartient au périmètre autorisé.
+     */
+    private function verifierEleveMobile(
+        Request $request,
+        Eleve $eleve,
+        bool $gestion = false
+    ): User {
+        $user = $gestion
+            ? $this->autoriserGestionEleves($request)
+            : $request->user();
+
+        abort_unless($user, 401);
+
+        if (!$user->hasRole('SuperAdmin')) {
+            abort_unless(
+                (int) $eleve->etablissement_id ===
+                    (int) $user->etablissement_id,
+                403,
+                'Cet élève ne relève pas de votre établissement.'
+            );
+        }
+
+        if ($user->hasRole('Educateur')) {
+            $autorise = EducateurClasse::query()
+                ->where('educateur_id', $user->educateur_id)
+                ->where('classe_id', $eleve->classe_id)
+                ->where('annee_scolaire_id', $eleve->annee_scolaire_id)
+                ->where('actif', true)
+                ->exists();
+
+            abort_unless(
+                $autorise,
+                403,
+                'Vous n’êtes pas autorisé à gérer cet élève.'
+            );
+        }
+
+        return $user;
+    }
+
+    /**
+     * Fiche détaillée d'un élève pour l'application mobile.
+     */
+    public function showEleve(Request $request, Eleve $eleve): JsonResponse
+    {
+        $this->verifierEleveMobile($request, $eleve);
+
+        $eleve->load([
+            'classe:id,libelle,niveau_id,cycle_id,serie_id',
+            'classe.niveau:id,libelle',
+            'classe.cycle:id,libelle',
+            'classe.serie:id,libelle',
+            'anneeScolaire:id,libelle',
+        ]);
+
+        return response()->json([
+            'data' => $eleve,
+        ]);
+    }
+
+    /**
+     * Création d'un élève depuis le mobile.
+     */
+    public function storeEleve(Request $request): JsonResponse
+    {
+        $user = $this->autoriserGestionEleves($request);
+
+        $validated = $request->validate([
+            'etablissement_id' => [
+                Rule::requiredIf(fn() => $user->hasRole('SuperAdmin')),
+                'nullable',
+                'integer',
+                'exists:etablissements,id',
+            ],
+            'annee_scolaire_id' => [
+                'nullable',
+                'integer',
+                'exists:annee_scolaires,id',
+            ],
+            'classe_id' => ['required', 'integer', 'exists:classes,id'],
+            'matricule' => [
+                'nullable',
+                'string',
+                'regex:/^[0-9]{8}[A-Z]$/',
+                'unique:eleves,matricule',
+            ],
+            'nom' => ['required', 'string', 'max:100'],
+            'prenoms' => ['required', 'string', 'max:150'],
+            'sexe' => ['required', 'in:Masculin,Féminin'],
+            'date_naissance' => ['nullable', 'date', 'before:today'],
+            'lieu_naissance' => ['nullable', 'string', 'max:150'],
+            'nationalite' => ['nullable', 'string', 'max:100'],
+            'telephone' => ['nullable', 'string', 'max:30'],
+            'email' => ['nullable', 'email', 'max:255'],
+            'adresse' => ['nullable', 'string'],
+            'regime' => [
+                'required',
+                'in:Externe,Demi-pensionnaire,Interne',
+            ],
+            'statut' => [
+                'required',
+                'in:Actif,Transféré,Exclu,Abandonné,Diplômé',
+            ],
+            'statut_affectation' => [
+                'required',
+                'in:AFFECTÉ,NON AFFECTÉ',
+            ],
+            'type_tuteur' => ['required', 'in:Père,Mère,Autre'],
+        ]);
+
+        if (!$user->hasRole('SuperAdmin')) {
+            abort_unless($user->etablissement_id, 403);
+            $validated['etablissement_id'] = $user->etablissement_id;
+        }
+
+        $anneeId = $user->hasRole('SuperAdmin')
+            ? ($validated['annee_scolaire_id'] ?? AnneeScolaire::activeId())
+            : AnneeScolaire::activeId();
+
+        abort_unless($anneeId, 422, 'Aucune année scolaire active.');
+
+        $classe = Classe::query()
+            ->whereKey($validated['classe_id'])
+            ->where('etablissement_id', $validated['etablissement_id'])
+            ->where('annee_scolaire_id', $anneeId)
+            ->firstOrFail();
+
+        if ($user->hasRole('Educateur')) {
+            $autorise = EducateurClasse::query()
+                ->where('educateur_id', $user->educateur_id)
+                ->where('classe_id', $classe->id)
+                ->where('annee_scolaire_id', $anneeId)
+                ->where('actif', true)
+                ->exists();
+
+            abort_unless($autorise, 403, 'Cette classe ne vous est pas attribuée.');
+        }
+
+        $validated['annee_scolaire_id'] = $anneeId;
+
+        $eleve = DB::transaction(function () use ($validated) {
+            $eleve = Eleve::create($validated);
+
+            $eleve->update([
+                'code_eleve' => 'ELV-' . str_pad(
+                    (string) $eleve->id,
+                    6,
+                    '0',
+                    STR_PAD_LEFT
+                ),
+            ]);
+
+            return $eleve;
+        });
+
+        return response()->json([
+            'message' => 'Élève enregistré avec succès.',
+            'data' => $eleve->load('classe:id,libelle'),
+        ], 201);
+    }
+
+    /**
+     * Modification des informations principales d'un élève.
+     */
+    public function updateEleve(
+        Request $request,
+        Eleve $eleve
+    ): JsonResponse {
+        $user = $this->verifierEleveMobile($request, $eleve, true);
+
+        $validated = $request->validate([
+            'matricule' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'regex:/^[0-9]{8}[A-Z]$/',
+                Rule::unique('eleves', 'matricule')->ignore($eleve->id),
+            ],
+            'nom' => ['sometimes', 'required', 'string', 'max:100'],
+            'prenoms' => ['sometimes', 'required', 'string', 'max:150'],
+            'sexe' => ['sometimes', 'required', 'in:Masculin,Féminin'],
+            'date_naissance' => ['sometimes', 'nullable', 'date', 'before:today'],
+            'lieu_naissance' => ['sometimes', 'nullable', 'string', 'max:150'],
+            'nationalite' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'telephone' => ['sometimes', 'nullable', 'string', 'max:30'],
+            'email' => ['sometimes', 'nullable', 'email', 'max:255'],
+            'adresse' => ['sometimes', 'nullable', 'string'],
+            'regime' => [
+                'sometimes',
+                'required',
+                'in:Externe,Demi-pensionnaire,Interne',
+            ],
+            'statut' => [
+                'sometimes',
+                'required',
+                'in:Actif,Transféré,Exclu,Abandonné,Diplômé',
+            ],
+            'statut_affectation' => [
+                'sometimes',
+                'required',
+                'in:AFFECTÉ,NON AFFECTÉ',
+            ],
+            'classe_id' => ['sometimes', 'required', 'integer', 'exists:classes,id'],
+        ]);
+
+        // Empêche un utilisateur ordinaire de changer l'établissement
+        // ou l'année scolaire de l'élève via une requête falsifiée.
+        unset(
+            $validated['etablissement_id'],
+            $validated['annee_scolaire_id'],
+            $validated['code_eleve'],
+            $validated['actif']
+        );
+
+        if (isset($validated['classe_id'])) {
+            $classe = Classe::query()
+                ->whereKey($validated['classe_id'])
+                ->where('etablissement_id', $eleve->etablissement_id)
+                ->where('annee_scolaire_id', $eleve->annee_scolaire_id)
+                ->firstOrFail();
+
+            if ($user->hasRole('Educateur')) {
+                $autorise = EducateurClasse::query()
+                    ->where('educateur_id', $user->educateur_id)
+                    ->where('classe_id', $classe->id)
+                    ->where('annee_scolaire_id', $eleve->annee_scolaire_id)
+                    ->where('actif', true)
+                    ->exists();
+
+                abort_unless($autorise, 403, 'Cette classe ne vous est pas attribuée.');
+            }
+        }
+
+        $eleve->update($validated);
+
+        return response()->json([
+            'message' => 'Élève modifié avec succès.',
+            'data' => $eleve->fresh()->load('classe:id,libelle'),
+        ]);
+    }
+
+    /**
+     * Suppression contrôlée d'un élève.
+     */
+    public function destroyEleve(
+        Request $request,
+        Eleve $eleve
+    ): JsonResponse {
+        $this->verifierEleveMobile($request, $eleve, true);
+
+        // On refuse la suppression définitive si l'élève possède
+        // des données scolaires ou disciplinaires liées.
+        $possedeHistorique =
+            $eleve->notes()->exists()
+            || $eleve->absences()->exists()
+            || $eleve->retards()->exists()
+            || $eleve->conduites()->exists();
+
+        abort_if(
+            $possedeHistorique,
+            409,
+            'Suppression impossible : cet élève possède un historique scolaire ou disciplinaire.'
+        );
+
+        $eleve->delete();
+
+        return response()->json([
+            'message' => 'Élève supprimé avec succès.',
         ]);
     }
 

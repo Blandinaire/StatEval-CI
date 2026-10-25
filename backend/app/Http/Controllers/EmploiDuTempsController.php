@@ -1525,6 +1525,20 @@ class EmploiDuTempsController extends Controller
             'L’emploi du temps est repassé en brouillon.'
         );
     }
+
+    private function autoriserGestion($user): void
+    {
+        abort_unless(
+            $user->hasAnyRole([
+                'SuperAdmin',
+                'Administrateur',
+                'Directeur',
+                'Direction',
+            ]),
+            403
+        );
+    }
+
     private function etablissementAutorise($user, ?int $etablissementId): int
     {
         if ($user->hasRole('SuperAdmin')) {

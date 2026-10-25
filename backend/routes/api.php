@@ -82,4 +82,30 @@ Route::middleware('auth:sanctum')->group(function () {
         MobileDataController::class,
         'eleves',
     ])->middleware('abilities:*');
+
+    // Gestion des élèves depuis l'application mobile.
+    Route::get('/mobile/eleves/{eleve}', [
+        MobileDataController::class,
+        'showEleve',
+    ])->middleware('abilities:*');
+
+    Route::post('/mobile/eleves', [
+        MobileDataController::class,
+        'storeEleve',
+    ])->middleware('abilities:*');
+
+    Route::put('/mobile/eleves/{eleve}', [
+        MobileDataController::class,
+        'updateEleve',
+    ])->middleware('abilities:*');
+
+    Route::delete('/mobile/eleves/{eleve}', [
+        MobileDataController::class,
+        'destroyEleve',
+    ])->middleware('abilities:*');
+
+    Route::get('/mobile/emploi-du-temps', [
+        MobileDataController::class,
+        'emploiDuTemps',
+    ])->middleware('abilities:*');
 });
