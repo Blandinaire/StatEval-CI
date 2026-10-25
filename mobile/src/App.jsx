@@ -19,6 +19,88 @@ import "./App.css";
 
 const API_URL = "http://192.168.100.6:8000/api";
 
+const JOURS_SEMAINE = [
+  "lundi",
+  "mardi",
+  "mercredi",
+  "jeudi",
+  "vendredi",
+];
+
+function normaliserJour(jour) {
+  return String(jour || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function cleCreneau(creneau) {
+  if (!creneau) return "sans-creneau";
+
+  return [
+    creneau.heure_debut || "",
+    creneau.heure_fin || "",
+    creneau.libelle || "",
+    creneau.ordre ?? "",
+  ].join("|");
+}
+
+function creerCreneauxMap(creneauxListe) {
+  const creneaux = new Map();
+
+  creneauxListe.forEach((creneau) => {
+    const cle = cleCreneau(creneau);
+    if (!creneaux.has(cle)) {
+      creneaux.set(cle, creneau);
+    }
+  });
+
+  return creneaux;
+}
+
+function trierCreneaux(creneaux) {
+  return [...creneaux.entries()].sort((a, b) => {
+    const creneauA = a[1];
+    const creneauB = b[1];
+
+    const ordreA = Number(creneauA.ordre ?? 999);
+    const ordreB = Number(creneauB.ordre ?? 999);
+
+    if (ordreA !== ordreB) return ordreA - ordreB;
+
+    return String(creneauA.heure_debut || "").localeCompare(
+      String(creneauB.heure_debut || ""),
+    );
+  });
+}
+
+function obtenirCreneauxEmploi(lignes, creneaux = []) {
+  const tousLesCreneaux = creerCreneauxMap(creneaux);
+
+  lignes.forEach((ligne) => {
+    if (!ligne.creneau) return;
+
+    const cle = cleCreneau(ligne.creneau);
+
+    if (!tousLesCreneaux.has(cle)) {
+      tousLesCreneaux.set(cle, ligne.creneau);
+    }
+  });
+
+  return trierCreneaux(tousLesCreneaux);
+}
+
+function afficherHeure(creneau) {
+  if (!creneau) return "Horaire non défini";
+
+  if (creneau.heure_debut && creneau.heure_fin) {
+    return `${creneau.heure_debut.slice(0, 5)} – ${creneau.heure_fin.slice(0, 5)}`;
+  }
+
+  return creneau.libelle || "Horaire non défini";
+}
+
 const ROLES = ["Administrateur", "Direction", "Professeur", "Educateur"];
 
 const MODULES = [
@@ -134,6 +216,14 @@ export default function App() {
   const [activePage, setActivePage] = useState("dashboard");
   const [eleves, setEleves] = useState([]);
   const [classes, setClasses] = useState([]);
+  const [classesEmploi, setClassesEmploi] = useState([]);
+  const [emploiDuTemps, setEmploiDuTemps] = useState(null);
+  const [modeVueEmploi, setModeVueEmploi] = useState("toutes-classes");
+  const [classeEmploiSelectionnee, setClasseEmploiSelectionnee] = useState("");
+  const [enseignantEmploiSelectionne, setEnseignantEmploiSelectionne] =
+    useState("");
+  const [chargementEmploi, setChargementEmploi] = useState(false);
+  const [erreurEmploi, setErreurEmploi] = useState("");
   const [rechercheEleve, setRechercheEleve] = useState("");
   const [classeSelectionnee, setClasseSelectionnee] = useState("");
   const [chargementEleves, setChargementEleves] = useState(false);
@@ -224,6 +314,43 @@ export default function App() {
       annule = true;
     };
   }, [token, activePage, rechercheEleve, classeSelectionnee]);
+
+  useEffect(() => {
+    if (!token || activePage !== "emploi") return;
+
+    let annule = false;
+
+    async function chargerEmploiDuTemps() {
+      setChargementEmploi(true);
+      setErreurEmploi("");
+
+      try {
+        const [resultat, resultatClasses] = await Promise.all([
+          apiRequest("/mobile/emploi-du-temps", { token }),
+          apiRequest("/mobile/classes", { token }),
+        ]);
+
+        if (!annule) {
+          setEmploiDuTemps(resultat.data || null);
+          setClassesEmploi(resultatClasses.data || []);
+        }
+      } catch (err) {
+        if (!annule) {
+          setErreurEmploi(err.message);
+        }
+      } finally {
+        if (!annule) {
+          setChargementEmploi(false);
+        }
+      }
+    }
+
+    chargerEmploiDuTemps();
+
+    return () => {
+      annule = true;
+    };
+  }, [token, activePage]);
 
   useEffect(() => {
     if (mode !== "personnel" || !etablissementId || !role) {
@@ -406,6 +533,30 @@ export default function App() {
 
   const userRole = getRole(user);
   const isSuperAdmin = userRole === "SuperAdmin";
+  const lignesEmploi = emploiDuTemps?.lignes || [];
+  const classeEmploiActive = classesEmploi.some(
+    (classe) => String(classe.id) === classeEmploiSelectionnee,
+  )
+    ? classeEmploiSelectionnee
+    : String(classesEmploi[0]?.id || "");
+  const enseignantsEmploi = [
+    ...new Map(
+      lignesEmploi
+        .filter((ligne) => ligne.enseignant_id && ligne.enseignant)
+        .map((ligne) => [
+          String(ligne.enseignant_id),
+          {
+            id: String(ligne.enseignant_id),
+            nom: ligne.enseignant,
+          },
+        ]),
+    ).values(),
+  ];
+  const enseignantEmploiActif = enseignantsEmploi.some(
+    (enseignant) => enseignant.id === enseignantEmploiSelectionne,
+  )
+    ? enseignantEmploiSelectionne
+    : enseignantsEmploi[0]?.id || "";
   const etablissement = etablissements.find(
     (item) => String(item.id) === String(user?.etablissement_id),
   );
@@ -992,9 +1143,287 @@ export default function App() {
             </section>
           )}
 
+          {activePage === "emploi" && (
+            <section className="eleves-mobile">
+              <button
+                type="button"
+                className="back-link"
+                onClick={() => openPage("dashboard")}
+              >
+                <ArrowLeft size={17} />
+                Retour au tableau de bord
+              </button>
+
+              <div className="page-intro">
+                <div className="page-icon">
+                  <CalendarDays size={25} />
+                </div>
+                <div>
+                  <h1>Emploi du temps</h1>
+                  <p>Consultation des cours publiés</p>
+                </div>
+              </div>
+
+              {emploiDuTemps && (
+                <div className="emploi-filtres">
+                  {!["Professeur", "Educateur"].includes(userRole) && (
+                    <div className="emploi-mode-selecteur">
+                      <span>Afficher</span>
+                      <div
+                        className="emploi-modes"
+                        role="group"
+                        aria-label="Mode d’affichage de l’emploi du temps"
+                      >
+                        <button
+                          type="button"
+                          className={
+                            modeVueEmploi === "toutes-classes" ? "active" : ""
+                          }
+                          onClick={() => setModeVueEmploi("toutes-classes")}
+                        >
+                          Global
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            modeVueEmploi === "classe" ? "active" : ""
+                          }
+                          onClick={() => setModeVueEmploi("classe")}
+                        >
+                          Par classe
+                        </button>
+                        <button
+                          type="button"
+                          className={
+                            modeVueEmploi === "enseignant" ? "active" : ""
+                          }
+                          onClick={() => setModeVueEmploi("enseignant")}
+                        >
+                          Par prof
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {userRole === "Professeur" ? (
+                    <div className="emploi-filtre-info">
+                      <strong>Mon emploi du temps</strong>
+                      <span>Vue personnelle en lecture seule</span>
+                    </div>
+                  ) : (
+                    <label className="emploi-filtre-champ">
+                      {modeVueEmploi === "enseignant"
+                        ? "Professeur"
+                        : modeVueEmploi === "classe"
+                          ? "Classe"
+                          : "Vue globale"}
+                      {modeVueEmploi === "enseignant" ? (
+                        <select
+                          value={enseignantEmploiActif}
+                          onChange={(e) =>
+                            setEnseignantEmploiSelectionne(e.target.value)
+                          }
+                          disabled={enseignantsEmploi.length === 0}
+                        >
+                          {enseignantsEmploi.map((enseignant) => (
+                            <option key={enseignant.id} value={enseignant.id}>
+                              {enseignant.nom}
+                            </option>
+                          ))}
+                        </select>
+                      ) : modeVueEmploi === "classe" ? (
+                        <select
+                          value={classeEmploiActive}
+                          onChange={(e) =>
+                            setClasseEmploiSelectionnee(e.target.value)
+                          }
+                          disabled={classesEmploi.length === 0}
+                        >
+                          {classesEmploi.length === 0 ? (
+                            <option value="">Aucune classe disponible</option>
+                          ) : (
+                            classesEmploi.map((classe) => (
+                              <option key={classe.id} value={classe.id}>
+                                {classe.libelle}
+                              </option>
+                            ))
+                          )}
+                        </select>
+                      ) : null}
+                    </label>
+                  )}
+
+                </div>
+              )}
+
+              {erreurEmploi && (
+                <div className="notice error" role="alert">
+                  {erreurEmploi}
+                </div>
+              )}
+
+              {chargementEmploi ? (
+                <p className="eleves-etat">
+                  Chargement de l’emploi du temps...
+                </p>
+              ) : !emploiDuTemps || !emploiDuTemps.lignes?.length ? (
+                <p className="eleves-etat">
+                  Aucun emploi du temps publié n’est disponible.
+                </p>
+              ) : (
+                <div className="emploi-planning">
+                  <div
+                    className="emploi-grille-defilement"
+                    role="region"
+                    aria-label="Grille hebdomadaire de l’emploi du temps"
+                    tabIndex={0}
+                  >
+                    <table className="emploi-grille">
+                      <thead>
+                        <tr>
+                          <th className="emploi-colonne-horaire">Horaires</th>
+                          {JOURS_SEMAINE.map((jour) => (
+                            <th key={jour}>
+                              {jour.charAt(0).toUpperCase() + jour.slice(1)}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {obtenirCreneauxEmploi(
+                          emploiDuTemps.lignes,
+                          emploiDuTemps.creneaux || [],
+                        ).map(([cle, creneau]) => {
+                          const estPause =
+                            creneau.type === "pause" ||
+                            /pause|récré|recre/i.test(creneau.libelle || "");
+                          const modeActif =
+                            userRole === "Professeur"
+                              ? "enseignant"
+                              : modeVueEmploi;
+
+                          return (
+                            <tr
+                              key={cle}
+                              className={estPause ? "emploi-ligne-pause" : ""}
+                            >
+                              <th className="emploi-colonne-horaire">
+                                <strong>{afficherHeure(creneau)}</strong>
+                                {estPause && (
+                                  <span>{creneau.libelle || "Pause"}</span>
+                                )}
+                              </th>
+                              {JOURS_SEMAINE.map((jour) => {
+                                const cours = emploiDuTemps.lignes.filter(
+                                  (ligne) => {
+                                    if (
+                                      normaliserJour(ligne.jour) !== jour ||
+                                      cleCreneau(ligne.creneau) !== cle
+                                    ) {
+                                      return false;
+                                    }
+
+                                    if (modeActif === "enseignant") {
+                                      return String(ligne.enseignant_id) ===
+                                        enseignantEmploiActif;
+                                    }
+
+                                    if (modeActif === "classe") {
+                                      return (
+                                        String(ligne.classe_id) ===
+                                        classeEmploiActive
+                                      );
+                                    }
+
+                                    return true;
+                                  },
+                                );
+
+                                return (
+                                  <td key={jour}>
+                                    {cours.length > 0 ? (
+                                      <div className="emploi-cellule-cours">
+                                        {cours.map((ligne) => {
+                                          const couleur =
+                                            /^#[\da-f]{6}$/i.test(
+                                              ligne.matiere_couleur || "",
+                                            )
+                                              ? ligne.matiere_couleur
+                                              : "#0f766e";
+                                          const activites = {
+                                            HE: "Heure d’étude (HE)",
+                                            CDI: "Bibliothèque (CDI)",
+                                            DN: "Devoirs de Niveau (DN)",
+                                          };
+
+                                          return (
+                                            <article
+                                              className="emploi-cours"
+                                              key={ligne.id}
+                                              style={{
+                                                borderLeftColor: couleur,
+                                                backgroundColor: `color-mix(in srgb, ${couleur} 13%, white)`,
+                                              }}
+                                            >
+                                              <strong>
+                                                {ligne.activite
+                                                  ? activites[ligne.activite] ||
+                                                    ligne.activite
+                                                  : ligne.matiere_code ||
+                                                    ligne.matiere ||
+                                                    "Matière"}
+                                              </strong>
+                                              {ligne.groupe && (
+                                                <span>{ligne.groupe}</span>
+                                              )}
+                                              {modeActif !== "classe" &&
+                                                ligne.classe && (
+                                                  <span>
+                                                    {ligne.classe}
+                                                  </span>
+                                                )}
+                                              {modeActif !== "enseignant" &&
+                                                ligne.enseignant && (
+                                                  <span>
+                                                    {ligne.enseignant}
+                                                  </span>
+                                                )}
+                                              {ligne.salle && (
+                                                <span>
+                                                  Salle {ligne.salle}
+                                                </span>
+                                              )}
+                                            </article>
+                                          );
+                                        })}
+                                      </div>
+                                    ) : estPause ? (
+                                      <span className="emploi-pause-label">
+                                        {creneau.libelle || "Pause"}
+                                      </span>
+                                    ) : (
+                                      <span className="emploi-vide-label">
+                                        —
+                                      </span>
+                                    )}
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </section>
+          )}
+
           {activePage !== "dashboard" &&
             activePage !== "profil" &&
-            activePage !== "eleves" && (
+            activePage !== "eleves" &&
+            activePage !== "emploi" && (
               <div className="module-placeholder">
                 <button
                   type="button"
