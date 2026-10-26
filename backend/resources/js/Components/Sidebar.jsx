@@ -324,14 +324,16 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                             Autres personnels
                         </MenuItem>
 
-                        <MenuItem
-                            href="/fonctions-personnel"
-                            icon={Settings}
-                            activeMatch={["/fonctions-personnel"]}
-                            onClick={closeSidebar}
-                        >
-                            Fonctions du personnel
-                        </MenuItem>
+                        {isSuperAdmin && (
+                            <MenuItem
+                                href="/fonctions-personnel"
+                                icon={Settings}
+                                activeMatch={["/fonctions-personnel"]}
+                                onClick={closeSidebar}
+                            >
+                                Fonctions du personnel
+                            </MenuItem>
+                        )}
 
                         <MenuItem
                             href="/enseignants"
