@@ -316,6 +316,24 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                         <SectionTitle>Personnel</SectionTitle>
 
                         <MenuItem
+                            href="/autres-personnels"
+                            icon={Users}
+                            activeMatch={["/autres-personnels"]}
+                            onClick={closeSidebar}
+                        >
+                            Autres personnels
+                        </MenuItem>
+
+                        <MenuItem
+                            href="/fonctions-personnel"
+                            icon={Settings}
+                            activeMatch={["/fonctions-personnel"]}
+                            onClick={closeSidebar}
+                        >
+                            Fonctions du personnel
+                        </MenuItem>
+
+                        <MenuItem
                             href="/enseignants"
                             icon={Users}
                             activeMatch={["/enseignants"]}

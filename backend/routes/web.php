@@ -27,6 +27,8 @@ use App\Http\Controllers\EducateurClasseController;
 use App\Http\Controllers\EmploiDuTempsController;
 use App\Http\Controllers\CreneauHoraireController;
 use App\Http\Controllers\SalleController;
+use App\Http\Controllers\FonctionPersonnelController;
+use App\Http\Controllers\AutrePersonnelController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -46,6 +48,40 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
     ->name('dashboard');
 
 Route::middleware('auth')->group(function () {
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | FONCTIONS DES AUTRES PERSONNELS — SUPERADMIN UNIQUEMENT
+    |--------------------------------------------------------------------------
+    */
+    Route::middleware('role:SuperAdmin')->group(function () {
+        Route::get(
+            '/fonctions-personnel',
+            [FonctionPersonnelController::class, 'index']
+        )->name('fonctions-personnel.index');
+
+        Route::post(
+            '/fonctions-personnel',
+            [FonctionPersonnelController::class, 'store']
+        )->name('fonctions-personnel.store');
+
+        Route::put(
+            '/fonctions-personnel/{fonctions_personnel}',
+            [FonctionPersonnelController::class, 'update']
+        )->name('fonctions-personnel.update');
+
+        Route::patch(
+            '/fonctions-personnel/{fonctions_personnel}/toggle',
+            [FonctionPersonnelController::class, 'toggle']
+        )->name('fonctions-personnel.toggle');
+
+        Route::delete(
+            '/fonctions-personnel/{fonctions_personnel}',
+            [FonctionPersonnelController::class, 'destroy']
+        )->name('fonctions-personnel.destroy');
+    });
+
 
     Route::get('/test-superadmin', function () {
         $user = auth()->user();
@@ -533,6 +569,31 @@ Route::middleware('auth')->group(function () {
         ->parameters([
             'educateurs' => 'educateur',
         ]);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | AUTRES PERSONNELS
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware(
+        'role:SuperAdmin|Administrateur|Directeur|Direction'
+    )->group(function () {
+
+        Route::get(
+            '/autres-personnels/comptes-disponibles/{etablissement}',
+            [AutrePersonnelController::class, 'comptesDisponiblesPourEtablissement']
+        )->name('autres-personnels.comptes-disponibles');
+
+        Route::resource(
+            'autres-personnels',
+            AutrePersonnelController::class
+        )->parameters([
+            'autres-personnels' => 'autre_personnel',
+        ]);
+    });
+
 
     Route::get(
         '/eleves/import/correction/{token}',

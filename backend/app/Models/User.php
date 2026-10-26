@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
@@ -72,6 +73,11 @@ class User extends Authenticatable
     public function educateur()
     {
         return $this->belongsTo(Educateur::class);
+    }
+
+    public function autrePersonnel(): HasOne
+    {
+        return $this->hasOne(AutrePersonnel::class, 'user_id');
     }
 
     /*
