@@ -14,7 +14,6 @@ export default function Create({
         etablissement_id: etablissementId ?? "",
         fonction_personnel_id: "",
         user_id: "",
-        matricule: "",
         nom: "",
         prenoms: "",
         sexe: "",
@@ -206,7 +205,19 @@ export default function Create({
                                 )}
                             </div>
 
-                            {champ("matricule", "Matricule")}
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">
+                                    Matricule
+                                </label>
+                                <div className="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2.5 text-sm text-gray-600">
+                                    Attribué automatiquement à l'enregistrement
+                                </div>
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Le matricule ne peut pas être saisi
+                                    manuellement.
+                                </p>
+                            </div>
+
                             {champ("date_embauche", "Date d'embauche", "date")}
                             {champ(
                                 "date_prise_service",

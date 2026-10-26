@@ -16,7 +16,6 @@ export default function Edit({
         etablissement_id: personnel.etablissement_id ?? etablissementId ?? "",
         fonction_personnel_id: personnel.fonction_personnel_id ?? "",
         user_id: personnel.user_id ?? "",
-        matricule: personnel.matricule ?? "",
         nom: personnel.nom ?? "",
         prenoms: personnel.prenoms ?? "",
         sexe: personnel.sexe ?? "",
@@ -223,7 +222,19 @@ export default function Edit({
                                 )}
                             </div>
 
-                            {champ("matricule", "Matricule")}
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">
+                                    Matricule
+                                </label>
+                                <div className="w-full rounded-lg border border-gray-200 bg-gray-100 px-3 py-2.5 text-sm text-gray-700">
+                                    {personnel.matricule || "Non attribué"}
+                                </div>
+                                <p className="mt-1 text-xs text-gray-500">
+                                    Le matricule est attribué automatiquement et
+                                    ne peut pas être modifié.
+                                </p>
+                            </div>
+
                             {champ("date_embauche", "Date d'embauche", "date")}
                             {champ(
                                 "date_prise_service",

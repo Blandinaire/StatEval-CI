@@ -11,6 +11,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -190,15 +191,24 @@ class AutrePersonnelController extends Controller
             $etablissementId
         );
 
-        $this->verifierMatricule(
-            $data['matricule'] ?? null,
-            $etablissementId
-        );
-
         $data['etablissement_id'] = $etablissementId;
         $data['actif'] = $data['actif'] ?? true;
 
-        AutrePersonnel::create($data);
+        // Le matricule est attribué automatiquement.
+        unset($data['matricule']);
+
+        DB::transaction(function () use ($data) {
+            $personnel = AutrePersonnel::create($data);
+
+            $personnel->matricule = 'AP-' . str_pad(
+                (string) $personnel->id,
+                6,
+                '0',
+                STR_PAD_LEFT
+            );
+
+            $personnel->save();
+        });
 
         return redirect()
             ->route('autres-personnels.index')
@@ -270,6 +280,10 @@ class AutrePersonnelController extends Controller
 
         $user = Auth::user();
         $data = $request->validated();
+
+        // Le matricule est immuable après sa création.
+        unset($data['matricule']);
+
         $isSuperAdmin = $user->hasRole('SuperAdmin');
 
         $etablissementId = $autre_personnel->etablissement_id;
@@ -286,12 +300,6 @@ class AutrePersonnelController extends Controller
 
         $this->verifierCompteUtilisateur(
             $data['user_id'] ?? null,
-            $etablissementId,
-            $autre_personnel->id
-        );
-
-        $this->verifierMatricule(
-            $data['matricule'] ?? null,
             $etablissementId,
             $autre_personnel->id
         );
