@@ -36,6 +36,7 @@ class RoleSeeder extends Seeder
             'Professeur',
             'Élève',
             'Parent',
+            'AutrePersonnel',
         ];
 
         foreach ($roles as $roleName) {
@@ -394,6 +395,17 @@ class RoleSeeder extends Seeder
                 'absences.view',
 
                 'communications.view',
+            ]);
+
+        /*
+            |--------------------------------------------------------------------------
+            | AUTRE PERSONNEL
+            |--------------------------------------------------------------------------
+            */
+
+        Role::findByName('AutrePersonnel', 'web')
+            ->syncPermissions([
+                'dashboard.view',
             ]);
     }
 }

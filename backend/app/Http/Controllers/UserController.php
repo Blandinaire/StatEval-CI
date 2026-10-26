@@ -2,17 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AutrePersonnel;
 use App\Models\Educateur;
 use App\Models\Enseignant;
 use App\Models\Etablissement;
 use App\Models\EtablissementResponsable;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 use Spatie\Permission\Models\Role;
-use Illuminate\Support\Facades\Auth;
 
 class UserController extends Controller
 {
@@ -64,10 +66,11 @@ class UserController extends Controller
             'etablissementResponsable',
         ])->orderBy('name');
 
-        // Un Administrateur ne voit que les utilisateurs
-        // de son propre établissement.
         if (Auth::user()->hasRole('Administrateur')) {
-            $query->where('etablissement_id', Auth::user()->etablissement_id);
+            $query->where(
+                'etablissement_id',
+                Auth::user()->etablissement_id
+            );
         }
 
         $users = $query->get();
@@ -118,14 +121,10 @@ class UserController extends Controller
                 'Direction',
                 'Professeur',
                 'Educateur',
-            ])
-                ->orderBy('name')
-                ->get(),
+            ])->orderBy('name')->get(),
 
             'etablissements' => $etablissementsQuery->get(),
-
             'enseignants' => collect(),
-
             'educateurs' => collect(),
             'responsables' => collect(),
         ]);
@@ -135,14 +134,6 @@ class UserController extends Controller
      * Retourne les comptes utilisateurs disponibles
      * pour un établissement et un rôle.
      */
-    /**
-     * Retourne les comptes utilisateurs disponibles
-     * pour un établissement et un rôle.
-     *
-     * Cette route est accessible avant authentification
-     * afin de permettre à un membre du personnel de
-     * sélectionner son compte pour se connecter.
-     */
     public function personnelOptions(Request $request)
     {
         $validated = $request->validate([
@@ -151,7 +142,6 @@ class UserController extends Controller
                 'integer',
                 'exists:etablissements,id',
             ],
-
             'role' => [
                 'required',
                 'string',
@@ -159,18 +149,13 @@ class UserController extends Controller
             ],
         ]);
 
-        $etablissementId = (int) $validated['etablissement_id'];
-        $role = $validated['role'];
-
-        // L'établissement doit être actif.
         $etablissement = Etablissement::query()
-            ->where('id', $etablissementId)
+            ->where('id', (int) $validated['etablissement_id'])
             ->where('actif', true)
             ->firstOrFail();
 
-        // Recherche uniquement les comptes actifs
-        // appartenant à cet établissement et possédant
-        // le rôle sélectionné.
+        $role = $validated['role'];
+
         $users = User::query()
             ->where('etablissement_id', $etablissement->id)
             ->where('actif', true)
@@ -186,6 +171,10 @@ class UserController extends Controller
         return response()->json($users);
     }
 
+    /**
+     * Retourne les fiches de personnel disponibles
+     * pour la création d'un compte.
+     */
     public function creationPersonnelOptions(Request $request)
     {
         $this->authorizeManagement();
@@ -196,7 +185,6 @@ class UserController extends Controller
                 'integer',
                 'exists:etablissements,id',
             ],
-
             'role' => [
                 'required',
                 'string',
@@ -238,21 +226,24 @@ class UserController extends Controller
                     'email',
                 ]);
         } else {
-            $personnes = EtablissementResponsable::query()
+            $personnes = AutrePersonnel::with('fonction')
                 ->where('etablissement_id', $etablissementId)
                 ->where('actif', true)
-                ->whereDoesntHave('user')
+                ->whereNull('user_id')
                 ->orderBy('nom')
                 ->orderBy('prenoms')
-                ->get([
-                    'id',
-                    'etablissement_id',
-                    'civilite',
-                    'nom',
-                    'prenoms',
-                    'fonction',
-                    'email',
-                ]);
+                ->get()
+                ->map(function ($personnel) {
+                    return [
+                        'id' => $personnel->id,
+                        'etablissement_id' => $personnel->etablissement_id,
+                        'nom' => $personnel->nom,
+                        'prenoms' => $personnel->prenoms,
+                        'email' => $personnel->email,
+                        'fonction' => $personnel->fonction?->libelle ?? '',
+                    ];
+                })
+                ->values();
         }
 
         return response()->json([
@@ -273,56 +264,52 @@ class UserController extends Controller
                 'string',
                 'exists:roles,name',
             ],
-
             'etablissement_id' => [
                 'nullable',
                 'integer',
                 'exists:etablissements,id',
             ],
-
             'enseignant_id' => [
                 'nullable',
                 'integer',
                 'exists:enseignants,id',
             ],
-
             'educateur_id' => [
                 'nullable',
                 'integer',
                 'exists:educateurs,id',
             ],
-
             'etablissement_responsable_id' => [
                 'nullable',
                 'integer',
                 'exists:etablissement_responsables,id',
             ],
-
+            'autre_personnel_id' => [
+                'nullable',
+                'integer',
+                'exists:autres_personnels,id',
+            ],
             'name' => [
                 'nullable',
                 'string',
                 'max:150',
             ],
-
             'email' => [
                 'nullable',
                 'email',
                 'max:255',
                 'unique:users,email',
             ],
-
             'password' => [
                 'nullable',
                 'string',
                 'min:8',
             ],
-
             'fonction' => [
                 'nullable',
                 'string',
                 'max:150',
             ],
-
             'actif' => [
                 'boolean',
             ],
@@ -330,30 +317,22 @@ class UserController extends Controller
 
         $role = $validated['role'];
 
-        /*
-         * ---------------------------------------------------------
-         * SUPERVISION DE L'ÉTABLISSEMENT
-         * ---------------------------------------------------------
-         */
-
         $etablissementId = $role === 'SuperAdmin'
             ? null
-            : ($validated['etablissement_id'] ?? null);
+            : (isset($validated['etablissement_id'])
+                ? (int) $validated['etablissement_id']
+                : null);
 
         if ($role !== 'SuperAdmin') {
             abort_unless($etablissementId !== null, 422);
-
             $this->authorizeEstablishment($etablissementId);
         }
 
         /*
-         * ---------------------------------------------------------
-         * SUPÉRADMIN
-         * ---------------------------------------------------------
+         * SUPERADMIN
          */
-
         if ($role === 'SuperAdmin') {
-            $request->validate([
+            $superAdminData = $request->validate([
                 'name' => [
                     'required',
                     'string',
@@ -373,10 +352,11 @@ class UserController extends Controller
             ]);
 
             $user = User::create([
-                'name' => $validated['name'],
-                'email' => $validated['email'],
-                'password' => $validated['password'],
-                'fonction' => $validated['fonction'] ?? 'SuperAdministrateur',
+                'name' => $superAdminData['name'],
+                'email' => $superAdminData['email'],
+                'password' => $superAdminData['password'],
+                'fonction' => $validated['fonction']
+                    ?? 'SuperAdministrateur',
                 'etablissement_id' => null,
                 'enseignant_id' => null,
                 'educateur_id' => null,
@@ -393,11 +373,8 @@ class UserController extends Controller
         }
 
         /*
-         * ---------------------------------------------------------
          * PROFESSEUR
-         * ---------------------------------------------------------
          */
-
         if ($role === 'Professeur') {
             abort_unless(
                 !empty($validated['enseignant_id']),
@@ -417,10 +394,7 @@ class UserController extends Controller
                 'Cet enseignant possède déjà un compte utilisateur.'
             );
 
-            $name = trim(
-                $enseignant->nom . ' ' . $enseignant->prenoms
-            );
-
+            $name = trim($enseignant->nom . ' ' . $enseignant->prenoms);
             $email = $enseignant->email;
 
             if (!empty($email)) {
@@ -457,11 +431,8 @@ class UserController extends Controller
         }
 
         /*
-         * ---------------------------------------------------------
          * ÉDUCATEUR
-         * ---------------------------------------------------------
          */
-
         if ($role === 'Educateur') {
             abort_unless(
                 !empty($validated['educateur_id']),
@@ -481,10 +452,7 @@ class UserController extends Controller
                 'Cet éducateur possède déjà un compte utilisateur.'
             );
 
-            $name = trim(
-                $educateur->nom . ' ' . $educateur->prenoms
-            );
-
+            $name = trim($educateur->nom . ' ' . $educateur->prenoms);
             $email = $educateur->email;
 
             if (!empty($email)) {
@@ -521,74 +489,78 @@ class UserController extends Controller
         }
 
         /*
-         * ---------------------------------------------------------
          * ADMINISTRATEUR / DIRECTION
-         * ---------------------------------------------------------
          */
-
-        if (in_array($role, [
-            'Administrateur',
-            'Direction',
-        ], true)) {
+        if (in_array($role, ['Administrateur', 'Direction'], true)) {
             abort_unless(
-                !empty($validated['etablissement_responsable_id']),
+                !empty($validated['autre_personnel_id']),
                 422,
-                'Veuillez sélectionner le responsable concerné.'
+                'Veuillez sélectionner une fiche dans Autres personnels.'
             );
 
-            $responsable = EtablissementResponsable::query()
-                ->where('id', $validated['etablissement_responsable_id'])
+            $personnel = AutrePersonnel::with('fonction')
+                ->where('id', $validated['autre_personnel_id'])
                 ->where('etablissement_id', $etablissementId)
                 ->where('actif', true)
-                ->firstOrFail();
+                ->whereNull('user_id')
+                ->first();
+
+            abort_unless(
+                $personnel !== null,
+                422,
+                'Cette fiche est introuvable, inactive ou déjà liée à un compte.'
+            );
+
+            $name = trim($personnel->nom . ' ' . $personnel->prenoms);
+            $email = trim((string) $personnel->email);
+
+            abort_unless(
+                $email !== '',
+                422,
+                'Renseignez une adresse e-mail dans la fiche Autres personnels avant de créer le compte.'
+            );
 
             abort_if(
-                User::where(
-                    'etablissement_responsable_id',
-                    $responsable->id
-                )->exists(),
+                User::where('email', $email)->exists(),
                 422,
-                'Cette personne possède déjà un compte utilisateur.'
+                'Cette adresse e-mail est déjà utilisée par un compte.'
             );
-
-            $name = trim(
-                $responsable->nom . ' ' . $responsable->prenoms
-            );
-
-            $email = $responsable->email;
-
-            if (!empty($email)) {
-                abort_if(
-                    User::where('email', $email)->exists(),
-                    422,
-                    'L’adresse e-mail de cette personne est déjà utilisée par un compte.'
-                );
-            }
 
             $initialPassword = $this->generateInitialPassword();
 
-            $user = User::create([
-                'name' => $name,
-                'email' => $email,
-                'password' => $initialPassword,
-                'initial_password' => $initialPassword,
-                'fonction' => $responsable->fonction,
-                'etablissement_id' => $etablissementId,
-                'enseignant_id' => null,
-                'educateur_id' => null,
-                'etablissement_responsable_id' => $responsable->id,
-                'actif' => $validated['actif'] ?? true,
-                'must_change_password' => true,
-            ]);
+            DB::transaction(function () use (
+                $personnel,
+                $name,
+                $email,
+                $role,
+                $etablissementId,
+                $validated,
+                $initialPassword,
+                &$user
+            ) {
+                $user = User::create([
+                    'name' => $name,
+                    'email' => $email,
+                    'password' => $initialPassword,
+                    'initial_password' => $initialPassword,
+                    'fonction' => $personnel->fonction?->libelle ?? $role,
+                    'etablissement_id' => $etablissementId,
+                    'enseignant_id' => null,
+                    'educateur_id' => null,
+                    'etablissement_responsable_id' => null,
+                    'actif' => $validated['actif'] ?? true,
+                    'must_change_password' => true,
+                ]);
 
-            $user->syncRoles([$role]);
+                $personnel->user_id = $user->id;
+                $personnel->save();
+
+                $user->syncRoles([$role]);
+            });
 
             return redirect()
                 ->route('users.index')
-                ->with(
-                    'success',
-                    "Compte {$role} créé avec succès."
-                )
+                ->with('success', "Compte {$role} créé avec succès.")
                 ->with('initial_password', $initialPassword)
                 ->with('created_user', $name);
         }
@@ -596,22 +568,23 @@ class UserController extends Controller
         abort(422, 'Rôle non pris en charge.');
     }
 
+    /**
+     * Réinitialisation du mot de passe.
+     */
     public function resetPassword(User $user)
     {
         $this->authorizeManagement();
 
-        // Un SuperAdmin ne reçoit pas de mot de passe initial.
         abort_if(
             $user->hasRole('SuperAdmin'),
             422,
             'Le mot de passe d’un SuperAdmin ne peut pas être réinitialisé par cette fonction.'
         );
 
-        // Un Administrateur ne peut agir que dans son établissement.
         if (Auth::user()->hasRole('Administrateur')) {
             abort_unless(
-                (int) $user->etablissement_id ===
-                    (int) Auth::user()->etablissement_id,
+                (int) $user->etablissement_id
+                    === (int) Auth::user()->etablissement_id,
                 403
             );
         }
@@ -626,10 +599,7 @@ class UserController extends Controller
 
         return redirect()
             ->route('users.index')
-            ->with(
-                'success',
-                "Le mot de passe de {$user->name} a été réinitialisé avec succès."
-            );
+            ->with('success', "Le mot de passe de {$user->name} a été réinitialisé avec succès.");
     }
 
     /**
@@ -641,8 +611,8 @@ class UserController extends Controller
 
         if (Auth::user()->hasRole('Administrateur')) {
             abort_unless(
-                (int) $user->etablissement_id ===
-                    (int) Auth::user()->etablissement_id,
+                (int) $user->etablissement_id
+                    === (int) Auth::user()->etablissement_id,
                 403
             );
         }
@@ -654,7 +624,6 @@ class UserController extends Controller
                 'educateur',
                 'etablissementResponsable',
             ]),
-
             'roles' => Role::whereIn('name', [
                 'SuperAdmin',
                 'Administrateur',
@@ -662,7 +631,6 @@ class UserController extends Controller
                 'Professeur',
                 'Educateur',
             ])->orderBy('name')->get(),
-
             'etablissements' => Etablissement::orderBy('nom')->get(),
         ]);
     }
@@ -676,43 +644,28 @@ class UserController extends Controller
 
         if (Auth::user()->hasRole('Administrateur')) {
             abort_unless(
-                (int) $user->etablissement_id ===
-                    (int) Auth::user()->etablissement_id,
+                (int) $user->etablissement_id
+                    === (int) Auth::user()->etablissement_id,
                 403
             );
         }
 
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:150'],
-
             'email' => [
                 'nullable',
                 'email',
                 'max:255',
                 'unique:users,email,' . $user->id,
             ],
-
-            'fonction' => [
-                'nullable',
-                'string',
-                'max:150',
-            ],
-
-            'role' => [
-                'required',
-                'string',
-                'exists:roles,name',
-            ],
-
+            'fonction' => ['nullable', 'string', 'max:150'],
+            'role' => ['required', 'string', 'exists:roles,name'],
             'etablissement_id' => [
                 'nullable',
                 'integer',
                 'exists:etablissements,id',
             ],
-
-            'actif' => [
-                'boolean',
-            ],
+            'actif' => ['boolean'],
         ]);
 
         $role = $validated['role'];
@@ -723,19 +676,16 @@ class UserController extends Controller
 
         if ($role !== 'SuperAdmin') {
             abort_unless($etablissementId !== null, 422);
-
-            $this->authorizeEstablishment($etablissementId);
+            $this->authorizeEstablishment((int) $etablissementId);
         }
 
-        $data = [
+        $user->update([
             'name' => $validated['name'],
             'email' => $validated['email'] ?? null,
             'fonction' => $validated['fonction'] ?? null,
             'etablissement_id' => $etablissementId,
             'actif' => $validated['actif'] ?? true,
-        ];
-
-        $user->update($data);
+        ]);
 
         $user->syncRoles([$role]);
 
@@ -760,8 +710,8 @@ class UserController extends Controller
 
         if (Auth::user()->hasRole('Administrateur')) {
             abort_unless(
-                (int) $user->etablissement_id ===
-                    (int) Auth::user()->etablissement_id,
+                (int) $user->etablissement_id
+                    === (int) Auth::user()->etablissement_id,
                 403
             );
         }
@@ -789,8 +739,8 @@ class UserController extends Controller
 
         if (Auth::user()->hasRole('Administrateur')) {
             abort_unless(
-                (int) $user->etablissement_id ===
-                    (int) Auth::user()->etablissement_id,
+                (int) $user->etablissement_id
+                    === (int) Auth::user()->etablissement_id,
                 403
             );
         }
@@ -808,9 +758,7 @@ class UserController extends Controller
     }
 
     /**
-     * Génère le mot de passe temporaire.
-     *
-     * Il n'est jamais enregistré en clair dans la base.
+     * Génère un mot de passe temporaire.
      */
     private function generateInitialPassword(): string
     {

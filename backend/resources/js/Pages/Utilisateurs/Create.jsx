@@ -12,6 +12,7 @@ export default function Create({ roles = [], etablissements = [] }) {
         enseignant_id: "",
         educateur_id: "",
         etablissement_responsable_id: "",
+        autre_personnel_id: "",
         actif: true,
     });
 
@@ -31,18 +32,8 @@ export default function Create({ roles = [], etablissements = [] }) {
         : isEducateur
           ? "educateur"
           : isResponsable
-            ? "responsable"
+            ? "autre_personnel"
             : null;
-
-    const directionFunctions = [
-        "Directeur des Études",
-        "Proviseur",
-        "Responsable pédagogique",
-        "Directeur adjoint",
-        "Responsable de la vie scolaire",
-        "Coordonnateur pédagogique",
-        "Autre",
-    ];
 
     /*
     |--------------------------------------------------------------------------
@@ -53,65 +44,30 @@ export default function Create({ roles = [], etablissements = [] }) {
     useEffect(() => {
         setPersonnes([]);
 
-        if (data.role === "SuperAdmin") {
-            setData("fonction", "Super Administrateur");
-            setData("etablissement_id", "");
-            setData("enseignant_id", "");
-            setData("educateur_id", "");
-            setData("etablissement_responsable_id", "");
-            setData("name", "");
-            setData("email", "");
-            return;
-        }
-
-        if (data.role === "Professeur") {
-            setData("fonction", "Professeur");
-            setData("enseignant_id", "");
-            setData("educateur_id", "");
-            setData("etablissement_responsable_id", "");
-            setData("name", "");
-            setData("email", "");
-            setData("etablissement_id", "");
-            return;
-        }
-
-        if (data.role === "Educateur") {
-            setData("fonction", "Educateur");
-            setData("enseignant_id", "");
-            setData("educateur_id", "");
-            setData("etablissement_responsable_id", "");
-            setData("name", "");
-            setData("email", "");
-            setData("etablissement_id", "");
-            return;
-        }
-
-        if (data.role === "Administrateur") {
-            setData("fonction", "Administrateur");
-            setData("enseignant_id", "");
-            setData("educateur_id", "");
-            setData("etablissement_responsable_id", "");
-            setData("name", "");
-            setData("email", "");
-            return;
-        }
-
-        if (data.role === "Direction") {
-            setData("fonction", "");
-            setData("enseignant_id", "");
-            setData("educateur_id", "");
-            setData("etablissement_responsable_id", "");
-            setData("name", "");
-            setData("email", "");
-            return;
-        }
-
-        setData("fonction", "");
-        setData("enseignant_id", "");
-        setData("educateur_id", "");
-        setData("etablissement_responsable_id", "");
-        setData("name", "");
-        setData("email", "");
+        setData((previous) => ({
+            ...previous,
+            enseignant_id: "",
+            educateur_id: "",
+            etablissement_responsable_id: "",
+            autre_personnel_id: "",
+            name: "",
+            email: "",
+            fonction:
+                data.role === "SuperAdmin"
+                    ? "Super Administrateur"
+                    : data.role === "Professeur"
+                      ? "Professeur"
+                      : data.role === "Educateur"
+                        ? "Educateur"
+                        : data.role === "Administrateur"
+                          ? "Administrateur"
+                          : "",
+            ...(data.role === "SuperAdmin" ||
+            data.role === "Professeur" ||
+            data.role === "Educateur"
+                ? { etablissement_id: "" }
+                : {}),
+        }));
     }, [data.role]);
 
     /*
@@ -121,10 +77,15 @@ export default function Create({ roles = [], etablissements = [] }) {
     */
 
     useEffect(() => {
+        let actif = true;
+
         setPersonnes([]);
 
         if (!data.role || !data.etablissement_id || !personnelType) {
-            return;
+            setChargementPersonnes(false);
+            return () => {
+                actif = false;
+            };
         }
 
         setChargementPersonnes(true);
@@ -137,14 +98,24 @@ export default function Create({ roles = [], etablissements = [] }) {
                 },
             })
             .then((response) => {
-                setPersonnes(response.data.personnes ?? []);
+                if (actif) {
+                    setPersonnes(response.data.personnes ?? []);
+                }
             })
             .catch(() => {
-                setPersonnes([]);
+                if (actif) {
+                    setPersonnes([]);
+                }
             })
             .finally(() => {
-                setChargementPersonnes(false);
+                if (actif) {
+                    setChargementPersonnes(false);
+                }
             });
+
+        return () => {
+            actif = false;
+        };
     }, [data.role, data.etablissement_id, personnelType]);
 
     /*
@@ -154,56 +125,52 @@ export default function Create({ roles = [], etablissements = [] }) {
     */
 
     const handlePersonneChange = (personneId) => {
-        setData("enseignant_id", "");
-        setData("educateur_id", "");
-        setData("etablissement_responsable_id", "");
-
         const personne = personnes.find(
             (item) => String(item.id) === String(personneId),
         );
 
+        setData((previous) => ({
+            ...previous,
+            enseignant_id: "",
+            educateur_id: "",
+            etablissement_responsable_id: "",
+            autre_personnel_id: "",
+            name: "",
+            email: "",
+            fonction: isProfesseur
+                ? "Professeur"
+                : isEducateur
+                  ? "Educateur"
+                  : isAdministrateur
+                    ? "Administrateur"
+                    : "",
+        }));
+
         if (!personne) {
-            setData("name", "");
-            setData("email", "");
-
-            if (isProfesseur) {
-                setData("fonction", "Professeur");
-            } else if (isEducateur) {
-                setData("fonction", "Educateur");
-            } else if (isAdministrateur) {
-                setData("fonction", "Administrateur");
-            } else {
-                setData("fonction", "");
-            }
-
             return;
         }
 
-        if (personnelType === "enseignant") {
-            setData("enseignant_id", personne.id);
-            setData("fonction", "Professeur");
-        }
+        const nomComplet = `${personne.nom ?? ""} ${
+            personne.prenoms ?? ""
+        }`.trim();
 
-        if (personnelType === "educateur") {
-            setData("educateur_id", personne.id);
-            setData("fonction", "Educateur");
-        }
-
-        if (personnelType === "responsable") {
-            setData("etablissement_responsable_id", personne.id);
-            setData("fonction", personne.fonction ?? "");
-        }
-
-        setData(
-            "name",
-            `${personne.nom ?? ""} ${personne.prenoms ?? ""}`.trim(),
-        );
-
-        setData("email", personne.email ?? "");
-
-        if (personne.etablissement_id) {
-            setData("etablissement_id", personne.etablissement_id);
-        }
+        setData((previous) => ({
+            ...previous,
+            enseignant_id: personnelType === "enseignant" ? personne.id : "",
+            educateur_id: personnelType === "educateur" ? personne.id : "",
+            etablissement_responsable_id:
+                personnelType === "responsable" ? personne.id : "",
+            autre_personnel_id:
+                personnelType === "autre_personnel" ? personne.id : "",
+            name: nomComplet,
+            email: personne.email ?? "",
+            fonction:
+                personnelType === "enseignant"
+                    ? "Professeur"
+                    : personnelType === "educateur"
+                      ? "Educateur"
+                      : (personne.fonction ?? ""),
+        }));
     };
 
     /*
@@ -214,28 +181,19 @@ export default function Create({ roles = [], etablissements = [] }) {
 
     const handleSubmit = (e) => {
         e.preventDefault();
-
         post(route("users.store"));
     };
-
-    /*
-    |--------------------------------------------------------------------------
-    | RENDU
-    |--------------------------------------------------------------------------
-    */
 
     return (
         <AdminLayout>
             <Head title="Nouvel utilisateur" />
 
             <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-                {/* EN-TÊTE */}
                 <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <h1 className="text-2xl font-bold text-gray-900 sm:text-3xl">
                             Nouvel utilisateur
                         </h1>
-
                         <p className="mt-1 text-gray-500">
                             Créer un compte et définir ses droits d'accès.
                         </p>
@@ -249,32 +207,29 @@ export default function Create({ roles = [], etablissements = [] }) {
                     </Link>
                 </div>
 
-                {/* ERREURS */}
                 {Object.keys(errors).length > 0 && (
                     <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-5">
                         <h3 className="font-bold text-red-800">
                             Impossible de créer l'utilisateur
                         </h3>
-
                         <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-red-700">
                             {Object.entries(errors).map(([field, message]) => (
-                                <li key={field}>{message}</li>
+                                <li key={field}>
+                                    {Array.isArray(message)
+                                        ? message.join(", ")
+                                        : message}
+                                </li>
                             ))}
                         </ul>
                     </div>
                 )}
 
                 <form onSubmit={handleSubmit} className="space-y-6">
-                    {/* =====================================================
-                        RÔLE ET ÉTABLISSEMENT
-                    ====================================================== */}
-
                     <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
                         <div className="border-b bg-slate-50 px-6 py-5">
                             <h2 className="text-xl font-bold text-gray-900">
                                 Rôle et affectation
                             </h2>
-
                             <p className="mt-1 text-sm text-gray-500">
                                 Le rôle détermine les droits d'accès de
                                 l'utilisateur.
@@ -282,7 +237,6 @@ export default function Create({ roles = [], etablissements = [] }) {
                         </div>
 
                         <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
-                            {/* RÔLE */}
                             <div>
                                 <label className="mb-2 block font-semibold text-gray-700">
                                     Rôle
@@ -327,7 +281,6 @@ export default function Create({ roles = [], etablissements = [] }) {
                                 )}
                             </div>
 
-                            {/* ÉTABLISSEMENT */}
                             <div>
                                 <label className="mb-2 block font-semibold text-gray-700">
                                     Établissement
@@ -392,17 +345,12 @@ export default function Create({ roles = [], etablissements = [] }) {
                         </div>
                     </div>
 
-                    {/* =====================================================
-                        PERSONNEL
-                    ====================================================== */}
-
                     {(isProfesseur || isEducateur || isResponsable) && (
                         <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
                             <div className="border-b bg-slate-50 px-6 py-5">
                                 <h2 className="text-xl font-bold text-gray-900">
                                     Personnel
                                 </h2>
-
                                 <p className="mt-1 text-sm text-gray-500">
                                     Sélectionnez une personne existante dans la
                                     base de données.
@@ -415,18 +363,21 @@ export default function Create({ roles = [], etablissements = [] }) {
                                         ? "Enseignant"
                                         : isEducateur
                                           ? "Éducateur"
-                                          : "Responsable"}
+                                          : "Autre personnel"}
 
                                     <span className="text-red-600"> *</span>
                                 </label>
 
                                 <select
                                     value={
-                                        isProfesseur
+                                        personnelType === "enseignant"
                                             ? data.enseignant_id
-                                            : isEducateur
+                                            : personnelType === "educateur"
                                               ? data.educateur_id
-                                              : data.etablissement_responsable_id
+                                              : personnelType ===
+                                                  "autre_personnel"
+                                                ? data.autre_personnel_id
+                                                : data.etablissement_responsable_id
                                     }
                                     onChange={(e) =>
                                         handlePersonneChange(e.target.value)
@@ -475,32 +426,30 @@ export default function Create({ roles = [], etablissements = [] }) {
                                         {errors.enseignant_id}
                                     </p>
                                 )}
-
                                 {errors.educateur_id && (
                                     <p className="mt-2 text-sm text-red-600">
                                         {errors.educateur_id}
                                     </p>
                                 )}
-
                                 {errors.etablissement_responsable_id && (
                                     <p className="mt-2 text-sm text-red-600">
                                         {errors.etablissement_responsable_id}
+                                    </p>
+                                )}
+                                {errors.autre_personnel_id && (
+                                    <p className="mt-2 text-sm text-red-600">
+                                        {errors.autre_personnel_id}
                                     </p>
                                 )}
                             </div>
                         </div>
                     )}
 
-                    {/* =====================================================
-                        INFORMATIONS DU COMPTE
-                    ====================================================== */}
-
                     <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
                         <div className="border-b bg-slate-50 px-6 py-5">
                             <h2 className="text-xl font-bold text-gray-900">
                                 Informations du compte
                             </h2>
-
                             <p className="mt-1 text-sm text-gray-500">
                                 Certaines informations sont automatiquement
                                 récupérées depuis la fiche du personnel.
@@ -508,13 +457,11 @@ export default function Create({ roles = [], etablissements = [] }) {
                         </div>
 
                         <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
-                            {/* NOM */}
                             <div>
                                 <label className="mb-2 block font-semibold text-gray-700">
                                     Nom et prénoms
                                     <span className="text-red-600"> *</span>
                                 </label>
-
                                 <input
                                     type="text"
                                     value={data.name}
@@ -535,7 +482,6 @@ export default function Create({ roles = [], etablissements = [] }) {
                                     }`}
                                     placeholder="Nom et prénoms"
                                 />
-
                                 {errors.name && (
                                     <p className="mt-2 text-sm text-red-600">
                                         {errors.name}
@@ -543,18 +489,17 @@ export default function Create({ roles = [], etablissements = [] }) {
                                 )}
                             </div>
 
-                            {/* EMAIL */}
                             <div>
                                 <div className="mb-2 flex items-center justify-between">
                                     <label className="block font-semibold text-gray-700">
                                         Adresse e-mail
                                     </label>
-
                                     {(isProfesseur ||
                                         isEducateur ||
                                         isResponsable) && (
                                         <span className="text-xs text-gray-500">
-                                            Facultative
+                                            Facultative sur la fiche, mais
+                                            nécessaire pour le compte.
                                         </span>
                                     )}
                                 </div>
@@ -579,12 +524,10 @@ export default function Create({ roles = [], etablissements = [] }) {
                                             : "border-gray-300 bg-white"
                                     }`}
                                 />
-
                                 <p className="mt-2 text-xs text-gray-500">
                                     L'adresse e-mail pourra servir
                                     ultérieurement à la récupération du compte.
                                 </p>
-
                                 {errors.email && (
                                     <p className="mt-2 text-sm text-red-600">
                                         {errors.email}
@@ -592,34 +535,29 @@ export default function Create({ roles = [], etablissements = [] }) {
                                 )}
                             </div>
 
-                            {/* FONCTION */}
                             <div>
                                 <label className="mb-2 block font-semibold text-gray-700">
                                     Fonction
                                 </label>
-
                                 <input
                                     type="text"
                                     value={data.fonction}
                                     disabled
                                     className="w-full cursor-not-allowed rounded-lg border border-gray-200 bg-gray-100 px-4 py-3 text-gray-500"
                                 />
-
                                 {errors.fonction && (
                                     <p className="mt-2 text-sm text-red-600">
                                         {errors.fonction}
                                     </p>
                                 )}
                             </div>
-                            {/* MOT DE PASSE */}
+
                             <div>
                                 <label className="mb-2 block font-semibold text-gray-700">
                                     Mot de passe initial
                                 </label>
-
                                 <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
                                     <strong>Généré automatiquement</strong>
-
                                     <p className="mt-1">
                                         Le mot de passe initial sera généré
                                         automatiquement par l'application et
@@ -630,10 +568,6 @@ export default function Create({ roles = [], etablissements = [] }) {
                             </div>
                         </div>
                     </div>
-
-                    {/* =====================================================
-                        COMPTE ACTIF
-                    ====================================================== */}
 
                     <div className="rounded-xl border border-gray-200 bg-white shadow-sm">
                         <div className="p-6">
@@ -646,12 +580,10 @@ export default function Create({ roles = [], etablissements = [] }) {
                                     }
                                     className="h-5 w-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                 />
-
                                 <div>
                                     <div className="font-semibold text-gray-800">
                                         Compte actif
                                     </div>
-
                                     <div className="text-sm text-gray-500">
                                         L'utilisateur pourra se connecter.
                                     </div>
@@ -660,10 +592,6 @@ export default function Create({ roles = [], etablissements = [] }) {
                         </div>
                     </div>
 
-                    {/* =====================================================
-                        BOUTONS
-                    ====================================================== */}
-
                     <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                         <Link
                             href={route("users.index")}
@@ -671,7 +599,6 @@ export default function Create({ roles = [], etablissements = [] }) {
                         >
                             Annuler
                         </Link>
-
                         <button
                             type="submit"
                             disabled={processing}
