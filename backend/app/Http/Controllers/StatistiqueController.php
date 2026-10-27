@@ -10,6 +10,7 @@ use App\Models\Evaluation;
 use App\Models\Etablissement;
 use App\Models\Matiere;
 use App\Models\Niveau;
+use App\Services\CalculMoyennesService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -1124,8 +1125,75 @@ class StatistiqueController extends Controller
         |--------------------------------------------------------------------------
         */
 
+        $calculMoyennes = app(CalculMoyennesService::class);
+
         $resultatsParMatiere =
             $notesSaisies
+            ->groupBy(
+                function ($note) {
+                    return $note
+                        ->evaluation_reference
+                        ->matiere_id;
+                }
+            )
+            ->map(
+                function ($notesMatiere) use (
+                    $normaliserSur20,
+                    $calculMoyennes
+                ) {
+                    // Notes normalisées pour les indicateurs statistiques.
+                    $valeursMatiere = $notesMatiere
+                        ->map(
+                            function ($note) use ($normaliserSur20) {
+                                return $normaliserSur20(
+                                    $note->note,
+                                    $note->evaluation_reference
+                                );
+                            }
+                        )
+                        ->filter(function ($value) {
+                            return $value !== null;
+                        })
+                        ->values();
+
+                    if ($valeursMatiere->count() === 0) {
+                        return null;
+                    }
+
+                    $premiereNote = $notesMatiere->first();
+
+                    $matiere =
+                        $premiereNote->evaluation_reference->matiere;
+
+                    // Moyenne pondérée selon les coefficients des évaluations.
+                    $moyennePonderee =
+                        $calculMoyennes->moyenneMatiere($notesMatiere);
+
+                    return [
+                        'matiere' => $matiere
+                            ? $matiere->libelle
+                            : 'Matière inconnue',
+
+                        'nombre' => $valeursMatiere->count(),
+
+                        'moyenne' => $moyennePonderee,
+
+                        'meilleure' => round(
+                            $valeursMatiere->max(),
+                            2
+                        ),
+
+                        'plus_faible' => round(
+                            $valeursMatiere->min(),
+                            2
+                        ),
+                    ];
+                }
+            )
+            ->filter()
+            ->values();
+
+        $notesSaisies
             ->groupBy(
                 function ($note) {
 
