@@ -71,22 +71,21 @@ class CalculMoyennesService
         $sommePonderee = 0.0;
         $sommeCoefficients = 0.0;
 
+
         foreach ($lignesMaquette as $ligne) {
-            if (isset($ligne->active) && !(bool) $ligne->active) {
+            if (!(bool) ($ligne->active ?? true)) {
                 continue;
             }
 
-            if (
-                isset($ligne->prise_en_compte_moyenne) &&
-                !(bool) $ligne->prise_en_compte_moyenne
-            ) {
+            if (!(bool) ($ligne->prise_en_compte_moyenne ?? true)) {
                 continue;
             }
 
-            $matiereId = (int) $ligne->matiere_id;
+            $matiereId = (int) ($ligne->matiere_id ?? 0);
             $coefficient = (float) ($ligne->coefficient ?? 0);
 
             if (
+                $matiereId <= 0 ||
                 $coefficient <= 0 ||
                 !array_key_exists($matiereId, $moyennesMatieres) ||
                 $moyennesMatieres[$matiereId] === null
@@ -100,10 +99,51 @@ class CalculMoyennesService
             $sommeCoefficients += $coefficient;
         }
 
+
         if ($sommeCoefficients <= 0) {
             return null;
         }
 
         return round($sommePonderee / $sommeCoefficients, 2);
+    }
+
+
+    /**
+     * Calcule les moyennes par matière et la moyenne générale
+     * d'un élève à partir de ses notes et de la maquette de sa classe.
+     *
+     * Chaque note doit disposer de son évaluation, chargée dans
+     * evaluation_reference ou dans la relation evaluation.
+     */
+    public function calculerMoyennesEleve(
+        Collection $notes,
+        Collection $lignesMaquette
+    ): array {
+        $notesParMatiere = $notes->groupBy(function ($note) {
+            $evaluation = $note->evaluation_reference
+                ?? $note->evaluation
+                ?? null;
+
+            return $evaluation?->matiere_id;
+        });
+
+        $moyennesMatieres = [];
+
+        foreach ($notesParMatiere as $matiereId => $notesMatiere) {
+            if ($matiereId === '' || $matiereId === null) {
+                continue;
+            }
+
+            $moyennesMatieres[(int) $matiereId] =
+                $this->moyenneMatiere($notesMatiere);
+        }
+
+        return [
+            'moyennes_matieres' => $moyennesMatieres,
+            'moyenne_generale' => $this->moyenneGenerale(
+                $moyennesMatieres,
+                $lignesMaquette
+            ),
+        ];
     }
 }
