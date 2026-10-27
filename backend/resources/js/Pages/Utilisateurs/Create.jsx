@@ -24,7 +24,6 @@ export default function Create({ roles = [], etablissements = [] }) {
     const isEducateur = data.role === "Educateur";
     const isDirection = data.role === "Direction";
     const isAdministrateur = data.role === "Administrateur";
-
     const isResponsable = isDirection || isAdministrateur;
 
     const personnelType = isProfesseur
@@ -32,14 +31,8 @@ export default function Create({ roles = [], etablissements = [] }) {
         : isEducateur
           ? "educateur"
           : isResponsable
-            ? "autre_personnel"
+            ? "personnel"
             : null;
-
-    /*
-    |--------------------------------------------------------------------------
-    | CHANGEMENT DE RÔLE
-    |--------------------------------------------------------------------------
-    */
 
     useEffect(() => {
         setPersonnes([]);
@@ -61,7 +54,9 @@ export default function Create({ roles = [], etablissements = [] }) {
                         ? "Educateur"
                         : data.role === "Administrateur"
                           ? "Administrateur"
-                          : "",
+                          : data.role === "Direction"
+                            ? "Direction"
+                            : "",
             ...(data.role === "SuperAdmin" ||
             data.role === "Professeur" ||
             data.role === "Educateur"
@@ -69,12 +64,6 @@ export default function Create({ roles = [], etablissements = [] }) {
                 : {}),
         }));
     }, [data.role]);
-
-    /*
-    |--------------------------------------------------------------------------
-    | CHARGEMENT DU PERSONNEL
-    |--------------------------------------------------------------------------
-    */
 
     useEffect(() => {
         let actif = true;
@@ -118,15 +107,10 @@ export default function Create({ roles = [], etablissements = [] }) {
         };
     }, [data.role, data.etablissement_id, personnelType]);
 
-    /*
-    |--------------------------------------------------------------------------
-    | SÉLECTION DU PERSONNEL
-    |--------------------------------------------------------------------------
-    */
-
-    const handlePersonneChange = (personneId) => {
+    const handlePersonneChange = (selectionId) => {
         const personne = personnes.find(
-            (item) => String(item.id) === String(personneId),
+            (item) =>
+                String(item.selection_id ?? item.id) === String(selectionId),
         );
 
         setData((previous) => ({
@@ -137,13 +121,7 @@ export default function Create({ roles = [], etablissements = [] }) {
             autre_personnel_id: "",
             name: "",
             email: "",
-            fonction: isProfesseur
-                ? "Professeur"
-                : isEducateur
-                  ? "Educateur"
-                  : isAdministrateur
-                    ? "Administrateur"
-                    : "",
+            fonction: "",
         }));
 
         if (!personne) {
@@ -156,28 +134,29 @@ export default function Create({ roles = [], etablissements = [] }) {
 
         setData((previous) => ({
             ...previous,
-            enseignant_id: personnelType === "enseignant" ? personne.id : "",
-            educateur_id: personnelType === "educateur" ? personne.id : "",
+            enseignant_id: personne.type === "enseignant" ? personne.id : "",
+            educateur_id: personne.type === "educateur" ? personne.id : "",
             etablissement_responsable_id:
-                personnelType === "responsable" ? personne.id : "",
+                personne.type === "responsable" ? personne.id : "",
             autre_personnel_id:
-                personnelType === "autre_personnel" ? personne.id : "",
+                personne.type === "autre_personnel" ? personne.id : "",
             name: nomComplet,
             email: personne.email ?? "",
-            fonction:
-                personnelType === "enseignant"
-                    ? "Professeur"
-                    : personnelType === "educateur"
-                      ? "Educateur"
-                      : (personne.fonction ?? ""),
+            fonction: personne.fonction ?? "",
         }));
     };
 
-    /*
-    |--------------------------------------------------------------------------
-    | SOUMISSION
-    |--------------------------------------------------------------------------
-    */
+    const selectedPersonId = (() => {
+        if (data.enseignant_id) return `enseignant:${data.enseignant_id}`;
+        if (data.educateur_id) return `educateur:${data.educateur_id}`;
+        if (data.etablissement_responsable_id) {
+            return `responsable:${data.etablissement_responsable_id}`;
+        }
+        if (data.autre_personnel_id) {
+            return `autre_personnel:${data.autre_personnel_id}`;
+        }
+        return "";
+    })();
 
     const handleSubmit = (e) => {
         e.preventDefault();
@@ -239,8 +218,7 @@ export default function Create({ roles = [], etablissements = [] }) {
                         <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
                             <div>
                                 <label className="mb-2 block font-semibold text-gray-700">
-                                    Rôle
-                                    <span className="text-red-600"> *</span>
+                                    Rôle <span className="text-red-600">*</span>
                                 </label>
 
                                 <select
@@ -253,7 +231,6 @@ export default function Create({ roles = [], etablissements = [] }) {
                                     <option value="">
                                         Sélectionner un rôle...
                                     </option>
-
                                     {roles
                                         .filter((role) =>
                                             [
@@ -352,7 +329,7 @@ export default function Create({ roles = [], etablissements = [] }) {
                                     Personnel
                                 </h2>
                                 <p className="mt-1 text-sm text-gray-500">
-                                    Sélectionnez une personne existante dans la
+                                    Sélectionnez une fiche existante dans la
                                     base de données.
                                 </p>
                             </div>
@@ -363,22 +340,12 @@ export default function Create({ roles = [], etablissements = [] }) {
                                         ? "Enseignant"
                                         : isEducateur
                                           ? "Éducateur"
-                                          : "Autre personnel"}
-
+                                          : "Autres personnels et responsables"}
                                     <span className="text-red-600"> *</span>
                                 </label>
 
                                 <select
-                                    value={
-                                        personnelType === "enseignant"
-                                            ? data.enseignant_id
-                                            : personnelType === "educateur"
-                                              ? data.educateur_id
-                                              : personnelType ===
-                                                  "autre_personnel"
-                                                ? data.autre_personnel_id
-                                                : data.etablissement_responsable_id
-                                    }
+                                    value={selectedPersonId}
                                     onChange={(e) =>
                                         handlePersonneChange(e.target.value)
                                     }
@@ -398,8 +365,14 @@ export default function Create({ roles = [], etablissements = [] }) {
 
                                     {personnes.map((personne) => (
                                         <option
-                                            key={personne.id}
-                                            value={personne.id}
+                                            key={
+                                                personne.selection_id ??
+                                                `${personne.type}:${personne.id}`
+                                            }
+                                            value={
+                                                personne.selection_id ??
+                                                personne.id
+                                            }
                                         >
                                             {personne.civilite
                                                 ? `${personne.civilite} `
@@ -407,6 +380,9 @@ export default function Create({ roles = [], etablissements = [] }) {
                                             {personne.nom} {personne.prenoms}
                                             {personne.fonction
                                                 ? ` — ${personne.fonction}`
+                                                : ""}
+                                            {personne.principal
+                                                ? " (principal)"
                                                 : ""}
                                         </option>
                                     ))}
@@ -421,25 +397,20 @@ export default function Create({ roles = [], etablissements = [] }) {
                                         </p>
                                     )}
 
-                                {errors.enseignant_id && (
-                                    <p className="mt-2 text-sm text-red-600">
-                                        {errors.enseignant_id}
-                                    </p>
-                                )}
-                                {errors.educateur_id && (
-                                    <p className="mt-2 text-sm text-red-600">
-                                        {errors.educateur_id}
-                                    </p>
-                                )}
-                                {errors.etablissement_responsable_id && (
-                                    <p className="mt-2 text-sm text-red-600">
-                                        {errors.etablissement_responsable_id}
-                                    </p>
-                                )}
-                                {errors.autre_personnel_id && (
-                                    <p className="mt-2 text-sm text-red-600">
-                                        {errors.autre_personnel_id}
-                                    </p>
+                                {[
+                                    "enseignant_id",
+                                    "educateur_id",
+                                    "etablissement_responsable_id",
+                                    "autre_personnel_id",
+                                ].map((field) =>
+                                    errors[field] ? (
+                                        <p
+                                            key={field}
+                                            className="mt-2 text-sm text-red-600"
+                                        >
+                                            {errors[field]}
+                                        </p>
+                                    ) : null,
                                 )}
                             </div>
                         </div>
@@ -459,8 +430,8 @@ export default function Create({ roles = [], etablissements = [] }) {
                         <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
                             <div>
                                 <label className="mb-2 block font-semibold text-gray-700">
-                                    Nom et prénoms
-                                    <span className="text-red-600"> *</span>
+                                    Nom et prénoms{" "}
+                                    <span className="text-red-600">*</span>
                                 </label>
                                 <input
                                     type="text"
@@ -490,20 +461,9 @@ export default function Create({ roles = [], etablissements = [] }) {
                             </div>
 
                             <div>
-                                <div className="mb-2 flex items-center justify-between">
-                                    <label className="block font-semibold text-gray-700">
-                                        Adresse e-mail
-                                    </label>
-                                    {(isProfesseur ||
-                                        isEducateur ||
-                                        isResponsable) && (
-                                        <span className="text-xs text-gray-500">
-                                            Facultative sur la fiche, mais
-                                            nécessaire pour le compte.
-                                        </span>
-                                    )}
-                                </div>
-
+                                <label className="mb-2 block font-semibold text-gray-700">
+                                    Adresse e-mail
+                                </label>
                                 <input
                                     type="email"
                                     value={data.email}
@@ -525,8 +485,9 @@ export default function Create({ roles = [], etablissements = [] }) {
                                     }`}
                                 />
                                 <p className="mt-2 text-xs text-gray-500">
-                                    L'adresse e-mail pourra servir
-                                    ultérieurement à la récupération du compte.
+                                    L'adresse e-mail doit être renseignée sur la
+                                    fiche pour créer un compte lié à une
+                                    personne.
                                 </p>
                                 {errors.email && (
                                     <p className="mt-2 text-sm text-red-600">
