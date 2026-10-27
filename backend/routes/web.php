@@ -29,6 +29,7 @@ use App\Http\Controllers\CreneauHoraireController;
 use App\Http\Controllers\SalleController;
 use App\Http\Controllers\FonctionPersonnelController;
 use App\Http\Controllers\AutrePersonnelController;
+use App\Http\Controllers\ResultatController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -81,6 +82,13 @@ Route::middleware('auth')->group(function () {
             [FonctionPersonnelController::class, 'destroy']
         )->name('fonctions-personnel.destroy');
     });
+
+    Route::get(
+        '/resultats',
+        [ResultatController::class, 'index']
+    )->middleware(
+        'role:SuperAdmin|Administrateur|Directeur|Direction|Educateur'
+    )->name('resultats.index');
 
 
     Route::get('/test-superadmin', function () {

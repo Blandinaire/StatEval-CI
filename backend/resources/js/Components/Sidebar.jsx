@@ -438,6 +438,15 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                         >
                             Élèves
                         </MenuItem>
+
+                        <MenuItem
+                            href="/resultats"
+                            icon={ClipboardList}
+                            activeMatch={["/resultats"]}
+                            onClick={closeSidebar}
+                        >
+                            Résultats scolaires
+                        </MenuItem>
                     </>
                 )}
 
