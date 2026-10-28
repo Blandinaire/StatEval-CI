@@ -2,6 +2,18 @@ import React from "react";
 import { Head, router } from "@inertiajs/react";
 import AdminLayout from "@/Layouts/AdminLayout";
 
+const configurationParDefaut = {
+    format: "a4",
+    afficher_appreciations: true,
+    afficher_professeurs: true,
+    afficher_rang: true,
+    afficher_absences_retards: true,
+    afficher_conduite: true,
+    afficher_observations: true,
+    afficher_directeur: true,
+    afficher_signatures: true,
+};
+
 export default function Index({
     etablissements = [],
     etablissementSelectionne,
@@ -13,10 +25,12 @@ export default function Index({
     eleves = [],
     eleveSelectionne,
     bulletin = null,
+    configuration = null,
 }) {
-    const classe = classes.find(
-        (item) => Number(item.id) === Number(classeSelectionnee),
-    );
+    const config = {
+        ...configurationParDefaut,
+        ...(configuration ?? {}),
+    };
 
     const choisir = (nom, valeur) => {
         const params = {};
@@ -67,7 +81,7 @@ export default function Index({
     };
 
     const afficherNote = (valeur) =>
-        valeur === null || valeur === undefined
+        valeur === null || valeur === undefined || valeur === ""
             ? "—"
             : `${Number(valeur).toFixed(2)} / 20`;
 
@@ -86,7 +100,7 @@ export default function Index({
                             </h1>
                             <p className="mt-1 text-sm text-slate-500">
                                 Préparation et impression des bulletins
-                                trimestriels.
+                                scolaires.
                             </p>
                         </div>
 
@@ -201,7 +215,13 @@ export default function Index({
                     {bulletin ? (
                         <div
                             id="bulletin-a-imprimer"
-                            className="bulletin-print rounded-xl border bg-white p-6 md:p-10"
+                            className={`bulletin-print rounded-xl border bg-white p-6 md:p-10 ${
+                                config.format === "souche"
+                                    ? "bulletin-souche"
+                                    : config.format === "double"
+                                      ? "bulletin-double"
+                                      : ""
+                            }`}
                         >
                             <header className="border-b-2 border-slate-800 pb-4">
                                 <div className="flex items-center justify-between gap-4">
@@ -296,6 +316,15 @@ export default function Index({
                                 <p>
                                     <strong>Classe :</strong> {bulletin.classe}
                                 </p>
+
+                                {config.afficher_rang && (
+                                    <p>
+                                        <strong>Rang :</strong>{" "}
+                                        {bulletin.rang
+                                            ? `${bulletin.rang}${bulletin.rang === 1 ? "er" : "e"} / ${bulletin.effectif_classe}`
+                                            : "Non classé"}
+                                    </p>
+                                )}
                             </section>
 
                             <table className="w-full border-collapse text-sm">
@@ -304,12 +333,23 @@ export default function Index({
                                         <th className="border border-slate-400 p-2 text-left">
                                             Matières
                                         </th>
+                                        
                                         <th className="border border-slate-400 p-2 text-center">
                                             Coefficient
                                         </th>
                                         <th className="border border-slate-400 p-2 text-center">
                                             Moyenne / 20
                                         </th>
+                                        {config.afficher_appreciations && (
+                                            <th className="border border-slate-400 p-2 text-left">
+                                                Appréciation
+                                            </th>
+                                        )}
+                                        {config.afficher_professeurs && (
+                                            <th className="border border-slate-400 p-2 text-left">
+                                                Professeur
+                                            </th>
+                                        )}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -318,12 +358,24 @@ export default function Index({
                                             <td className="border border-slate-400 p-2">
                                                 {matiere.matiere}
                                             </td>
+                                            
                                             <td className="border border-slate-400 p-2 text-center">
                                                 {matiere.coefficient}
                                             </td>
                                             <td className="border border-slate-400 p-2 text-center">
                                                 {afficherNote(matiere.moyenne)}
                                             </td>
+                                            {config.afficher_appreciations && (
+                                                <td className="border border-slate-400 p-2">
+                                                    {matiere.appreciation ||
+                                                        "—"}
+                                                </td>
+                                            )}
+                                            {config.afficher_professeurs && (
+                                                <td className="border border-slate-400 p-2">
+                                                    {matiere.professeur || "—"}
+                                                </td>
+                                            )}
                                         </tr>
                                     ))}
                                 </tbody>
@@ -342,26 +394,122 @@ export default function Index({
                                 </div>
                             </div>
 
-                            <footer className="mt-12 grid grid-cols-2 gap-8 text-sm">
-                                <div>
-                                    <p className="font-semibold">
-                                        {bulletin.etablissement?.directeur
-                                            ? `Le Directeur : ${bulletin.etablissement.directeur}`
-                                            : "Le responsable de l’établissement"}
-                                    </p>
-                                    <div className="mt-12 border-t border-slate-400 pt-2">
-                                        Signature et cachet
+                            {config.afficher_absences_retards && (
+                                <section className="mt-5">
+                                    <h3 className="mb-2 font-bold">
+                                        Assiduité
+                                    </h3>
+                                    <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+                                        <div className="border p-3">
+                                            <p className="text-slate-500">
+                                                Absences
+                                            </p>
+                                            <p className="font-semibold">
+                                                {bulletin.absences?.nombre ?? 0}
+                                            </p>
+                                        </div>
+                                        <div className="border p-3">
+                                            <p className="text-slate-500">
+                                                Heures d'absence
+                                            </p>
+                                            <p className="font-semibold">
+                                                {bulletin.absences?.heures ?? 0}
+                                            </p>
+                                        </div>
+                                        <div className="border p-3">
+                                            <p className="text-slate-500">
+                                                Absences justifiées
+                                            </p>
+                                            <p className="font-semibold">
+                                                {bulletin.absences
+                                                    ?.justifiees ?? 0}
+                                            </p>
+                                        </div>
+                                        <div className="border p-3">
+                                            <p className="text-slate-500">
+                                                Retards
+                                            </p>
+                                            <p className="font-semibold">
+                                                {bulletin.retards?.nombre ?? 0}{" "}
+                                                (
+                                                {bulletin.retards?.minutes ?? 0}{" "}
+                                                min)
+                                            </p>
+                                        </div>
                                     </div>
-                                </div>
-                                <div>
-                                    <p className="font-semibold">
-                                        Le parent ou tuteur
+                                    <p className="mt-1 text-xs text-slate-500">
+                                        Données cumulées sur l'année scolaire.
                                     </p>
-                                    <div className="mt-12 border-t border-slate-400 pt-2">
-                                        Signature
+                                </section>
+                            )}
+
+                            {(config.afficher_conduite ||
+                                config.afficher_observations) && (
+                                <section className="mt-5 space-y-3">
+                                    {config.afficher_conduite && (
+                                        <div>
+                                            <h3 className="font-bold">
+                                                Conduite
+                                            </h3>
+                                            <p className="mt-1 text-sm">
+                                                Note :{" "}
+                                                {bulletin.conduite === null ||
+                                                bulletin.conduite === undefined
+                                                    ? "—"
+                                                    : bulletin.conduite}
+                                                {" / 20"}
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {config.afficher_observations && (
+                                        <div>
+                                            <h3 className="font-bold">
+                                                Observations générales
+                                            </h3>
+                                            <p className="mt-1 min-h-10 border-b border-slate-300 py-2 text-sm">
+                                                {bulletin.observation_conduite ||
+                                                    " "}
+                                            </p>
+                                        </div>
+                                    )}
+                                </section>
+                            )}
+
+                            {(config.afficher_directeur ||
+                                config.afficher_signatures) && (
+                                <footer className="mt-12 grid grid-cols-2 gap-8 text-sm">
+                                    <div>
+                                        {config.afficher_directeur && (
+                                            <p className="font-semibold">
+                                                {bulletin.etablissement
+                                                    ?.directeur
+                                                    ? `Le Directeur : ${bulletin.etablissement.directeur}`
+                                                    : "Le responsable de l’établissement"}
+                                            </p>
+                                        )}
+
+                                        {config.afficher_signatures && (
+                                            <div className="mt-12 border-t border-slate-400 pt-2">
+                                                Signature et cachet
+                                            </div>
+                                        )}
                                     </div>
-                                </div>
-                            </footer>
+
+                                    <div>
+                                        {config.afficher_signatures && (
+                                            <>
+                                                <p className="font-semibold">
+                                                    Le parent ou tuteur
+                                                </p>
+                                                <div className="mt-12 border-t border-slate-400 pt-2">
+                                                    Signature
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </footer>
+                            )}
                         </div>
                     ) : (
                         <div className="rounded-xl border border-dashed bg-white p-10 text-center text-slate-500 print:hidden">
@@ -404,6 +552,15 @@ export default function Index({
 
                     .bulletin-print {
                         color: black !important;
+                    }
+
+                    table {
+                        page-break-inside: auto;
+                    }
+
+                    tr {
+                        page-break-inside: avoid;
+                        page-break-after: auto;
                     }
                 }
             `}</style>
