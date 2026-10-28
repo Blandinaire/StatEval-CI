@@ -447,6 +447,24 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                         >
                             Résultats scolaires
                         </MenuItem>
+
+                        <MenuItem
+                            href="/bulletins"
+                            icon={ClipboardList}
+                            activeMatch={["/bulletins"]}
+                            onClick={closeSidebar}
+                        >
+                            Bulletins scolaires
+                        </MenuItem>
+
+                        <MenuItem
+                            href="/configurations-bulletins"
+                            icon={ClipboardList}
+                            activeMatch={["/configurations-bulletins"]}
+                            onClick={closeSidebar}
+                        >
+                            Configuration des bulletins
+                        </MenuItem>
                     </>
                 )}
 

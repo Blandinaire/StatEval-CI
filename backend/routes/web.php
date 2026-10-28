@@ -30,6 +30,8 @@ use App\Http\Controllers\SalleController;
 use App\Http\Controllers\FonctionPersonnelController;
 use App\Http\Controllers\AutrePersonnelController;
 use App\Http\Controllers\ResultatController;
+use App\Http\Controllers\BulletinController;
+use App\Http\Controllers\ConfigurationBulletinController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -90,6 +92,18 @@ Route::middleware('auth')->group(function () {
         'role:SuperAdmin|Administrateur|Directeur|Direction|Educateur'
     )->name('resultats.index');
 
+    Route::get('/bulletins', [BulletinController::class, 'index'])
+        ->name('bulletins.index');
+
+    Route::get('/configurations-bulletins', [
+        ConfigurationBulletinController::class,
+        'index',
+    ])->name('configurations-bulletins.index');
+
+    Route::put('/configurations-bulletins', [
+        ConfigurationBulletinController::class,
+        'update',
+    ])->name('configurations-bulletins.update');
 
     Route::get('/test-superadmin', function () {
         $user = auth()->user();
