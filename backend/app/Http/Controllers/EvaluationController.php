@@ -392,6 +392,14 @@ class EvaluationController extends Controller
             );
         });
 
+        $evaluations->each(function ($evaluation) use ($user) {
+            $evaluation->setAttribute(
+                'can_delete',
+                $evaluation->origine !== 'administration' ||
+                    $this->estAdministrateur($user)
+            );
+        });
+
         return Inertia::render('Evaluations/Index', [
             'evaluations' => $evaluations,
             'etablissements' => $etablissements,
@@ -409,13 +417,18 @@ class EvaluationController extends Controller
         $user = auth()->user();
         abort_unless($this->estAdministrateur($user), 403);
 
+        return Inertia::render('Evaluations/Programmer', $this->optionsProgrammation($user));
+    }
+
+    private function optionsProgrammation($user): array
+    {
         $etablissements = $user->hasRole('SuperAdmin')
             ? Etablissement::where('actif', true)->orderBy('nom')->get()
             : Etablissement::whereKey($user->etablissement_id)->get();
 
         $etablissementIds = $etablissements->pluck('id');
 
-        return Inertia::render('Evaluations/Programmer', [
+        return [
             'etablissements' => $etablissements,
             'annees' => AnneeScolaire::orderByDesc('date_debut')->get(),
             'classes' => Classe::whereIn('etablissement_id', $etablissementIds)
@@ -423,10 +436,61 @@ class EvaluationController extends Controller
                 ->orderBy('libelle')->get(),
             'matieres' => Matiere::orderBy('libelle')->get(),
             'niveaux' => Niveau::orderBy('ordre')->orderBy('libelle')->get(['id', 'libelle']),
-        ]);
+        ];
     }
 
     public function programmerStore(Request $request)
+    {
+        return $this->enregistrerProgrammation($request);
+    }
+
+    public function modifierProgrammation(Evaluation $evaluation)
+    {
+        $user = auth()->user();
+        abort_unless($this->estAdministrateur($user), 403);
+        abort_unless($evaluation->origine === 'administration', 404);
+        $this->verifierAccesEvaluation($user, $evaluation);
+
+        $evaluation->load('classes');
+        $formEvaluation = [
+            'id' => $evaluation->id,
+            'etablissement_id' => $evaluation->etablissement_id,
+            'annee_scolaire_id' => $evaluation->annee_scolaire_id,
+            'niveau_id' => $evaluation->niveau_id,
+            'classe_ids' => $evaluation->classes->pluck('id')->map(fn($id) => (string) $id)->all(),
+            'matiere_id' => $evaluation->matiere_id,
+            'libelle' => $evaluation->libelle,
+            'type' => $evaluation->type,
+            'numero' => $evaluation->numero,
+            'date_evaluation' => $evaluation->date_evaluation?->format('Y-m-d'),
+            'heure_debut' => $evaluation->heure_debut,
+            'heure_fin' => $evaluation->heure_fin,
+            'bareme' => $evaluation->bareme,
+            'coefficient' => $evaluation->coefficient,
+            'periode' => $evaluation->periode,
+            'prise_en_compte_moyenne' => $evaluation->prise_en_compte_moyenne,
+            'notifier_professeurs' => $evaluation->notifier_professeurs,
+            'publier_eleves' => $evaluation->publier_eleves,
+            'publier_parents' => $evaluation->publier_parents,
+        ];
+
+        return Inertia::render('Evaluations/Programmer', [
+            ...$this->optionsProgrammation($user),
+            'evaluation' => $formEvaluation,
+        ]);
+    }
+
+    public function modifierProgrammationStore(Request $request, Evaluation $evaluation)
+    {
+        $user = auth()->user();
+        abort_unless($this->estAdministrateur($user), 403);
+        abort_unless($evaluation->origine === 'administration', 404);
+        $this->verifierAccesEvaluation($user, $evaluation);
+
+        return $this->enregistrerProgrammation($request, $evaluation);
+    }
+
+    private function enregistrerProgrammation(Request $request, ?Evaluation $evaluation = null)
     {
         $user = auth()->user();
         abort_unless($this->estAdministrateur($user), 403);
@@ -452,6 +516,11 @@ class EvaluationController extends Controller
             'publier_eleves' => ['boolean'],
             'publier_parents' => ['boolean'],
         ]);
+
+        if ($evaluation) {
+            abort_unless($evaluation->origine === 'administration', 404);
+            $this->verifierAccesEvaluation($user, $evaluation);
+        }
 
         abort_unless(
             $user->hasRole('SuperAdmin') ||
@@ -498,6 +567,7 @@ class EvaluationController extends Controller
             ->whereDate('date_evaluation', $validated['date_evaluation'])
             ->where('matiere_id', $validated['matiere_id'])
             ->whereIn('statut', ['programmee', 'active'])
+            ->when($evaluation, fn($query) => $query->whereKeyNot($evaluation->id))
             ->whereHas('classes', fn($query) => $query->whereIn('classes.id', $classes->pluck('id')))
             ->when($validated['heure_debut'] && $validated['heure_fin'], function ($query) use ($validated) {
                 $query->where(function ($query) use ($validated) {
@@ -511,16 +581,13 @@ class EvaluationController extends Controller
 
         $premiereAffectation = $affectations->flatten()->first();
 
-        $evaluation = Evaluation::create([
+        $donneesEvaluation = [
             'etablissement_id' => $validated['etablissement_id'],
             'annee_scolaire_id' => $validated['annee_scolaire_id'],
             'niveau_id' => $validated['niveau_id'],
             'classe_id' => $classes->first()->id,
             'matiere_id' => $validated['matiere_id'],
             'enseignant_id' => $premiereAffectation?->enseignant_id,
-            'origine' => 'administration',
-            'statut' => 'programmee',
-            'cree_par' => $user->id,
             'libelle' => $validated['libelle'],
             'type' => $validated['type'],
             'numero' => $validated['numero'] ?? null,
@@ -534,8 +601,17 @@ class EvaluationController extends Controller
             'publier_eleves' => $validated['publier_eleves'] ?? false,
             'publier_parents' => $validated['publier_parents'] ?? false,
             'periode' => $validated['periode'],
-            'active' => false,
-        ]);
+        ];
+
+        if ($evaluation) {
+            $evaluation->update($donneesEvaluation);
+        } else {
+            $donneesEvaluation['origine'] = 'administration';
+            $donneesEvaluation['statut'] = 'programmee';
+            $donneesEvaluation['cree_par'] = $user->id;
+            $donneesEvaluation['active'] = false;
+            $evaluation = Evaluation::create($donneesEvaluation);
+        }
 
         $evaluation->classes()->sync(
             $classes->mapWithKeys(fn($classe) => [
@@ -545,14 +621,16 @@ class EvaluationController extends Controller
             ])->all()
         );
 
-        $message = 'Évaluation programmée avec succès.';
+        $message = $evaluation->wasRecentlyCreated
+            ? 'Évaluation programmée avec succès.'
+            : 'Évaluation programmée modifiée avec succès.';
 
         if ($classesSansProfesseur->isNotEmpty()) {
             $message .= ' Affectation à compléter pour : ' .
                 $classesSansProfesseur->pluck('libelle')->implode(', ') . '.';
         }
 
-        return redirect()->route('evaluations.index')
+        return redirect()->route($evaluation->wasRecentlyCreated ? 'evaluations.index' : 'evaluations.programmations')
             ->with('success', $message);
     }
 
@@ -2285,6 +2363,21 @@ class EvaluationController extends Controller
                 $resultats,
             ]
         );
+    }
+
+    public function destroyProgrammation(Evaluation $evaluation)
+    {
+        $user = auth()->user();
+        abort_unless($this->estAdministrateur($user), 403);
+        abort_unless($evaluation->origine === 'administration', 404);
+
+        $this->verifierAccesEvaluation($user, $evaluation);
+
+        $evaluation->delete();
+
+        return redirect()
+            ->route('evaluations.programmations')
+            ->with('success', 'Évaluation programmée supprimée avec succès.');
     }
 
     /**

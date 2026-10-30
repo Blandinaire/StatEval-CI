@@ -1,6 +1,7 @@
 import AdminLayout from "@/Layouts/AdminLayout";
 import ResponsiveTable from "@/Components/ResponsiveTable";
 import { Head, Link, router } from "@inertiajs/react";
+import { Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 export default function Index({
@@ -188,6 +189,20 @@ export default function Index({
 
     function changerStatut(evaluation, statut) {
         router.patch(route("evaluations.statut", evaluation.id), { statut });
+    }
+
+    function supprimer(evaluation) {
+        if (
+            !window.confirm(
+                `Supprimer définitivement l’évaluation « ${evaluation.libelle} » ?\n\nCette opération supprimera également les notes associées et ne peut pas être annulée.`,
+            )
+        ) {
+            return;
+        }
+
+        router.delete(route("evaluations.destroy", evaluation.id), {
+            preserveScroll: true,
+        });
     }
 
     return (
@@ -679,6 +694,25 @@ export default function Index({
                                                 >
                                                     Voir
                                                 </Link>
+
+                                                {evaluation.can_delete && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            supprimer(
+                                                                evaluation,
+                                                            )
+                                                        }
+                                                        aria-label={`Supprimer l’évaluation ${evaluation.libelle}`}
+                                                        title="Supprimer l’évaluation"
+                                                        className="rounded bg-red-600 p-1.5 text-white transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                                                    >
+                                                        <Trash2
+                                                            size={18}
+                                                            aria-hidden="true"
+                                                        />
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>

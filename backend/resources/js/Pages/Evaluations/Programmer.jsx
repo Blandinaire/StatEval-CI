@@ -8,26 +8,30 @@ export default function Programmer({
     classes = [],
     matieres = [],
     niveaux = [],
+    evaluation = null,
 }) {
-    const { data, setData, post, processing, errors } = useForm({
-        etablissement_id: etablissements[0]?.id ?? "",
-        annee_scolaire_id: annees[0]?.id ?? "",
-        niveau_id: "",
-        classe_ids: [],
-        matiere_id: "",
-        libelle: "",
-        type: "Devoir de niveau",
-        numero: "",
-        date_evaluation: "",
-        heure_debut: "",
-        heure_fin: "",
-        bareme: 20,
-        coefficient: 1,
-        periode: "Trimestre 1",
-        prise_en_compte_moyenne: true,
-        notifier_professeurs: false,
-        publier_eleves: false,
-        publier_parents: false,
+    const { data, setData, post, patch, processing, errors } = useForm({
+        etablissement_id:
+            evaluation?.etablissement_id ?? etablissements[0]?.id ?? "",
+        annee_scolaire_id:
+            evaluation?.annee_scolaire_id ?? annees[0]?.id ?? "",
+        niveau_id: evaluation?.niveau_id ?? "",
+        classe_ids: evaluation?.classe_ids ?? [],
+        matiere_id: evaluation?.matiere_id ?? "",
+        libelle: evaluation?.libelle ?? "",
+        type: evaluation?.type ?? "Devoir de niveau",
+        numero: evaluation?.numero ?? "",
+        date_evaluation: evaluation?.date_evaluation ?? "",
+        heure_debut: evaluation?.heure_debut ?? "",
+        heure_fin: evaluation?.heure_fin ?? "",
+        bareme: evaluation?.bareme ?? 20,
+        coefficient: evaluation?.coefficient ?? 1,
+        periode: evaluation?.periode ?? "Trimestre 1",
+        prise_en_compte_moyenne:
+            evaluation?.prise_en_compte_moyenne ?? true,
+        notifier_professeurs: evaluation?.notifier_professeurs ?? false,
+        publier_eleves: evaluation?.publier_eleves ?? false,
+        publier_parents: evaluation?.publier_parents ?? false,
     });
 
     const classesDisponibles = classes.filter(
@@ -61,6 +65,7 @@ export default function Programmer({
     })();
 
     const dernierIntituleAutomatique = useRef("");
+    const ignorerPremierePropositionHeure = useRef(Boolean(evaluation));
 
     function dureeSelonNiveau(libelle) {
         const niveau = String(libelle ?? "")
@@ -119,6 +124,11 @@ export default function Programmer({
     }, [data.type, data.matiere_id, data.niveau_id, data.numero]);
 
     useEffect(() => {
+        if (ignorerPremierePropositionHeure.current) {
+            ignorerPremierePropositionHeure.current = false;
+            return;
+        }
+
         const heureFin = heureFinProposee(data.heure_debut, data.niveau_id);
 
         if (heureFin) {
@@ -149,17 +159,32 @@ export default function Programmer({
 
     function submit(event) {
         event.preventDefault();
+        if (evaluation) {
+            patch(
+                route("evaluations.programmations.update", evaluation.id),
+            );
+            return;
+        }
+
         post(route("evaluations.programmer.store"));
     }
 
     return (
         <AdminLayout>
-            <Head title="Programmer une évaluation" />
+            <Head
+                title={
+                    evaluation
+                        ? "Modifier une évaluation programmée"
+                        : "Programmer une évaluation"
+                }
+            />
 
             <div className="mx-auto max-w-5xl space-y-6">
                 <div>
                     <h1 className="text-3xl font-bold text-gray-800">
-                        Programmer une évaluation
+                        {evaluation
+                            ? "Modifier l’évaluation programmée"
+                            : "Programmer une évaluation"}
                     </h1>
                     <p className="text-gray-500">
                         Évaluation officielle applicable à plusieurs classes.
@@ -462,7 +487,11 @@ export default function Programmer({
 
                     <div className="flex justify-end gap-3">
                         <Link
-                            href={route("evaluations.index")}
+                            href={route(
+                                evaluation
+                                    ? "evaluations.programmations"
+                                    : "evaluations.index",
+                            )}
                             className="rounded-lg border px-5 py-3"
                         >
                             Annuler
@@ -471,7 +500,11 @@ export default function Programmer({
                             disabled={processing}
                             className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700"
                         >
-                            {processing ? "Programmation..." : "Programmer"}
+                            {processing
+                                ? "Enregistrement..."
+                                : evaluation
+                                  ? "Enregistrer les modifications"
+                                  : "Programmer"}
                         </button>
                     </div>
                 </form>

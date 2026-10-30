@@ -1,5 +1,6 @@
 import AdminLayout from "@/Layouts/AdminLayout";
-import { Head, Link } from "@inertiajs/react";
+import { Head, Link, router } from "@inertiajs/react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 
 const statutClasses = {
@@ -12,6 +13,21 @@ const statutClasses = {
 export default function Programmations({ programmations = [] }) {
     const [statut, setStatut] = useState("");
     const [recherche, setRecherche] = useState("");
+
+    function supprimer(item) {
+        if (
+            !window.confirm(
+                `Supprimer définitivement la programmation « ${item.libelle} » ?\n\nCette opération supprimera également les notes associées et ne peut pas être annulée.`,
+            )
+        ) {
+            return;
+        }
+
+        router.delete(
+            route("evaluations.programmations.destroy", item.id),
+            { preserveScroll: true },
+        );
+    }
 
     const resultats = useMemo(
         () =>
@@ -137,15 +153,45 @@ export default function Programmations({ programmations = [] }) {
                                             </span>
                                         </td>
                                         <td className="p-4">
-                                            <Link
-                                                href={route(
-                                                    "evaluations.programmation",
-                                                    item.id,
-                                                )}
-                                                className="rounded-lg bg-slate-700 px-3 py-2 text-white hover:bg-slate-800"
-                                            >
-                                                Voir
-                                            </Link>
+                                            <div className="flex items-center gap-2">
+                                                <Link
+                                                    href={route(
+                                                        "evaluations.programmations.edit",
+                                                        item.id,
+                                                    )}
+                                                    aria-label={`Modifier la programmation ${item.libelle}`}
+                                                    title="Modifier la programmation"
+                                                    className="rounded-lg bg-blue-600 p-2 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                                                >
+                                                    <Pencil
+                                                        size={18}
+                                                        aria-hidden="true"
+                                                    />
+                                                </Link>
+                                                <Link
+                                                    href={route(
+                                                        "evaluations.programmation",
+                                                        item.id,
+                                                    )}
+                                                    className="rounded-lg bg-slate-700 px-3 py-2 text-white hover:bg-slate-800"
+                                                >
+                                                    Voir
+                                                </Link>
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        supprimer(item)
+                                                    }
+                                                    aria-label={`Supprimer la programmation ${item.libelle}`}
+                                                    title="Supprimer la programmation"
+                                                    className="rounded-lg bg-red-600 p-2 text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"
+                                                >
+                                                    <Trash2
+                                                        size={18}
+                                                        aria-hidden="true"
+                                                    />
+                                                </button>
+                                            </div>
                                         </td>
                                     </tr>
                                 );

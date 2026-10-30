@@ -12,6 +12,7 @@ class AnneeScolaire extends Model
         'date_debut',
         'date_fin',
         'active',
+        'mode_periodes',
     ];
 
     protected $casts = [
@@ -34,6 +35,12 @@ class AnneeScolaire extends Model
     public function maquettes()
     {
         return $this->hasMany(Maquette::class);
+    }
+
+    public function periodes(): HasMany
+    {
+        return $this->hasMany(PeriodeScolaire::class)
+            ->orderBy('ordre');
     }
 
     /*

@@ -664,6 +664,16 @@ Route::middleware('auth')->group(function () {
     )->name('evaluations.programmer.store');
 
     Route::get(
+        '/evaluations/programmations/{evaluation}/modifier',
+        [EvaluationController::class, 'modifierProgrammation']
+    )->name('evaluations.programmations.edit');
+
+    Route::patch(
+        '/evaluations/programmations/{evaluation}',
+        [EvaluationController::class, 'modifierProgrammationStore']
+    )->name('evaluations.programmations.update');
+
+    Route::get(
         '/evaluations/programmations',
         [EvaluationController::class, 'programmations']
     )->name('evaluations.programmations');
@@ -677,6 +687,11 @@ Route::middleware('auth')->group(function () {
         '/evaluations/programmations/{evaluation}',
         [EvaluationController::class, 'programmation']
     )->name('evaluations.programmation');
+
+    Route::delete(
+        '/evaluations/programmations/{evaluation}',
+        [EvaluationController::class, 'destroyProgrammation']
+    )->name('evaluations.programmations.destroy');
 
     Route::patch(
         '/evaluations/{evaluation}/statut',

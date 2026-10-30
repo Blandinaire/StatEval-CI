@@ -35,9 +35,9 @@ class AnneeScolaireController extends Controller
                     'id' => $annee->id,
                     'libelle' => $annee->libelle,
                     'date_debut' =>
-                        $annee->date_debut->format('d/m/Y'),
+                    $annee->date_debut->format('d/m/Y'),
                     'date_fin' =>
-                        $annee->date_fin->format('d/m/Y'),
+                    $annee->date_fin->format('d/m/Y'),
                     'active' => $annee->active,
                 ];
             });
@@ -53,7 +53,7 @@ class AnneeScolaireController extends Controller
             */
 
             'estSuperAdmin' =>
-                $this->estSuperAdmin($user),
+            $this->estSuperAdmin($user),
         ]);
     }
 
@@ -71,7 +71,7 @@ class AnneeScolaireController extends Controller
             'annee' => $anneeScolaire,
 
             'estSuperAdmin' =>
-                $this->estSuperAdmin($user),
+            $this->estSuperAdmin($user),
         ]);
     }
 
@@ -132,19 +132,23 @@ class AnneeScolaireController extends Controller
             |----------------------------------------------------------
             */
 
-            AnneeScolaire::create([
-                'libelle' =>
-                    $data['libelle'],
-
-                'date_debut' =>
-                    $data['date_debut'],
-
-                'date_fin' =>
-                    $data['date_fin'],
-
-                'active' =>
-                    !empty($data['active']),
+            $anneeScolaire = AnneeScolaire::create([
+                'libelle' => $data['libelle'],
+                'date_debut' => $data['date_debut'],
+                'date_fin' => $data['date_fin'],
+                'active' => !empty($data['active']),
+                'mode_periodes' => $data['mode_periodes'],
             ]);
+
+            foreach ($data['periodes'] as $periode) {
+                $anneeScolaire->periodes()->create([
+                    'libelle' => $periode['libelle'],
+                    'ordre' => $periode['ordre'],
+                    'date_debut' => $periode['date_debut'],
+                    'date_fin' => $periode['date_fin'],
+                    'actif' => $periode['actif'] ?? true,
+                ]);
+            }
         });
 
         return redirect()
@@ -169,13 +173,26 @@ class AnneeScolaireController extends Controller
             abort(403);
         }
 
-        return Inertia::render(
-            'AnneeScolaires/Edit',
-            [
-                'annee' =>
-                    $anneeScolaire,
-            ]
-        );
+        return Inertia::render('AnneeScolaires/Edit', [
+            'annee' => [
+                'id' => $anneeScolaire->id,
+                'libelle' => $anneeScolaire->libelle,
+                'date_debut' => $anneeScolaire->date_debut->format('Y-m-d'),
+                'date_fin' => $anneeScolaire->date_fin->format('Y-m-d'),
+                'active' => $anneeScolaire->active,
+                'mode_periodes' => $anneeScolaire->mode_periodes ?? 'trimestriel',
+                'periodes' => $anneeScolaire->periodes
+                    ->map(fn($periode) => [
+                        'id' => $periode->id,
+                        'libelle' => $periode->libelle,
+                        'ordre' => $periode->ordre,
+                        'date_debut' => $periode->date_debut->format('Y-m-d'),
+                        'date_fin' => $periode->date_fin->format('Y-m-d'),
+                        'actif' => $periode->actif,
+                    ])
+                    ->values(),
+            ],
+        ]);
     }
 
 
@@ -229,17 +246,42 @@ class AnneeScolaireController extends Controller
 
                 $anneeScolaire->update([
                     'libelle' =>
-                        $data['libelle'],
+                    $data['libelle'],
 
                     'date_debut' =>
-                        $data['date_debut'],
+                    $data['date_debut'],
 
                     'date_fin' =>
-                        $data['date_fin'],
+                    $data['date_fin'],
 
                     'active' =>
-                        !empty($data['active']),
+                    !empty($data['active']),
+
+                    'mode_periodes' =>
+                    $data['mode_periodes'],
                 ]);
+
+                $ordres = [];
+
+                foreach ($data['periodes'] as $periode) {
+                    $ordre = (int) $periode['ordre'];
+
+                    $ordres[] = $ordre;
+
+                    $anneeScolaire->periodes()->updateOrCreate(
+                        ['ordre' => $ordre],
+                        [
+                            'libelle' => $periode['libelle'],
+                            'date_debut' => $periode['date_debut'],
+                            'date_fin' => $periode['date_fin'],
+                            'actif' => $periode['actif'] ?? true,
+                        ]
+                    );
+                }
+
+                $anneeScolaire->periodes()
+                    ->whereNotIn('ordre', $ordres)
+                    ->delete();
             }
         );
 
