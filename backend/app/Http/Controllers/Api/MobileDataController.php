@@ -130,15 +130,23 @@ class MobileDataController extends Controller
             $query->where('annee_scolaire_id', $anneeId);
         }
 
-        // Limitation aux classes autorisées pour le compte.
-        $classeIds = $this->obtenirClassesAutorisees(
-            $user,
-            $anneeId,
-            $validated
-        );
+        // Parent : uniquement les élèves associés à son compte.
+        if ($user->hasRole('Parent')) {
+            $query->whereIn(
+                'eleves.id',
+                $user->eleves()->select('eleves.id')
+            );
+        } else {
+            // Limitation aux classes autorisées pour les autres profils.
+            $classeIds = $this->obtenirClassesAutorisees(
+                $user,
+                $anneeId,
+                $validated
+            );
 
-        if ($classeIds !== null) {
-            $query->whereIn('classe_id', $classeIds);
+            if ($classeIds !== null) {
+                $query->whereIn('classe_id', $classeIds);
+            }
         }
 
         // Si une classe est explicitement demandée, vérifier
@@ -281,6 +289,19 @@ class MobileDataController extends Controller
                 $autorise,
                 403,
                 'Vous n’êtes pas autorisé à gérer cet élève.'
+            );
+        }
+
+        // Parent : accès uniquement aux enfants associés à son compte.
+        if ($user->hasRole('Parent')) {
+            $autorise = $user->eleves()
+                ->where('eleves.id', $eleve->id)
+                ->exists();
+
+            abort_unless(
+                $autorise,
+                403,
+                'Vous n’êtes pas autorisé à consulter cet élève.'
             );
         }
 
@@ -704,6 +725,16 @@ class MobileDataController extends Controller
                 ->all();
         }
 
+        // Parent : uniquement les classes de ses enfants associés.
+        if ($user->hasRole('Parent')) {
+            return $user->eleves()
+                ->whereNotNull('eleves.classe_id')
+                ->pluck('eleves.classe_id')
+                ->unique()
+                ->values()
+                ->all();
+        }
+
         // Les autres rôles sont limités à leur établissement.
         // Le SuperAdmin conserve son accès global ou filtré.
         return null;
@@ -738,6 +769,17 @@ class MobileDataController extends Controller
                         $query->where(
                             'enseignant_id',
                             $user->enseignant_id
+                        );
+                    }
+
+                    // Un parent ne consulte que les cours des classes
+                    // dans lesquelles ses enfants associés sont inscrits.
+                    if ($user->hasRole('Parent')) {
+                        $query->whereIn(
+                            'classe_id',
+                            $user->eleves()
+                                ->whereNotNull('eleves.classe_id')
+                                ->select('eleves.classe_id')
                         );
                     }
                 },

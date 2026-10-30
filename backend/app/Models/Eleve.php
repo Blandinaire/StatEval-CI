@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Eleve extends Model
 {
@@ -146,5 +147,20 @@ class Eleve extends Model
     public function retards()
     {
         return $this->hasMany(Retard::class);
+    }
+
+    /**
+     * Comptes parents associés à l'élève.
+     */
+    public function parents(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            User::class,
+            'eleve_parent',
+            'eleve_id',
+            'user_id'
+        )
+            ->withPivot('lien')
+            ->withTimestamps();
     }
 }

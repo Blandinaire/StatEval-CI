@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\MobileAuthController;
 use App\Models\Etablissement;
 use App\Models\User;
 use App\Http\Controllers\Api\MobileDataController;
+use App\Http\Controllers\Api\ParentAccountController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -70,42 +71,73 @@ Route::middleware('auth:sanctum')->group(function () {
         ]);
     })->middleware('abilities:*');
 
+    Route::post('/mobile/parents/preview', [
+        ParentAccountController::class,
+        'preview',
+    ])->middleware('abilities:*');
+
+    Route::post('/mobile/parents', [
+        ParentAccountController::class,
+        'store',
+    ])->middleware('abilities:*');
+
     Route::post('/mobile/logout', [MobileAuthController::class, 'logout'])
         ->middleware('abilities:*');
 
     Route::get('/mobile/classes', [
         MobileDataController::class,
         'classes',
-    ])->middleware('abilities:*');
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Educateur|Professeur|Parent',
+    ]);
 
     Route::get('/mobile/eleves', [
         MobileDataController::class,
         'eleves',
-    ])->middleware('abilities:*');
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Educateur|Professeur|Parent',
+    ]);
 
     // Gestion des élèves depuis l'application mobile.
     Route::get('/mobile/eleves/{eleve}', [
         MobileDataController::class,
         'showEleve',
-    ])->middleware('abilities:*');
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Educateur|Professeur|Parent',
+    ]);
 
     Route::post('/mobile/eleves', [
         MobileDataController::class,
         'storeEleve',
-    ])->middleware('abilities:*');
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Educateur|Professeur',
+    ]);
 
     Route::put('/mobile/eleves/{eleve}', [
         MobileDataController::class,
         'updateEleve',
-    ])->middleware('abilities:*');
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Educateur|Professeur',
+    ]);
 
     Route::delete('/mobile/eleves/{eleve}', [
         MobileDataController::class,
         'destroyEleve',
-    ])->middleware('abilities:*');
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Educateur|Professeur',
+    ]);
 
     Route::get('/mobile/emploi-du-temps', [
         MobileDataController::class,
         'emploiDuTemps',
-    ])->middleware('abilities:*');
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Educateur|Professeur|Parent',
+    ]);
 });

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Laravel\Sanctum\HasApiTokens;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
@@ -19,6 +20,7 @@ use App\Models\Enseignant;
 #[Fillable([
     'name',
     'email',
+    'telephone',
     'password',
     'fonction',
     'etablissement_id',
@@ -78,6 +80,21 @@ class User extends Authenticatable
     public function autrePersonnel(): HasOne
     {
         return $this->hasOne(AutrePersonnel::class, 'user_id');
+    }
+
+    /**
+     * Élèves associés au compte parent.
+     */
+    public function eleves(): BelongsToMany
+    {
+        return $this->belongsToMany(
+            Eleve::class,
+            'eleve_parent',
+            'user_id',
+            'eleve_id'
+        )
+            ->withPivot('lien')
+            ->withTimestamps();
     }
 
     /*

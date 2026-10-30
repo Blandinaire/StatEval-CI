@@ -16,40 +16,79 @@ class MobileAuthController extends Controller
     /**
      * Connexion mobile : SuperAdmin ou personnel.
      */
+
+    /**
+     * Connexion mobile : SuperAdmin, personnel ou parent.
+     */
     public function login(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'mode' => ['required', 'in:superadmin,personnel'],
-            'email' => ['required_if:mode,superadmin', 'nullable', 'email'],
+            'mode' => ['required', 'in:superadmin,personnel,parent'],
+
+            'email' => [
+                'required_if:mode,superadmin',
+                'nullable',
+                'email',
+            ],
+
             'etablissement_id' => [
-                'required_if:mode,personnel',
+                'required_if:mode,personnel,parent',
                 'nullable',
                 'integer',
+                'exists:etablissements,id',
             ],
+
             'role' => [
                 'required_if:mode,personnel',
                 'nullable',
                 'in:Administrateur,Direction,Professeur,Educateur',
             ],
+
             'user_id' => [
                 'required_if:mode,personnel',
                 'nullable',
                 'integer',
             ],
+
+            'telephone' => [
+                'required_if:mode,parent',
+                'nullable',
+                'string',
+                'max:20',
+            ],
+
             'password' => ['required', 'string'],
         ]);
 
-        $key = $validated['mode'] === 'superadmin'
-            ? Str::transliterate(
+        /*
+     * Limitation des tentatives de connexion.
+     */
+        if ($validated['mode'] === 'superadmin') {
+            $key = Str::transliterate(
                 Str::lower($validated['email']) . '|' . $request->ip()
-            )
-            : implode('|', [
+            );
+        } elseif ($validated['mode'] === 'parent') {
+            $telephone = preg_replace(
+                '/[\s().-]+/',
+                '',
+                $validated['telephone']
+            );
+
+            $key = implode('|', [
+                'mobile-parent',
+                $validated['etablissement_id'],
+                $telephone,
+                $request->ip(),
+            ]);
+        } else {
+            $key = implode('|', [
                 'mobile-personnel',
                 $validated['etablissement_id'],
                 $validated['role'],
                 $validated['user_id'],
                 $request->ip(),
             ]);
+        }
 
         if (RateLimiter::tooManyAttempts($key, 5)) {
             return response()->json([
@@ -57,10 +96,20 @@ class MobileAuthController extends Controller
             ], 429);
         }
 
+        /*
+     * Recherche du compte dans le bon établissement.
+     */
         $userQuery = User::query()->where('actif', true);
 
         if ($validated['mode'] === 'superadmin') {
             $userQuery->where('email', $validated['email']);
+        } elseif ($validated['mode'] === 'parent') {
+            $userQuery
+                ->where('etablissement_id', $validated['etablissement_id'])
+                ->where('telephone', $telephone)
+                ->whereHas('roles', function ($query) {
+                    $query->where('name', 'Parent');
+                });
         } else {
             $userQuery
                 ->where('id', $validated['user_id'])
@@ -71,15 +120,42 @@ class MobileAuthController extends Controller
 
         $roleValide = $user && (
             $validated['mode'] === 'superadmin'
-                ? $user->hasRole('SuperAdmin')
+            ? $user->hasRole('SuperAdmin')
+            : (
+                $validated['mode'] === 'parent'
+                ? $user->hasRole('Parent')
                 : $user->hasRole($validated['role'])
+            )
         );
 
-        if (
-            !$user ||
-            !$roleValide ||
-            !Hash::check($validated['password'], $user->password)
-        ) {
+        /*
+|--------------------------------------------------------------------------
+| Vérification du mot de passe
+|--------------------------------------------------------------------------
+*/
+
+        $motDePasseValide = false;
+
+        if ($user && $roleValide) {
+
+            if (
+                $validated['mode'] === 'parent' &&
+                $user->must_change_password
+            ) {
+                // Le matricule doit appartenir à l'un des enfants associés.
+                $motDePasseValide = $user->eleves()
+                    ->where('eleves.matricule', $validated['password'])
+                    ->exists();
+            } else {
+                // Authentification habituelle.
+                $motDePasseValide = Hash::check(
+                    $validated['password'],
+                    $user->password
+                );
+            }
+        }
+
+        if (!$user || !$roleValide || !$motDePasseValide) {
             RateLimiter::hit($key, 60);
 
             return response()->json([
@@ -89,6 +165,9 @@ class MobileAuthController extends Controller
 
         RateLimiter::clear($key);
 
+        /*
+     * Création du jeton mobile.
+     */
         $changementObligatoire = (bool) $user->must_change_password;
 
         $token = $user->createToken(
@@ -117,6 +196,7 @@ class MobileAuthController extends Controller
         ]);
     }
 
+
     /**
      * Changement du mot de passe initial.
      */
@@ -140,7 +220,7 @@ class MobileAuthController extends Controller
         ]);
 
         $user->update([
-            'password' => Hash::make($validated['password']),
+            'password' => $validated['password'],
             'must_change_password' => false,
             'initial_password' => null,
         ]);

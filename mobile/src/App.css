@@ -84,7 +84,7 @@ button:disabled {
 
 .mode-switch {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
   gap: 5px;
   padding: 5px;
   margin-bottom: 24px;

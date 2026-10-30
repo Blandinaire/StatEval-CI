@@ -119,6 +119,7 @@ const MODULES = [
       "Direction",
       "Educateur",
       "Professeur",
+      "Parent",
     ],
   },
   {
@@ -126,21 +127,21 @@ const MODULES = [
     label: "Emploi du temps",
     description: "Horaires, cours et salles",
     icon: CalendarDays,
-    roles: ["SuperAdmin", ...ROLES],
+    roles: ["SuperAdmin", ...ROLES, "Parent"],
   },
   {
     id: "notes",
     label: "Notes et évaluations",
     description: "Suivi des évaluations scolaires",
     icon: ClipboardCheck,
-    roles: ["SuperAdmin", "Administrateur", "Direction", "Professeur"],
+    roles: ["SuperAdmin", "Administrateur", "Direction", "Professeur", "Parent"],
   },
   {
     id: "profil",
     label: "Mon profil",
     description: "Informations de votre compte",
     icon: UserRound,
-    roles: ["SuperAdmin", ...ROLES],
+    roles: ["SuperAdmin", ...ROLES, "Parent"],
   },
 ];
 
@@ -202,6 +203,7 @@ export default function App() {
   const [userId, setUserId] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [telephone, setTelephone] = useState("");
   const [showPassword, setShowPassword] = useState(false);
 
   const [token, setToken] = useState("");
@@ -433,13 +435,20 @@ export default function App() {
               email: email.trim(),
               password,
             }
-          : {
-              mode: "personnel",
-              etablissement_id: Number(etablissementId),
-              role,
-              user_id: Number(userId),
-              password,
-            };
+          : mode === "parent"
+            ? {
+                mode: "parent",
+                etablissement_id: Number(etablissementId),
+                telephone: telephone.trim(),
+                password,
+              }
+            : {
+                mode: "personnel",
+                etablissement_id: Number(etablissementId),
+                role,
+                user_id: Number(userId),
+                password,
+              };
 
       const data = await apiRequest("/mobile/login", {
         method: "POST",
@@ -816,10 +825,22 @@ export default function App() {
             >
               SuperAdmin
             </button>
+
+            <button
+              type="button"
+              className={mode === "parent" ? "active" : ""}
+              onClick={() => {
+                setMode("parent");
+                setError("");
+                setMessage("");
+              }}
+            >
+              Parent
+            </button>
           </div>
 
           <form onSubmit={handleLogin}>
-            {mode === "personnel" ? (
+            {mode !== "superadmin" && (
               <>
                 <label htmlFor="etablissement">Établissement</label>
                 <select
@@ -841,7 +862,11 @@ export default function App() {
                     </option>
                   ))}
                 </select>
+              </>
+            )}
 
+            {mode === "personnel" && (
+              <>
                 <label htmlFor="role">Fonction</label>
                 <select
                   id="role"
@@ -879,7 +904,24 @@ export default function App() {
                   ))}
                 </select>
               </>
-            ) : (
+            )}
+
+            {mode === "parent" && (
+              <>
+                <label htmlFor="telephone">Numéro de téléphone</label>
+                <input
+                  id="telephone"
+                  type="tel"
+                  autoComplete="tel"
+                  value={telephone}
+                  onChange={(e) => setTelephone(e.target.value)}
+                  placeholder="Votre numéro de téléphone"
+                  required
+                />
+              </>
+            )}
+
+            {mode === "superadmin" && (
               <>
                 <label htmlFor="email">Adresse e-mail</label>
                 <input
@@ -926,7 +968,11 @@ export default function App() {
               disabled={
                 loading ||
                 (mode === "personnel" &&
-                  (!etablissementId || !userId || loadingPersonnel))
+                  (!etablissementId || !userId || loadingPersonnel)) ||
+                (mode === "parent" &&
+                  (!etablissementId ||
+                    !telephone.trim() ||
+                    loadingEstablishments))
               }
             >
               {loading ? "Connexion en cours..." : "Se connecter"}
