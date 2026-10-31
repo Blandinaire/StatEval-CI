@@ -9,6 +9,7 @@ export default function Form({
     matieres = [],
     enseignants = [],
     affectations = [],
+    periodes = [],
 }) {
     /*
     |--------------------------------------------------------------------------
@@ -83,7 +84,7 @@ export default function Form({
 
         coefficient: 1,
 
-        periode: "",
+        periode_scolaire_id: "",
 
         actif: true,
     });
@@ -111,6 +112,11 @@ export default function Form({
             (annee) => Number(annee.id) === Number(data.annee_scolaire_id),
         ) ?? null;
 
+    const periodesDisponibles = periodes.filter(
+        (periode) =>
+            String(periode.annee_scolaire_id) ===
+            String(data.annee_scolaire_id),
+    );
     /*
     |--------------------------------------------------------------------------
     | AFFECTATIONS CORRESPONDANT À L'ÉTABLISSEMENT
@@ -782,30 +788,34 @@ export default function Form({
 
                         <div>
                             <label className="mb-2 block text-sm font-medium text-gray-700">
-                                Période
+                                Période scolaire
                             </label>
 
                             <select
-                                value={data.periode}
+                                value={data.periode_scolaire_id}
                                 onChange={(e) =>
-                                    setData("periode", e.target.value)
+                                    setData(
+                                        "periode_scolaire_id",
+                                        e.target.value,
+                                    )
                                 }
+                                required
                                 className="w-full rounded-lg border border-gray-300 bg-white px-4 py-3"
                             >
                                 <option value="">
                                     Sélectionner une période
                                 </option>
 
-                                <option value="Trimestre 1">Trimestre 1</option>
-
-                                <option value="Trimestre 2">Trimestre 2</option>
-
-                                <option value="Trimestre 3">Trimestre 3</option>
+                                {periodesDisponibles.map((periode) => (
+                                    <option key={periode.id} value={periode.id}>
+                                        {periode.libelle}
+                                    </option>
+                                ))}
                             </select>
 
-                            {errors.periode && (
+                            {errors.periode_scolaire_id && (
                                 <p className="mt-1 text-sm text-red-500">
-                                    {errors.periode}
+                                    {errors.periode_scolaire_id}
                                 </p>
                             )}
                         </div>
