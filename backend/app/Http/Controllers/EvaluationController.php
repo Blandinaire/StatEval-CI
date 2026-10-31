@@ -1643,7 +1643,15 @@ class EvaluationController extends Controller
 
                     'affectations' =>
                     $affectations,
+
+                    'periodes' => PeriodeScolaire::where(
+                        'annee_scolaire_id',
+                        $evaluation->annee_scolaire_id
+                    )
+                        ->orderBy('ordre')
+                        ->get(),
                 ]
+
             );
         }
 
@@ -1704,6 +1712,13 @@ class EvaluationController extends Controller
                         'matiere_id',
                         'enseignant_id',
                     ]),
+
+                    'periodes' => PeriodeScolaire::where(
+                        'annee_scolaire_id',
+                        $evaluation->annee_scolaire_id
+                    )
+                        ->orderBy('ordre')
+                        ->get(),
                 ]
             );
         }
@@ -1760,6 +1775,12 @@ class EvaluationController extends Controller
                 )
                     ->orderBy('nom')
                     ->orderBy('prenoms')
+                    ->get(),
+                'periodes' => PeriodeScolaire::where(
+                    'annee_scolaire_id',
+                    $evaluation->annee_scolaire_id
+                )
+                    ->orderBy('ordre')
                     ->get(),
             ]
         );
@@ -1854,9 +1875,10 @@ class EvaluationController extends Controller
                 'in:0.5,1,1.5,2,2.5,3,3.5,4,4.5,5',
             ],
 
-            'periode' => [
+            'periode_scolaire_id' => [
                 'required',
-                'in:Trimestre 1,Trimestre 2,Trimestre3',
+                'integer',
+                'exists:periodes_scolaires,id',
             ],
 
             'active' => [
@@ -1864,6 +1886,33 @@ class EvaluationController extends Controller
                 'boolean',
             ],
         ]);
+
+        $periodeScolaire = PeriodeScolaire::whereKey(
+            $validated['periode_scolaire_id']
+        )
+            ->where('annee_scolaire_id', $validated['annee_scolaire_id'])
+            ->where('actif', true)
+            ->first();
+
+        if (!$periodeScolaire) {
+            throw ValidationException::withMessages([
+                'periode_scolaire_id' =>
+                'La période sélectionnée ne correspond pas à l’année scolaire choisie ou est inactive.',
+            ]);
+        }
+
+        if (
+            $validated['date_evaluation'] < $periodeScolaire->date_debut->format('Y-m-d') ||
+            $validated['date_evaluation'] > $periodeScolaire->date_fin->format('Y-m-d')
+        ) {
+            throw ValidationException::withMessages([
+                'date_evaluation' =>
+                'La date de l’évaluation doit être comprise entre le ' .
+                    $periodeScolaire->date_debut->format('d/m/Y') .
+                    ' et le ' .
+                    $periodeScolaire->date_fin->format('d/m/Y') . '.',
+            ]);
+        }
 
         /*
         |--------------------------------------------------------------------------
@@ -2004,6 +2053,8 @@ class EvaluationController extends Controller
 
         $evaluation->update([
             ...$validated,
+            'periode_scolaire_id' => $periodeScolaire->id,
+            'periode' => $periodeScolaire->libelle,
             'active' => $validated['active'] ?? true,
         ]);
 

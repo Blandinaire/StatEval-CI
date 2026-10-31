@@ -9,6 +9,7 @@ export default function Edit({
     matieres = [],
     enseignants = [],
     affectations = [],
+    periodes = [],
 }) {
     const { data, setData, put, processing, errors } = useForm({
         etablissement_id: evaluation.etablissement_id ?? "",
@@ -23,9 +24,19 @@ export default function Edit({
         date_evaluation: evaluation.date_evaluation ?? "",
         bareme: String(evaluation.bareme ?? "20"),
         coefficient: String(evaluation.coefficient ?? "1"),
-        periode: evaluation.periode ?? "Trimestre 1",
+        periode_scolaire_id:
+            evaluation.periode_scolaire_id ??
+            periodes.find((periode) => periode.libelle === evaluation.periode)
+                ?.id ??
+            "",
         active: Boolean(evaluation.active),
     });
+
+    const periodesDisponibles = periodes.filter(
+        (periode) =>
+            String(periode.annee_scolaire_id) ===
+            String(data.annee_scolaire_id),
+    );
 
     /*
     |--------------------------------------------------------------------------
@@ -49,8 +60,7 @@ export default function Edit({
         }
 
         return (
-            String(classe.etablissement_id) ===
-            String(data.etablissement_id)
+            String(classe.etablissement_id) === String(data.etablissement_id)
         );
     });
 
@@ -77,10 +87,8 @@ export default function Edit({
                     String(data.etablissement_id) &&
                 String(affectation.annee_scolaire_id) ===
                     String(data.annee_scolaire_id) &&
-                String(affectation.classe_id) ===
-                    String(data.classe_id) &&
-                String(affectation.matiere_id) ===
-                    String(matiere.id),
+                String(affectation.classe_id) === String(data.classe_id) &&
+                String(affectation.matiere_id) === String(matiere.id),
         );
     });
 
@@ -108,12 +116,9 @@ export default function Edit({
                     String(data.etablissement_id) &&
                 String(affectation.annee_scolaire_id) ===
                     String(data.annee_scolaire_id) &&
-                String(affectation.classe_id) ===
-                    String(data.classe_id) &&
-                String(affectation.matiere_id) ===
-                    String(data.matiere_id) &&
-                String(affectation.enseignant_id) ===
-                    String(enseignant.id),
+                String(affectation.classe_id) === String(data.classe_id) &&
+                String(affectation.matiere_id) === String(data.matiere_id) &&
+                String(affectation.enseignant_id) === String(enseignant.id),
         );
     });
 
@@ -129,12 +134,9 @@ export default function Edit({
                 String(data.etablissement_id) &&
             String(affectation.annee_scolaire_id) ===
                 String(data.annee_scolaire_id) &&
-            String(affectation.classe_id) ===
-                String(data.classe_id) &&
-            String(affectation.matiere_id) ===
-                String(data.matiere_id) &&
-            String(affectation.enseignant_id) ===
-                String(data.enseignant_id),
+            String(affectation.classe_id) === String(data.classe_id) &&
+            String(affectation.matiere_id) === String(data.matiere_id) &&
+            String(affectation.enseignant_id) === String(data.enseignant_id),
     );
 
     const affectationValide = Boolean(affectationSelectionnee);
@@ -219,10 +221,8 @@ export default function Edit({
                     String(data.etablissement_id) &&
                 String(item.annee_scolaire_id) ===
                     String(data.annee_scolaire_id) &&
-                String(item.classe_id) ===
-                    String(data.classe_id) &&
-                String(item.matiere_id) ===
-                    String(data.matiere_id) &&
+                String(item.classe_id) === String(data.classe_id) &&
+                String(item.matiere_id) === String(data.matiere_id) &&
                 String(item.enseignant_id) === String(value),
         );
 
@@ -259,7 +259,6 @@ export default function Edit({
 
             <div className="mx-auto max-w-6xl">
                 <div className="rounded-xl bg-white p-8 shadow">
-
                     {/* EN-TÊTE */}
 
                     <div className="mb-8 flex items-start justify-between">
@@ -282,7 +281,6 @@ export default function Edit({
                     </div>
 
                     <form onSubmit={submit} className="space-y-8">
-
                         {/* SCOLARITÉ */}
 
                         <div className="rounded-xl border bg-white shadow-sm">
@@ -293,7 +291,6 @@ export default function Edit({
                             </div>
 
                             <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
-
                                 {/* ÉTABLISSEMENT */}
 
                                 <div>
@@ -344,9 +341,7 @@ export default function Edit({
                                         disabled={!data.etablissement_id}
                                         value={data.annee_scolaire_id}
                                         onChange={(e) =>
-                                            handleAnneeChange(
-                                                e.target.value,
-                                            )
+                                            handleAnneeChange(e.target.value)
                                         }
                                         className="w-full rounded-lg border p-3 disabled:cursor-not-allowed disabled:bg-gray-100"
                                     >
@@ -384,9 +379,7 @@ export default function Edit({
                                         disabled={!data.etablissement_id}
                                         value={data.classe_id}
                                         onChange={(e) =>
-                                            handleClasseChange(
-                                                e.target.value,
-                                            )
+                                            handleClasseChange(e.target.value)
                                         }
                                         className="w-full rounded-lg border p-3 disabled:cursor-not-allowed disabled:bg-gray-100"
                                     >
@@ -427,9 +420,7 @@ export default function Edit({
                                         }
                                         value={data.matiere_id}
                                         onChange={(e) =>
-                                            handleMatiereChange(
-                                                e.target.value,
-                                            )
+                                            handleMatiereChange(e.target.value)
                                         }
                                         className="w-full rounded-lg border p-3 disabled:cursor-not-allowed disabled:bg-gray-100"
                                     >
@@ -475,21 +466,20 @@ export default function Edit({
                                         <option value="">
                                             {!data.matiere_id
                                                 ? "Sélectionner d'abord une matière"
-                                                : enseignantsDisponibles.length === 0
+                                                : enseignantsDisponibles.length ===
+                                                    0
                                                   ? "Aucun enseignant affecté"
                                                   : "Sélectionner un enseignant"}
                                         </option>
 
-                                        {enseignantsDisponibles.map(
-                                            (item) => (
-                                                <option
-                                                    key={item.id}
-                                                    value={item.id}
-                                                >
-                                                    {item.nom} {item.prenoms}
-                                                </option>
-                                            ),
-                                        )}
+                                        {enseignantsDisponibles.map((item) => (
+                                            <option
+                                                key={item.id}
+                                                value={item.id}
+                                            >
+                                                {item.nom} {item.prenoms}
+                                            </option>
+                                        ))}
                                     </select>
 
                                     {data.matiere_id &&
@@ -524,8 +514,8 @@ export default function Edit({
                                 {affectationValide ? (
                                     <p>
                                         ✓ Affectation vérifiée : cet enseignant
-                                        est bien affecté à cette matière dans
-                                        la classe et pour l'année sélectionnées.
+                                        est bien affecté à cette matière dans la
+                                        classe et pour l'année sélectionnées.
                                     </p>
                                 ) : (
                                     <p>
@@ -546,7 +536,6 @@ export default function Edit({
                             </div>
 
                             <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
-
                                 <div className="md:col-span-2">
                                     <label className="mb-2 block font-semibold">
                                         Libellé de l'évaluation
@@ -557,10 +546,7 @@ export default function Edit({
                                         type="text"
                                         value={data.libelle}
                                         onChange={(e) =>
-                                            setData(
-                                                "libelle",
-                                                e.target.value,
-                                            )
+                                            setData("libelle", e.target.value)
                                         }
                                         className="w-full rounded-lg border p-3"
                                     />
@@ -581,28 +567,19 @@ export default function Edit({
                                         required
                                         value={data.type}
                                         onChange={(e) =>
-                                            setData(
-                                                "type",
-                                                e.target.value,
-                                            )
+                                            setData("type", e.target.value)
                                         }
                                         className="w-full rounded-lg border p-3"
                                     >
                                         <option value="Interrogation">
                                             Interrogation
                                         </option>
-                                        <option value="Devoir">
-                                            Devoir
-                                        </option>
+                                        <option value="Devoir">Devoir</option>
                                         <option value="Composition">
                                             Composition
                                         </option>
-                                        <option value="Examen">
-                                            Examen
-                                        </option>
-                                        <option value="Autre">
-                                            Autre
-                                        </option>
+                                        <option value="Examen">Examen</option>
+                                        <option value="Autre">Autre</option>
                                     </select>
                                 </div>
 
@@ -617,10 +594,7 @@ export default function Edit({
                                         min="1"
                                         value={data.numero}
                                         onChange={(e) =>
-                                            setData(
-                                                "numero",
-                                                e.target.value,
-                                            )
+                                            setData("numero", e.target.value)
                                         }
                                         className="w-full rounded-lg border p-3"
                                     />
@@ -659,30 +633,39 @@ export default function Edit({
 
                                 <div>
                                     <label className="mb-2 block font-semibold">
-                                        Période
+                                        Période scolaire
                                     </label>
 
                                     <select
                                         required
-                                        value={data.periode}
+                                        value={data.periode_scolaire_id}
                                         onChange={(e) =>
                                             setData(
-                                                "periode",
+                                                "periode_scolaire_id",
                                                 e.target.value,
                                             )
                                         }
                                         className="w-full rounded-lg border p-3"
                                     >
-                                        <option value="Trimestre 1">
-                                            Trimestre 1
+                                        <option value="">
+                                            Sélectionner une période
                                         </option>
-                                        <option value="Trimestre 2">
-                                            Trimestre 2
-                                        </option>
-                                        <option value="Trimestre 3">
-                                            Trimestre 3
-                                        </option>
+
+                                        {periodesDisponibles.map((periode) => (
+                                            <option
+                                                key={periode.id}
+                                                value={periode.id}
+                                            >
+                                                {periode.libelle}
+                                            </option>
+                                        ))}
                                     </select>
+
+                                    {errors.periode_scolaire_id && (
+                                        <p className="mt-1 text-sm text-red-600">
+                                            {errors.periode_scolaire_id}
+                                        </p>
+                                    )}
                                 </div>
 
                                 <div>
@@ -694,23 +677,18 @@ export default function Edit({
                                         required
                                         value={data.bareme}
                                         onChange={(e) =>
-                                            setData(
-                                                "bareme",
-                                                e.target.value,
-                                            )
+                                            setData("bareme", e.target.value)
                                         }
                                         className="w-full rounded-lg border p-3"
                                     >
-                                        {[10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(
-                                            (value) => (
-                                                <option
-                                                    key={value}
-                                                    value={value}
-                                                >
-                                                    {value} points
-                                                </option>
-                                            ),
-                                        )}
+                                        {[
+                                            10, 20, 30, 40, 50, 60, 70, 80, 90,
+                                            100,
+                                        ].map((value) => (
+                                            <option key={value} value={value}>
+                                                {value} points
+                                            </option>
+                                        ))}
                                     </select>
 
                                     {errors.bareme && (
@@ -750,9 +728,7 @@ export default function Edit({
 
                         <div className="rounded-xl border bg-white shadow-sm">
                             <div className="border-b bg-slate-50 px-6 py-4">
-                                <h2 className="text-xl font-bold">
-                                    ⚙️ Statut
-                                </h2>
+                                <h2 className="text-xl font-bold">⚙️ Statut</h2>
                             </div>
 
                             <div className="p-6">
@@ -761,10 +737,7 @@ export default function Edit({
                                         type="checkbox"
                                         checked={data.active}
                                         onChange={(e) =>
-                                            setData(
-                                                "active",
-                                                e.target.checked,
-                                            )
+                                            setData("active", e.target.checked)
                                         }
                                         className="h-5 w-5"
                                     />
@@ -788,9 +761,7 @@ export default function Edit({
 
                             <button
                                 type="submit"
-                                disabled={
-                                    processing || !affectationValide
-                                }
+                                disabled={processing || !affectationValide}
                                 className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                             >
                                 {processing
