@@ -6,6 +6,7 @@ export default function Form({
 
     etablissements,
     anneesScolaires,
+    periodesScolaires,
     classes,
     eleves,
     educateurs,
@@ -157,30 +158,38 @@ export default function Form({
 
                     <div>
                         <label className="mb-2 block font-semibold">
-                            Période
+                            Période scolaire
                         </label>
 
                         <select
-                            value={data.periode}
-                            onChange={(e) => setData("periode", e.target.value)}
-                            className="w-full rounded-lg border p-3"
+                            value={data.periode_scolaire_id}
+                            onChange={(e) =>
+                                setData("periode_scolaire_id", e.target.value)
+                            }
+                            disabled={
+                                !data.annee_scolaire_id ||
+                                periodesScolaires.length === 0
+                            }
+                            className="w-full rounded-lg border p-3 disabled:bg-gray-100"
                         >
-                            <option value="">Sélectionner...</option>
+                            <option value="">
+                                {!data.annee_scolaire_id
+                                    ? "Sélectionnez d'abord une année scolaire"
+                                    : periodesScolaires.length === 0
+                                      ? "Aucune période configurée"
+                                      : "Sélectionner une période..."}
+                            </option>
 
-                            <option value="Trimestre 1">Trimestre 1</option>
-
-                            <option value="Trimestre 2">Trimestre 2</option>
-
-                            <option value="Trimestre 3">Trimestre 3</option>
-
-                            <option value="Semestre 1">Semestre 1</option>
-
-                            <option value="Semestre 2">Semestre 2</option>
+                            {periodesScolaires.map((periode) => (
+                                <option key={periode.id} value={periode.id}>
+                                    {periode.libelle}
+                                </option>
+                            ))}
                         </select>
 
-                        {errors.periode && (
+                        {errors.periode_scolaire_id && (
                             <p className="mt-1 text-sm text-red-600">
-                                {errors.periode}
+                                {errors.periode_scolaire_id}
                             </p>
                         )}
                     </div>
@@ -374,7 +383,7 @@ export default function Form({
                     disabled={
                         processing ||
                         eleves.length === 0 ||
-                        !data.periode ||
+                        !data.periode_scolaire_id ||
                         !data.classe_id
                     }
                     className="rounded-lg bg-blue-600 px-6 py-3 font-semibold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"

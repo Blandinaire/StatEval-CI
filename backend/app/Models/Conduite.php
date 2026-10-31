@@ -10,6 +10,7 @@ class Conduite extends Model
         'eleve_id',
         'educateur_id',
         'annee_scolaire_id',
+        'periode_scolaire_id',
         'classe_id',
         'evaluation_id',
         'periode',
@@ -40,6 +41,11 @@ class Conduite extends Model
     public function anneeScolaire()
     {
         return $this->belongsTo(AnneeScolaire::class);
+    }
+
+    public function periodeScolaire()
+    {
+        return $this->belongsTo(PeriodeScolaire::class);
     }
 
     public function classe()

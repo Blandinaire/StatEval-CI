@@ -43,11 +43,6 @@ export default function Edit({
     classes,
 }) {
     const { data, setData, put, processing, errors } = useForm({
-        eleve_id: conduite.eleve_id ?? "",
-        educateur_id: conduite.educateur_id ?? "",
-        annee_scolaire_id: conduite.annee_scolaire_id ?? "",
-        classe_id: conduite.classe_id ?? "",
-        periode: conduite.periode ?? "",
         note: conduite.note ?? "",
         observation: conduite.observation ?? "",
     });
@@ -88,204 +83,72 @@ export default function Edit({
                             </div>
 
                             <div className="grid grid-cols-1 gap-6 p-6 md:grid-cols-2">
-                                {/* ÉLÈVE */}
-
                                 <div>
                                     <label className="mb-2 block font-semibold">
                                         Élève
                                     </label>
-
-                                    <select
-                                        value={data.eleve_id}
-                                        onChange={(e) => {
-                                            const nouvelleNote = e.target.value;
-
-                                            setData("note", nouvelleNote);
-
-                                            setData(
-                                                "observation",
-                                                getObservation(nouvelleNote),
-                                            );
-                                        }}
-                                        className="w-full rounded-lg border p-3"
-                                    >
-                                        <option value="">
-                                            Sélectionner un élève...
-                                        </option>
-
-                                        {eleves.map((eleve) => (
-                                            <option
-                                                key={eleve.id}
-                                                value={eleve.id}
-                                            >
-                                                {eleve.nom} {eleve.prenoms}
-                                            </option>
-                                        ))}
-                                    </select>
-
-                                    {errors.eleve_id && (
-                                        <p className="mt-1 text-sm text-red-600">
-                                            {errors.eleve_id}
-                                        </p>
-                                    )}
+                                    <input
+                                        type="text"
+                                        value={`${conduite.eleve?.nom ?? ""} ${conduite.eleve?.prenoms ?? ""}`}
+                                        readOnly
+                                        className="w-full rounded-lg border bg-gray-100 p-3"
+                                    />
                                 </div>
-
-                                {/* ÉDUCATEUR */}
 
                                 <div>
                                     <label className="mb-2 block font-semibold">
                                         Éducateur responsable
                                     </label>
-
-                                    <select
-                                        value={data.educateur_id}
-                                        onChange={(e) =>
-                                            setData(
-                                                "educateur_id",
-                                                e.target.value,
-                                            )
-                                        }
-                                        className="w-full rounded-lg border p-3"
-                                    >
-                                        <option value="">
-                                            Sélectionner...
-                                        </option>
-
-                                        {educateurs.map((educateur) => (
-                                            <option
-                                                key={educateur.id}
-                                                value={educateur.id}
-                                            >
-                                                {educateur.nom}{" "}
-                                                {educateur.prenoms}
-                                            </option>
-                                        ))}
-                                    </select>
-
-                                    {errors.educateur_id && (
-                                        <p className="mt-1 text-sm text-red-600">
-                                            {errors.educateur_id}
-                                        </p>
-                                    )}
+                                    <input
+                                        type="text"
+                                        value={`${conduite.educateur?.nom ?? ""} ${conduite.educateur?.prenoms ?? ""}`}
+                                        readOnly
+                                        className="w-full rounded-lg border bg-gray-100 p-3"
+                                    />
                                 </div>
-
-                                {/* ANNÉE SCOLAIRE */}
 
                                 <div>
                                     <label className="mb-2 block font-semibold">
                                         Année scolaire
                                     </label>
-
-                                    <select
-                                        value={data.annee_scolaire_id}
-                                        onChange={(e) =>
-                                            setData(
-                                                "annee_scolaire_id",
-                                                e.target.value,
-                                            )
+                                    <input
+                                        type="text"
+                                        value={
+                                            conduite.annee_scolaire?.libelle ??
+                                            ""
                                         }
-                                        className="w-full rounded-lg border p-3"
-                                    >
-                                        <option value="">
-                                            Sélectionner...
-                                        </option>
-
-                                        {anneesScolaires.map((annee) => (
-                                            <option
-                                                key={annee.id}
-                                                value={annee.id}
-                                            >
-                                                {annee.libelle}
-                                            </option>
-                                        ))}
-                                    </select>
-
-                                    {errors.annee_scolaire_id && (
-                                        <p className="mt-1 text-sm text-red-600">
-                                            {errors.annee_scolaire_id}
-                                        </p>
-                                    )}
+                                        readOnly
+                                        className="w-full rounded-lg border bg-gray-100 p-3"
+                                    />
                                 </div>
-
-                                {/* CLASSE */}
 
                                 <div>
                                     <label className="mb-2 block font-semibold">
                                         Classe
                                     </label>
-
-                                    <select
-                                        value={data.classe_id}
-                                        onChange={(e) =>
-                                            setData("classe_id", e.target.value)
-                                        }
-                                        className="w-full rounded-lg border p-3"
-                                    >
-                                        <option value="">
-                                            Sélectionner...
-                                        </option>
-
-                                        {classes.map((classe) => (
-                                            <option
-                                                key={classe.id}
-                                                value={classe.id}
-                                            >
-                                                {classe.libelle}
-                                            </option>
-                                        ))}
-                                    </select>
-
-                                    {errors.classe_id && (
-                                        <p className="mt-1 text-sm text-red-600">
-                                            {errors.classe_id}
-                                        </p>
-                                    )}
+                                    <input
+                                        type="text"
+                                        value={conduite.classe?.libelle ?? ""}
+                                        readOnly
+                                        className="w-full rounded-lg border bg-gray-100 p-3"
+                                    />
                                 </div>
-
-                                {/* PÉRIODE */}
 
                                 <div>
                                     <label className="mb-2 block font-semibold">
-                                        Période
+                                        Période scolaire
                                     </label>
-
-                                    <select
-                                        value={data.periode}
-                                        onChange={(e) =>
-                                            setData("periode", e.target.value)
+                                    <input
+                                        type="text"
+                                        value={
+                                            conduite.periode_scolaire
+                                                ?.libelle ??
+                                            conduite.periode ??
+                                            "Période non renseignée"
                                         }
-                                        className="w-full rounded-lg border p-3"
-                                    >
-                                        <option value="">
-                                            Sélectionner...
-                                        </option>
-
-                                        <option value="Trimestre 1">
-                                            Trimestre 1
-                                        </option>
-
-                                        <option value="Trimestre 2">
-                                            Trimestre 2
-                                        </option>
-
-                                        <option value="Trimestre 3">
-                                            Trimestre 3
-                                        </option>
-
-                                        <option value="Semestre 1">
-                                            Semestre 1
-                                        </option>
-
-                                        <option value="Semestre 2">
-                                            Semestre 2
-                                        </option>
-                                    </select>
-
-                                    {errors.periode && (
-                                        <p className="mt-1 text-sm text-red-600">
-                                            {errors.periode}
-                                        </p>
-                                    )}
+                                        readOnly
+                                        className="w-full rounded-lg border bg-gray-100 p-3"
+                                    />
                                 </div>
                             </div>
                         </div>
@@ -315,9 +178,15 @@ export default function Edit({
                                         max="20"
                                         step="0.01"
                                         value={data.note}
-                                        onChange={(e) =>
-                                            setData("note", e.target.value)
-                                        }
+                                        onChange={(e) => {
+                                            const nouvelleNote = e.target.value;
+
+                                            setData("note", nouvelleNote);
+                                            setData(
+                                                "observation",
+                                                getObservation(nouvelleNote),
+                                            );
+                                        }}
                                         className="w-full rounded-lg border p-3 text-center text-lg font-semibold"
                                     />
 

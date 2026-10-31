@@ -7,6 +7,7 @@ import Form from "./Form";
 export default function Create({
     etablissements,
     anneesScolaires,
+    periodesScolaires,
     educateurs,
     isSuperAdmin,
     etablissementId,
@@ -21,7 +22,7 @@ export default function Create({
         annee_scolaire_id: "",
         classe_id: "",
         educateur_id: "",
-        periode: "",
+        periode_scolaire_id: "",
         notes: [],
     });
 
@@ -92,6 +93,8 @@ export default function Create({
      */
     function changerAnneeScolaire(value) {
         setData("annee_scolaire_id", value);
+
+        setData("periode_scolaire_id", "");
 
         setData("classe_id", "");
         setData("notes", []);
@@ -193,6 +196,12 @@ export default function Create({
         setData("notes", nouvellesNotes);
     }
 
+    const periodesDisponibles = periodesScolaires.filter(
+        (periode) =>
+            String(periode.annee_scolaire_id) ===
+            String(data.annee_scolaire_id),
+    );
+
     /**
      * Enregistrement.
      */
@@ -223,6 +232,7 @@ export default function Create({
                         setData={setData}
                         etablissements={etablissements}
                         anneesScolaires={anneesScolaires}
+                        periodesScolaires={periodesScolaires}
                         classes={classes}
                         eleves={eleves}
                         educateurs={educateurs}

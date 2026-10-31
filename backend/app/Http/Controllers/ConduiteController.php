@@ -10,6 +10,7 @@ use App\Models\Educateur;
 use App\Models\EducateurClasse;
 use App\Models\Eleve;
 use App\Models\Etablissement;
+use App\Models\PeriodeScolaire;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -241,6 +242,7 @@ class ConduiteController extends Controller
                 'educateur',
                 'anneeScolaire',
                 'classe',
+                'periodeScolaire',
             ]);
 
         /*
@@ -672,6 +674,15 @@ class ConduiteController extends Controller
             ->orderByDesc('date_debut')
             ->get();
 
+        $periodesScolaires = PeriodeScolaire::query()
+            ->where('actif', true)
+            ->orderBy('ordre')
+            ->get([
+                'id',
+                'annee_scolaire_id',
+                'libelle',
+                'ordre',
+            ]);
         /*
         |--------------------------------------------------------------------------
         | ÉDUCATEURS
@@ -731,6 +742,9 @@ class ConduiteController extends Controller
 
                 'anneesScolaires' =>
                 $anneesScolaires,
+
+                'periodesScolaires' =>
+                $periodesScolaires,
 
                 'educateurs' =>
                 $educateurs,
@@ -993,10 +1007,10 @@ class ConduiteController extends Controller
                 'exists:educateurs,id',
             ],
 
-            'periode' => [
+            'periode_scolaire_id' => [
                 'required',
-                'string',
-                'in:Trimestre 1,Trimestre 2,Trimestre 3,Semestre 1,Semestre 2',
+                'integer',
+                'exists:periodes_scolaires,id',
             ],
 
             'notes' => [
@@ -1099,6 +1113,21 @@ class ConduiteController extends Controller
                 ->withInput();
         }
 
+        $periodeScolaire = PeriodeScolaire::query()
+            ->where('id', $validated['periode_scolaire_id'])
+            ->where('annee_scolaire_id', $classe->annee_scolaire_id)
+            ->where('actif', true)
+            ->first();
+
+        if (! $periodeScolaire) {
+            return back()
+                ->withErrors([
+                    'periode_scolaire_id' =>
+                    'La période sélectionnée est inactive ou ne correspond pas à l’année scolaire choisie.',
+                ])
+                ->withInput();
+        }
+
         /*
         |--------------------------------------------------------------------------
         | DROITS SUR LA CLASSE
@@ -1195,7 +1224,8 @@ class ConduiteController extends Controller
             function () use (
                 $validated,
                 $classe,
-                $educateurId
+                $educateurId,
+                $periodeScolaire
             ) {
 
                 foreach (
@@ -1252,8 +1282,8 @@ class ConduiteController extends Controller
                             'annee_scolaire_id' =>
                             $classe->annee_scolaire_id,
 
-                            'periode' =>
-                            $validated['periode'],
+                            'periode_scolaire_id' =>
+                            $periodeScolaire->id,
                         ],
 
                         [
@@ -1399,6 +1429,7 @@ class ConduiteController extends Controller
                     'classe',
                     'educateur',
                     'anneeScolaire',
+                    'periodeScolaire',
                 ]),
 
             ]

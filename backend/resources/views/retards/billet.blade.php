@@ -1,356 +1,344 @@
 <!DOCTYPE html>
 <html lang="fr">
+
 <head>
     <meta charset="UTF-8">
 
-    <title>Billet de retard - {{ $retard->numero_billet }}</title>
+    <title>Billet de retard</title>
 
     <style>
         @page {
-            size: A4 portrait;
-            margin: 18mm;
-        }
-
-        * {
-            box-sizing: border-box;
+            margin: 35px;
         }
 
         body {
-            margin: 0;
-            padding: 0;
-            font-family: DejaVu Sans, Arial, sans-serif;
-            color: #111827;
-            font-size: 12px;
-        }
-
-        .document {
-            width: 100%;
+            font-family: DejaVu Sans, sans-serif;
+            color: #1f2937;
+            font-size: 13px;
+            line-height: 1.5;
         }
 
         .header {
+            text-align: center;
             border-bottom: 2px solid #1d4ed8;
             padding-bottom: 12px;
-            margin-bottom: 18px;
-        }
-
-        .header-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .header-left {
-            width: 68%;
-            vertical-align: top;
-        }
-
-        .header-right {
-            width: 32%;
-            text-align: right;
-            vertical-align: top;
+            margin-bottom: 20px;
         }
 
         .school-name {
-            font-size: 18px;
+            font-size: 20px;
             font-weight: bold;
             color: #1e3a8a;
             text-transform: uppercase;
         }
 
-        .school-subtitle {
-            margin-top: 4px;
-            font-size: 10px;
-            color: #6b7280;
-        }
-
         .document-title {
-            font-size: 20px;
-            font-weight: bold;
-            color: #111827;
             margin-top: 8px;
-            text-transform: uppercase;
+            font-size: 18px;
+            font-weight: bold;
         }
 
         .document-number {
-            display: inline-block;
-            border: 1px solid #d1d5db;
-            padding: 7px 10px;
-            font-weight: bold;
-            font-size: 11px;
-            background: #f9fafb;
+            margin-top: 5px;
+            font-size: 12px;
+            color: #6b7280;
         }
 
         .section {
-            margin-bottom: 14px;
+            margin-top: 18px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
         }
 
         .section-title {
             background: #eff6ff;
-            border-left: 4px solid #2563eb;
-            padding: 8px 10px;
-            font-size: 13px;
+            padding: 9px 12px;
             font-weight: bold;
             color: #1e3a8a;
-            margin-bottom: 0;
+            border-bottom: 1px solid #d1d5db;
         }
 
-        .info-table {
+        .section-content {
+            padding: 12px;
+        }
+
+        table {
             width: 100%;
             border-collapse: collapse;
-            border: 1px solid #d1d5db;
         }
 
-        .info-table td {
-            border: 1px solid #d1d5db;
-            padding: 8px 10px;
+        td {
+            padding: 7px 5px;
             vertical-align: top;
         }
 
         .label {
-            display: block;
+            width: 35%;
+            font-weight: bold;
             color: #6b7280;
-            font-size: 9px;
-            margin-bottom: 3px;
-            text-transform: uppercase;
         }
 
         .value {
-            font-size: 12px;
             font-weight: bold;
         }
 
-        .duration {
-            color: #b45309;
-            font-size: 14px;
+        .retard-important {
+            text-align: center;
+            margin: 20px 0;
+            padding: 14px;
+            border: 2px solid #dc2626;
+            background: #fef2f2;
+            color: #991b1b;
+            font-size: 18px;
             font-weight: bold;
-        }
-
-        .motif {
-            min-height: 45px;
-            border: 1px solid #d1d5db;
-            padding: 10px;
-            font-size: 11px;
         }
 
         .observation {
-            min-height: 55px;
-            border: 1px solid #d1d5db;
-            padding: 10px;
-            font-size: 11px;
-        }
-
-        .notice {
-            margin-top: 18px;
-            padding: 10px;
-            border: 1px solid #d1d5db;
-            background: #f9fafb;
-            font-size: 9px;
-            line-height: 1.5;
+            min-height: 60px;
         }
 
         .signatures {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 28px;
+            margin-top: 50px;
         }
 
-        .signature-cell {
+        .signature-table td {
             width: 50%;
             text-align: center;
-            vertical-align: top;
-            height: 85px;
+            height: 90px;
         }
 
         .signature-title {
             font-weight: bold;
-            font-size: 10px;
-            margin-bottom: 35px;
-        }
-
-        .signature-line {
-            border-top: 1px solid #374151;
-            width: 75%;
-            margin: auto;
         }
 
         .footer {
-            margin-top: 20px;
-            border-top: 1px solid #d1d5db;
-            padding-top: 8px;
+            position: fixed;
+            bottom: -10px;
+            left: 0;
+            right: 0;
             text-align: center;
+            font-size: 9px;
             color: #6b7280;
-            font-size: 8px;
-        }
-
-        .text-center {
-            text-align: center;
-        }
-
-        .uppercase {
-            text-transform: uppercase;
         }
     </style>
 </head>
 
 <body>
 
-<div class="document">
-
-    {{-- EN-TÊTE --}}
     <div class="header">
-        <table class="header-table">
-            <tr>
-                <td class="header-left">
 
-                    <div class="school-name">
-                        StatEval-CI
-                    </div>
-
-                    <div class="school-subtitle">
-                        Gestion scolaire
-                    </div>
-
-                    <div class="document-title">
-                        Billet de retard
-                    </div>
-
-                </td>
-
-                <td class="header-right">
-
-                    <div class="document-number">
-                        N° {{ $retard->numero_billet ?? '---' }}
-                    </div>
-
-                </td>
-            </tr>
-        </table>
-    </div>
-
-
-    {{-- ÉLÈVE --}}
-    <div class="section">
-
-        <div class="section-title">
-            Identification de l'élève
+        <div class="school-name">
+            {{ config('app.name', 'StatEval-CI') }}
         </div>
 
-        <table class="info-table">
+        <div class="document-title">
+            BILLET DE RETARD
+        </div>
 
-            <tr>
-
-                <td style="width: 60%;">
-                    <span class="label">
-                        Nom et prénoms
-                    </span>
-
-                    <span class="value uppercase">
-                        {{ $retard->eleve?->nom ?? '' }}
-                        {{ $retard->eleve?->prenoms ?? '' }}
-                    </span>
-                </td>
-
-                <td style="width: 40%;">
-                    <span class="label">
-                        Classe
-                    </span>
-
-                    <span class="value">
-                        {{ $retard->classe?->libelle ?? '---' }}
-                    </span>
-                </td>
-
-            </tr>
-
-            <tr>
-
-                <td>
-                    <span class="label">
-                        Année scolaire
-                    </span>
-
-                    <span class="value">
-                        {{ $retard->anneeScolaire?->libelle ?? '---' }}
-                    </span>
-                </td>
-
-                <td>
-                    <span class="label">
-                        Éducateur
-                    </span>
-
-                    <span class="value">
-                        {{ $retard->educateur
-                            ? $retard->educateur->nom . ' ' . $retard->educateur->prenoms
-                            : '---'
-                        }}
-                    </span>
-                </td>
-
-            </tr>
-
-        </table>
+        <div class="document-number">
+            N° {{ $retard->numero_billet ?? '-' }}
+        </div>
 
     </div>
 
-
-    {{-- INFORMATIONS DU RETARD --}}
     <div class="section">
 
         <div class="section-title">
-            Informations sur le retard
+            IDENTIFICATION DE L'ÉLÈVE
         </div>
 
-        <table class="info-table">
+        <div class="section-content">
 
-            <tr>
+            <table>
 
-                <td style="width: 25%;">
-                    <span class="label">
-                        Date
-                    </span>
+                <tr>
+                    <td class="label">
+                        Nom et prénoms :
+                    </td>
 
-                    <span class="value">
-                        {{ $retard->date_retard
-                            ? $retard->date_retard->format('d/m/Y')
-                            : '---'
-                        }}
-                    </span>
-                </td>
+                    <td class="value">
+                        {{ $retard->eleve?->nom }}
+                        {{ $retard->eleve?->prenoms }}
+                    </td>
+                </tr>
 
-                <td style="width: 25%;">
-                    <span class="label">
-                        Heure prévue
-                    </span>
+                <tr>
+                    <td class="label">
+                        Classe :
+                    </td>
 
-                    <span class="value">
+                    <td class="value">
+                        {{ $retard->classe?->libelle ?? '-' }}
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="label">
+                        Année scolaire :
+                    </td>
+
+                    <td class="value">
+                        {{ $retard->anneeScolaire?->libelle ?? '-' }}
+                    </td>
+                </tr>
+
+            </table>
+
+        </div>
+
+    </div>
+
+    <div class="section">
+
+        <div class="section-title">
+            INFORMATIONS SUR LE RETARD
+        </div>
+
+        <div class="section-content">
+
+            <table>
+
+                <tr>
+                    <td class="label">
+                        Date :
+                    </td>
+
+                    <td class="value">
+                        {{ $retard->date_retard?->format('d/m/Y') ?? '-' }}
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="label">
+                        Heure prévue :
+                    </td>
+
+                    <td class="value">
                         {{ $retard->heure_prevue
                             ? substr($retard->heure_prevue, 0, 5)
-                            : '---'
-                        }}
-                    </span>
-                </td>
+                            : '-' }}
+                    </td>
+                </tr>
 
-                <td style="width: 25%;">
-                    <span class="label">
-                        Heure d'arrivée
-                    </span>
+                <tr>
+                    <td class="label">
+                        Heure d'arrivée :
+                    </td>
 
-                    <span class="value">
+                    <td class="value">
                         {{ $retard->heure_arrivee
                             ? substr($retard->heure_arrivee, 0, 5)
-                            : '---'
-                        }}
-                    </span>
+                            : '-' }}
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="label">
+                        Durée du retard :
+                    </td>
+
+                    <td class="value">
+                        {{ $retard->duree_minutes }} minute(s)
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="label">
+                        Motif :
+                    </td>
+
+                    <td class="value">
+                        {{ $retard->motif ?? '-' }}
+                    </td>
+                </tr>
+
+            </table>
+
+        </div>
+
+    </div>
+
+    <div class="retard-important">
+
+        RETARD DE {{ $retard->duree_minutes }} MINUTE(S)
+
+    </div>
+
+    <div class="section">
+
+        <div class="section-title">
+            OBSERVATION
+        </div>
+
+        <div class="section-content observation">
+
+            {{ $retard->observation ?? 'Aucune observation.' }}
+
+        </div>
+
+    </div>
+
+    <div class="section">
+
+        <div class="section-title">
+            ENREGISTREMENT
+        </div>
+
+        <div class="section-content">
+
+            <table>
+
+                <tr>
+                    <td class="label">
+                        Éducateur :
+                    </td>
+
+                    <td class="value">
+                        {{ $retard->educateur
+                            ? $retard->educateur->nom . ' ' .
+                              $retard->educateur->prenoms
+                            : '-' }}
+                    </td>
+                </tr>
+
+                <tr>
+                    <td class="label">
+                        Date d'édition :
+                    </td>
+
+                    <td class="value">
+                        {{ $retard->billet_edite_le
+                            ? $retard->billet_edite_le->format('d/m/Y à H:i')
+                            : now()->format('d/m/Y à H:i') }}
+                    </td>
+                </tr>
+
+            </table>
+
+        </div>
+
+    </div>
+
+    <div class="signatures">
+
+        <table class="signature-table">
+
+            <tr>
+
+                <td>
+                    <div class="signature-title">
+                        Signature de l'éducateur
+                    </div>
+                    <br><br>
+                    __________________________
                 </td>
 
-                <td style="width: 25%;">
-                    <span class="label">
-                        Durée du retard
-                    </span>
-
-                    <span class="duration">
-                        {{ $retard->duree_minutes ?? 0 }} minute(s)
-                    </span>
+                <td>
+                    <div class="signature-title">
+                        Signature du responsable
+                    </div>
+                    <br><br>
+                    __________________________
                 </td>
 
             </tr>
@@ -359,94 +347,10 @@
 
     </div>
 
-
-    {{-- MOTIF --}}
-    <div class="section">
-
-        <div class="section-title">
-            Motif du retard
-        </div>
-
-        <div class="motif">
-            {{ $retard->motif ?? 'Aucun motif renseigné.' }}
-        </div>
-
-    </div>
-
-
-    {{-- OBSERVATION --}}
-    <div class="section">
-
-        <div class="section-title">
-            Observation
-        </div>
-
-        <div class="observation">
-            {{ $retard->observation ?? 'Aucune observation.' }}
-        </div>
-
-    </div>
-
-
-    {{-- MENTION --}}
-    <div class="notice">
-
-        <strong>Important :</strong>
-
-        Le présent billet atteste que l'élève identifié ci-dessus
-        est arrivé en retard à l'établissement à la date et à l'heure
-        indiquées.
-
-        Il doit être conservé par l'élève et présenté à toute personne
-        habilitée de l'établissement qui en ferait la demande.
-
-    </div>
-
-
-    {{-- SIGNATURES --}}
-    <table class="signatures">
-
-        <tr>
-
-            <td class="signature-cell">
-
-                <div class="signature-title">
-                    L'ÉDUCATEUR
-                </div>
-
-                <div class="signature-line"></div>
-
-            </td>
-
-            <td class="signature-cell">
-
-                <div class="signature-title">
-                    RESPONSABLE / PARENT
-                </div>
-
-                <div class="signature-line"></div>
-
-            </td>
-
-        </tr>
-
-    </table>
-
-
-    {{-- PIED DE PAGE --}}
     <div class="footer">
-
-        StatEval-CI — Gestion scolaire
-
-        @if($retard->billet_edite_le)
-            &nbsp; | &nbsp;
-            Édité le
-            {{ $retard->billet_edite_le->format('d/m/Y à H:i') }}
-        @endif
-
+        Billet de retard généré par {{ config('app.name', 'StatEval-CI') }}
     </div>
-
-</div>
 
 </body>
+
 </html>
