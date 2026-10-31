@@ -7,13 +7,14 @@ export default function Index({
     conduites = [],
     etablissements = [],
     classes = [],
+    periodesScolaires = [],
     filters = {},
     isSuperAdmin = false,
 }) {
     const filtres = {
         etablissement_id: "",
         classe_id: "",
-        periode: "",
+        periode_scolaire_id: "",
         recherche: "",
         ...filters,
     };
@@ -208,32 +209,31 @@ export default function Index({
                         </div>
 
                         {/* ===================================== */}
-                        {/* PÉRIODE */}
+                        {/* PÉRIODE SCOLAIRE */}
                         {/* ===================================== */}
 
                         <div>
                             <label className="mb-1 block text-sm font-semibold">
-                                Période
+                                Période scolaire
                             </label>
 
                             <select
-                                value={filtres.periode}
+                                value={filtres.periode_scolaire_id}
                                 onChange={(e) =>
-                                    changerFiltre("periode", e.target.value)
+                                    changerFiltre(
+                                        "periode_scolaire_id",
+                                        e.target.value,
+                                    )
                                 }
                                 className="w-full rounded-lg border p-3"
                             >
                                 <option value="">Toutes les périodes</option>
 
-                                <option value="Trimestre 1">Trimestre 1</option>
-
-                                <option value="Trimestre 2">Trimestre 2</option>
-
-                                <option value="Trimestre 3">Trimestre 3</option>
-
-                                <option value="Semestre 1">Semestre 1</option>
-
-                                <option value="Semestre 2">Semestre 2</option>
+                                {periodesScolaires.map((periode) => (
+                                    <option key={periode.id} value={periode.id}>
+                                        {periode.libelle}
+                                    </option>
+                                ))}
                             </select>
                         </div>
 
@@ -351,7 +351,10 @@ export default function Index({
                                             </td>
 
                                             <td className="p-3">
-                                                {conduite.periode ?? "-"}
+                                                {conduite.periode_scolaire
+                                                    ?.libelle ??
+                                                    conduite.periode ??
+                                                    "-"}
                                             </td>
 
                                             <td className="p-3 text-center">

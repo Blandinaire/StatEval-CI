@@ -429,17 +429,19 @@ class ConduiteController extends Controller
             );
         }
 
+
+
         /*
         |--------------------------------------------------------------------------
         | FILTRE PÉRIODE
         |--------------------------------------------------------------------------
         */
 
-        if ($request->filled('periode')) {
+        if ($request->filled('periode_scolaire_id')) {
 
             $query->where(
-                'periode',
-                $request->periode
+                'periode_scolaire_id',
+                $request->periode_scolaire_id
             );
         }
 
@@ -583,6 +585,23 @@ class ConduiteController extends Controller
         ]);
 
         /*
+|--------------------------------------------------------------------------
+| PÉRIODES SCOLAIRES DISPONIBLES
+|--------------------------------------------------------------------------
+*/
+
+        $periodesScolaires = PeriodeScolaire::query()
+            ->where('actif', true)
+            ->orderBy('annee_scolaire_id')
+            ->orderBy('ordre')
+            ->get([
+                'id',
+                'annee_scolaire_id',
+                'libelle',
+                'ordre',
+            ]);
+
+        /*
         |--------------------------------------------------------------------------
         | RETOUR INERTIA
         |--------------------------------------------------------------------------
@@ -601,6 +620,8 @@ class ConduiteController extends Controller
                 'classes' =>
                 $classes,
 
+                'periodesScolaires' => $periodesScolaires,
+
                 'filters' => [
 
                     'etablissement_id' =>
@@ -609,8 +630,8 @@ class ConduiteController extends Controller
                     'classe_id' =>
                     $request->classe_id ?? '',
 
-                    'periode' =>
-                    $request->periode ?? '',
+                    'periode_scolaire_id' =>
+                    $request->periode_scolaire_id ?? '',
 
                     'recherche' =>
                     $request->recherche ?? '',
