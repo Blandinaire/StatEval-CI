@@ -11,7 +11,9 @@ use App\Models\Matiere;
 use App\Models\Niveau;
 use App\Models\Eleve;
 use App\Models\Affectation;
+use App\Models\PeriodeScolaire;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class EvaluationController extends Controller
@@ -436,6 +438,19 @@ class EvaluationController extends Controller
                 ->orderBy('libelle')->get(),
             'matieres' => Matiere::orderBy('libelle')->get(),
             'niveaux' => Niveau::orderBy('ordre')->orderBy('libelle')->get(['id', 'libelle']),
+            'periodes' => PeriodeScolaire::whereIn(
+                'annee_scolaire_id',
+                AnneeScolaire::pluck('id')
+            )
+                ->where('actif', true)
+                ->orderBy('ordre')
+                ->get([
+                    'id',
+                    'annee_scolaire_id',
+                    'libelle',
+                    'date_debut',
+                    'date_fin',
+                ]),
         ];
     }
 
@@ -467,6 +482,7 @@ class EvaluationController extends Controller
             'heure_fin' => $evaluation->heure_fin,
             'bareme' => $evaluation->bareme,
             'coefficient' => $evaluation->coefficient,
+            'periode_scolaire_id' => $evaluation->periode_scolaire_id,
             'periode' => $evaluation->periode,
             'prise_en_compte_moyenne' => $evaluation->prise_en_compte_moyenne,
             'notifier_professeurs' => $evaluation->notifier_professeurs,
@@ -510,12 +526,41 @@ class EvaluationController extends Controller
             'heure_fin' => ['nullable', 'date_format:H:i', 'after:heure_debut'],
             'bareme' => ['required', 'numeric', 'min:1'],
             'coefficient' => ['required', 'numeric', 'min:0.1'],
-            'periode' => ['required', 'in:Trimestre 1,Trimestre 2,Trimestre 3'],
+            'periode_scolaire_id' => [
+                'required',
+                'integer',
+                'exists:periodes_scolaires,id',
+            ],
             'prise_en_compte_moyenne' => ['boolean'],
             'notifier_professeurs' => ['boolean'],
             'publier_eleves' => ['boolean'],
             'publier_parents' => ['boolean'],
         ]);
+
+        $periodeScolaire = PeriodeScolaire::whereKey(
+            $validated['periode_scolaire_id']
+        )
+            ->where('annee_scolaire_id', $validated['annee_scolaire_id'])
+            ->where('actif', true)
+            ->first();
+
+        abort_unless(
+            $periodeScolaire,
+            422,
+            'La période sélectionnée ne correspond pas à l’année scolaire choisie ou est inactive.'
+        );
+
+        if (
+            $validated['date_evaluation'] < $periodeScolaire->date_debut->format('Y-m-d') ||
+            $validated['date_evaluation'] > $periodeScolaire->date_fin->format('Y-m-d')
+        ) {
+            throw ValidationException::withMessages([
+                'date_evaluation' => 'La date de l’évaluation doit être comprise entre le ' .
+                    $periodeScolaire->date_debut->format('d/m/Y') .
+                    ' et le ' .
+                    $periodeScolaire->date_fin->format('d/m/Y') . '.',
+            ]);
+        }
 
         if ($evaluation) {
             abort_unless($evaluation->origine === 'administration', 404);
@@ -600,7 +645,8 @@ class EvaluationController extends Controller
             'notifier_professeurs' => $validated['notifier_professeurs'] ?? false,
             'publier_eleves' => $validated['publier_eleves'] ?? false,
             'publier_parents' => $validated['publier_parents'] ?? false,
-            'periode' => $validated['periode'],
+            'periode_scolaire_id' => $periodeScolaire->id,
+            'periode' => $periodeScolaire->libelle,
         ];
 
         if ($evaluation) {

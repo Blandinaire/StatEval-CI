@@ -20,6 +20,7 @@ class Evaluation extends Model
 
         'etablissement_id',
         'annee_scolaire_id',
+        'periode_scolaire_id',
         'niveau_id',
         'classe_id',
 
@@ -113,6 +114,11 @@ class Evaluation extends Model
         return $this->belongsTo(
             AnneeScolaire::class
         );
+    }
+
+    public function periodeScolaire()
+    {
+        return $this->belongsTo(PeriodeScolaire::class);
     }
 
     public function niveau()

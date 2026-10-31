@@ -8,13 +8,13 @@ export default function Programmer({
     classes = [],
     matieres = [],
     niveaux = [],
+    periodes = [],
     evaluation = null,
 }) {
     const { data, setData, post, patch, processing, errors } = useForm({
         etablissement_id:
             evaluation?.etablissement_id ?? etablissements[0]?.id ?? "",
-        annee_scolaire_id:
-            evaluation?.annee_scolaire_id ?? annees[0]?.id ?? "",
+        annee_scolaire_id: evaluation?.annee_scolaire_id ?? annees[0]?.id ?? "",
         niveau_id: evaluation?.niveau_id ?? "",
         classe_ids: evaluation?.classe_ids ?? [],
         matiere_id: evaluation?.matiere_id ?? "",
@@ -26,13 +26,18 @@ export default function Programmer({
         heure_fin: evaluation?.heure_fin ?? "",
         bareme: evaluation?.bareme ?? 20,
         coefficient: evaluation?.coefficient ?? 1,
-        periode: evaluation?.periode ?? "Trimestre 1",
-        prise_en_compte_moyenne:
-            evaluation?.prise_en_compte_moyenne ?? true,
+        periode_scolaire_id: evaluation?.periode_scolaire_id ?? "",
+        prise_en_compte_moyenne: evaluation?.prise_en_compte_moyenne ?? true,
         notifier_professeurs: evaluation?.notifier_professeurs ?? false,
         publier_eleves: evaluation?.publier_eleves ?? false,
         publier_parents: evaluation?.publier_parents ?? false,
     });
+
+    const periodesDisponibles = periodes.filter(
+        (periode) =>
+            String(periode.annee_scolaire_id) ===
+            String(data.annee_scolaire_id),
+    );
 
     const classesDisponibles = classes.filter(
         (classe) =>
@@ -136,6 +141,20 @@ export default function Programmer({
         }
     }, [data.heure_debut, data.niveau_id]);
 
+    useEffect(() => {
+        const periodeExiste = periodesDisponibles.some(
+            (periode) =>
+                String(periode.id) === String(data.periode_scolaire_id),
+        );
+
+        if (!periodeExiste) {
+            setData(
+                "periode_scolaire_id",
+                String(periodesDisponibles[0]?.id ?? ""),
+            );
+        }
+    }, [data.annee_scolaire_id, periodes]);
+
     function changerNiveau(value) {
         setData({ ...data, niveau_id: value, classe_ids: [], matiere_id: "" });
     }
@@ -160,9 +179,7 @@ export default function Programmer({
     function submit(event) {
         event.preventDefault();
         if (evaluation) {
-            patch(
-                route("evaluations.programmations.update", evaluation.id),
-            );
+            patch(route("evaluations.programmations.update", evaluation.id));
             return;
         }
 
@@ -392,17 +409,25 @@ export default function Programmer({
                             />
                         </label>
                         <label className="text-sm font-medium text-gray-700">
-                            Période
+                            Période scolaire
                             <select
                                 className="mt-1 w-full rounded-lg border p-3"
-                                value={data.periode}
+                                value={data.periode_scolaire_id}
                                 onChange={(e) =>
-                                    setData("periode", e.target.value)
+                                    setData(
+                                        "periode_scolaire_id",
+                                        e.target.value,
+                                    )
                                 }
+                                required
                             >
-                                <option>Trimestre 1</option>
-                                <option>Trimestre 2</option>
-                                <option>Trimestre 3</option>
+                                <option value="">Choisir une période</option>
+
+                                {periodesDisponibles.map((periode) => (
+                                    <option key={periode.id} value={periode.id}>
+                                        {periode.libelle}
+                                    </option>
+                                ))}
                             </select>
                         </label>
                     </div>
@@ -456,7 +481,12 @@ export default function Programmer({
                         </h2>
                         <p className="mt-2">
                             {data.libelle || data.type || "Évaluation"} du{" "}
-                            {data.periode} ·{" "}
+                            {periodesDisponibles.find(
+                                (periode) =>
+                                    String(periode.id) ===
+                                    String(data.periode_scolaire_id),
+                            )?.libelle ?? "Période non sélectionnée"}{" "}
+                            ·{" "}
                             {niveaux.find(
                                 (item) =>
                                     String(item.id) === String(data.niveau_id),
