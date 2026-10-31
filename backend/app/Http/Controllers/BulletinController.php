@@ -12,6 +12,7 @@ use App\Models\Etablissement;
 use App\Models\Evaluation;
 use App\Models\Retard;
 use App\Services\CalculMoyennesService;
+use App\Models\PeriodeScolaire;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
@@ -85,20 +86,16 @@ class BulletinController extends Controller
                 ]
             );
 
-            $periodes = Evaluation::query()
-                ->where('etablissement_id', $classe->etablissement_id)
+            $periodes = PeriodeScolaire::query()
                 ->where('annee_scolaire_id', $classe->annee_scolaire_id)
-                ->where(function ($query) use ($classe) {
-                    $query->where('classe_id', $classe->id)
-                        ->orWhereHas('classes', function ($q) use ($classe) {
-                            $q->where('classes.id', $classe->id);
-                        });
-                })
-                ->whereNotNull('periode')
-                ->distinct()
-                ->orderBy('periode')
-                ->pluck('periode')
-                ->values();
+                ->where('actif', true)
+                ->orderBy('ordre')
+                ->get([
+                    'id',
+                    'libelle',
+                    'date_debut',
+                    'date_fin',
+                ]);
 
             $eleves = Eleve::query()
                 ->where('etablissement_id', $classe->etablissement_id)
@@ -122,7 +119,9 @@ class BulletinController extends Controller
                 ? $eleves->firstWhere('id', $eleveId)
                 : null;
 
-            $periode = $request->input('periode');
+            $periodeId = $request->integer('periode_id');
+
+            $periode = $periodes->firstWhere('id', $periodeId);
 
             if ($eleve && $periode && $classe->maquette) {
                 $evaluations = Evaluation::query()
@@ -134,7 +133,7 @@ class BulletinController extends Controller
                                 $q->where('classes.id', $classe->id);
                             });
                     })
-                    ->where('periode', $periode)
+                    ->where('periode_scolaire_id', $periode->id)
                     ->with(['notes'])
                     ->get();
 
@@ -277,7 +276,7 @@ class BulletinController extends Controller
                     ->where('eleve_id', $eleve->id)
                     ->where('annee_scolaire_id', $classe->annee_scolaire_id)
                     ->where('classe_id', $classe->id)
-                    ->where('periode', $periode)
+                    ->where('periode', $periode->libelle)
                     ->first();
 
                 $bulletin = [
@@ -288,7 +287,7 @@ class BulletinController extends Controller
                         'prenoms' => $eleve->prenoms,
                     ],
                     'classe' => $classe->libelle,
-                    'periode' => $periode,
+                    'periode' => $periode->libelle,
                     'etablissement' => [
                         'nom' => $classe->etablissement?->nom ?? '',
                         'sigle' => $classe->etablissement?->sigle ?? '',
@@ -325,7 +324,7 @@ class BulletinController extends Controller
             'classes' => $classes,
             'classeSelectionnee' => $classeId ?: null,
             'periodes' => $periodes,
-            'periodeSelectionnee' => $request->input('periode'),
+            'periodeSelectionnee' => $request->integer('periode_id') ?: null,
             'eleves' => $eleves,
             'eleveSelectionne' => $request->integer('eleve_id') ?: null,
             'bulletin' => $bulletin,

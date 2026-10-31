@@ -44,7 +44,7 @@ export default function Index({
         }
 
         if (periodeSelectionnee) {
-            params.periode = periodeSelectionnee;
+            params.periode_id = periodeSelectionnee;
         }
 
         if (eleveSelectionne) {
@@ -56,17 +56,17 @@ export default function Index({
             else delete params.etablissement_id;
 
             delete params.classe_id;
-            delete params.periode;
+            delete params.periode_id;
             delete params.eleve_id;
         } else if (nom === "classe_id") {
             if (valeur) params.classe_id = valeur;
             else delete params.classe_id;
 
-            delete params.periode;
+            delete params.periode_id;
             delete params.eleve_id;
-        } else if (nom === "periode") {
-            if (valeur) params.periode = valeur;
-            else delete params.periode;
+        } else if (nom === "periode_id") {
+            if (valeur) params.periode_id = valeur;
+            else delete params.periode_id;
 
             delete params.eleve_id;
         } else if (nom === "eleve_id") {
@@ -173,16 +173,17 @@ export default function Index({
                                 className="w-full rounded-lg border-slate-300"
                                 value={periodeSelectionnee ?? ""}
                                 onChange={(e) =>
-                                    choisir("periode", e.target.value)
+                                    choisir("periode_id", e.target.value)
                                 }
                                 disabled={!classeSelectionnee}
                             >
                                 <option value="">
                                     Sélectionner une période
                                 </option>
+
                                 {periodes.map((periode) => (
-                                    <option key={periode} value={periode}>
-                                        {periode}
+                                    <option key={periode.id} value={periode.id}>
+                                        {periode.libelle}
                                     </option>
                                 ))}
                             </select>
@@ -333,7 +334,7 @@ export default function Index({
                                         <th className="border border-slate-400 p-2 text-left">
                                             Matières
                                         </th>
-                                        
+
                                         <th className="border border-slate-400 p-2 text-center">
                                             Coefficient
                                         </th>
@@ -358,7 +359,7 @@ export default function Index({
                                             <td className="border border-slate-400 p-2">
                                                 {matiere.matiere}
                                             </td>
-                                            
+
                                             <td className="border border-slate-400 p-2 text-center">
                                                 {matiere.coefficient}
                                             </td>
