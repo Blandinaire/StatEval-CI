@@ -2595,4 +2595,36 @@ class EvaluationController extends Controller
 
         return back()->with('success', 'Statut de l’évaluation mis à jour.');
     }
+
+    /**
+     * Publier ou retirer la publication d'une évaluation aux parents.
+     */
+    public function changerPublicationParents(Evaluation $evaluation)
+    {
+        $user = auth()->user();
+
+        // Seule l'administration peut gérer cette publication.
+        abort_unless($this->estAdministrateur($user), 403);
+
+        // Vérifier que l'évaluation appartient à l'établissement autorisé.
+        $this->verifierAccesEvaluation($user, $evaluation);
+
+        // Une évaluation doit être active pour être publiée.
+        abort_unless(
+            $evaluation->active && $evaluation->statut === 'active',
+            422,
+            'Seule une évaluation active peut être publiée aux parents.'
+        );
+
+        $evaluation->update([
+            'publier_parents' => !$evaluation->publier_parents,
+        ]);
+
+        return back()->with(
+            'success',
+            $evaluation->publier_parents
+                ? 'Évaluation publiée aux parents.'
+                : 'Publication de l’évaluation retirée.'
+        );
+    }
 }

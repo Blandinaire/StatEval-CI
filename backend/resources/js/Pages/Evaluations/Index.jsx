@@ -191,6 +191,14 @@ export default function Index({
         router.patch(route("evaluations.statut", evaluation.id), { statut });
     }
 
+    function changerPublicationParents(evaluation) {
+        router.patch(
+            route("evaluations.publication-parents", evaluation.id),
+            {},
+            { preserveScroll: true },
+        );
+    }
+
     function supprimer(evaluation) {
         if (
             !window.confirm(
@@ -683,6 +691,29 @@ export default function Index({
                                                                 </button>
                                                             )}
                                                         </>
+                                                    )}
+
+                                                {canProgram &&
+                                                    evaluation.active &&
+                                                    evaluation.statut ===
+                                                        "active" && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() =>
+                                                                changerPublicationParents(
+                                                                    evaluation,
+                                                                )
+                                                            }
+                                                            className={`rounded px-3 py-1 text-sm text-white ${
+                                                                evaluation.publier_parents
+                                                                    ? "bg-orange-600 hover:bg-orange-700"
+                                                                    : "bg-indigo-600 hover:bg-indigo-700"
+                                                            }`}
+                                                        >
+                                                            {evaluation.publier_parents
+                                                                ? "Retirer publication"
+                                                                : "Publier aux parents"}
+                                                        </button>
                                                     )}
 
                                                 <Link

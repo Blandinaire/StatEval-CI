@@ -703,6 +703,11 @@ Route::middleware('auth')->group(function () {
         [EvaluationController::class, 'changerStatut']
     )->name('evaluations.statut');
 
+    Route::patch(
+        '/evaluations/{evaluation}/publication-parents',
+        [EvaluationController::class, 'changerPublicationParents']
+    )->name('evaluations.publication-parents');
+
     Route::resource('evaluations', EvaluationController::class);
 
     Route::get(
