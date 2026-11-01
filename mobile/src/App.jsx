@@ -223,6 +223,8 @@ export default function App() {
   const [elevesParent, setElevesParent] = useState([]);
   const [eleveNotesSelectionne, setEleveNotesSelectionne] = useState("");
   const [notesEleve, setNotesEleve] = useState([]);
+  const [trimestreNotes, setTrimestreNotes] = useState("");
+  const [matiereNotes, setMatiereNotes] = useState("");
   const [chargementNotes, setChargementNotes] = useState(false);
   const [erreurNotes, setErreurNotes] = useState("");
   const [classes, setClasses] = useState([]);
@@ -872,6 +874,28 @@ export default function App() {
       </main>
     );
   }
+
+  const trimestresDisponibles = [
+    ...new Set(
+      notesEleve.map((item) => item.evaluation?.periode).filter(Boolean),
+    ),
+  ].sort((a, b) => a.localeCompare(b, "fr"));
+
+  const matieresDisponibles = [
+    ...new Set(
+      notesEleve.map((item) => item.evaluation?.matiere).filter(Boolean),
+    ),
+  ].sort((a, b) => a.localeCompare(b, "fr"));
+
+  const notesFiltrees = notesEleve.filter((item) => {
+    const trimestreCorrespond =
+      !trimestreNotes || item.evaluation?.periode === trimestreNotes;
+
+    const matiereCorrespond =
+      !matiereNotes || item.evaluation?.matiere === matiereNotes;
+
+    return trimestreCorrespond && matiereCorrespond;
+  });
 
   if (!token) {
     return (
@@ -2002,7 +2026,11 @@ export default function App() {
                 <select
                   id="eleve-notes"
                   value={eleveNotesSelectionne}
-                  onChange={(e) => setEleveNotesSelectionne(e.target.value)}
+                  onChange={(e) => {
+                    setEleveNotesSelectionne(e.target.value);
+                    setTrimestreNotes("");
+                    setMatiereNotes("");
+                  }}
                   disabled={elevesParent.length === 0}
                 >
                   {elevesParent.length === 0 ? (
@@ -2020,6 +2048,36 @@ export default function App() {
                 </select>
               </div>
 
+              <div className="eleves-filtres">
+                <label htmlFor="filtre-trimestre">Filtrer par trimestre</label>
+                <select
+                  id="filtre-trimestre"
+                  value={trimestreNotes}
+                  onChange={(e) => setTrimestreNotes(e.target.value)}
+                >
+                  <option value="">Tous les trimestres</option>
+                  {trimestresDisponibles.map((trimestre) => (
+                    <option key={trimestre} value={trimestre}>
+                      {trimestre}
+                    </option>
+                  ))}
+                </select>
+
+                <label htmlFor="filtre-matiere">Filtrer par matière</label>
+                <select
+                  id="filtre-matiere"
+                  value={matiereNotes}
+                  onChange={(e) => setMatiereNotes(e.target.value)}
+                >
+                  <option value="">Toutes les matières</option>
+                  {matieresDisponibles.map((matiere) => (
+                    <option key={matiere} value={matiere}>
+                      {matiere}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {erreurNotes && (
                 <div className="notice error" role="alert">
                   {erreurNotes}
@@ -2029,7 +2087,7 @@ export default function App() {
               <div className="eleves-resultats">
                 <div className="eleves-resultats-entete">
                   <strong>Résultats scolaires</strong>
-                  <span>{notesEleve.length} note(s)</span>
+                  <span>{notesFiltrees.length} note(s)</span>
                 </div>
 
                 {chargementNotes ? (
@@ -2042,9 +2100,13 @@ export default function App() {
                   <p className="eleves-etat">
                     Aucune note publiée aux parents pour cet enfant.
                   </p>
+                ) : notesFiltrees.length === 0 ? (
+                  <p className="eleves-etat">
+                    Aucune note ne correspond aux filtres sélectionnés.
+                  </p>
                 ) : (
                   <div className="eleves-liste">
-                    {notesEleve.map((item) => (
+                    {notesFiltrees.map((item) => (
                       <article className="eleve-mobile-card" key={item.id}>
                         <div className="eleve-mobile-infos">
                           <strong>
