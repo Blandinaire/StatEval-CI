@@ -6,6 +6,7 @@ use App\Models\Etablissement;
 use App\Models\User;
 use App\Http\Controllers\Api\MobileDataController;
 use App\Http\Controllers\Api\ParentAccountController;
+use App\Http\Controllers\Api\MobileAbsenceRetardController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -147,5 +148,78 @@ Route::middleware('auth:sanctum')->group(function () {
     ])->middleware([
         'abilities:*',
         'role:SuperAdmin|Administrateur|Direction|Educateur|Professeur|Parent',
+    ]);
+
+    /*
+    |--------------------------------------------------------------------------
+    | Absences et retards - Application mobile
+    |--------------------------------------------------------------------------
+    */
+
+    // Consultation : personnel autorisé et parents.
+    Route::get('/mobile/absences', [
+        MobileAbsenceRetardController::class,
+        'absences',
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Educateur|Parent',
+    ]);
+
+    Route::get('/mobile/retards', [
+        MobileAbsenceRetardController::class,
+        'retards',
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Educateur|Parent',
+    ]);
+
+    // Gestion des absences.
+    Route::post('/mobile/absences', [
+        MobileAbsenceRetardController::class,
+        'storeAbsence',
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Educateur',
+    ]);
+
+    Route::put('/mobile/absences/{absence}', [
+        MobileAbsenceRetardController::class,
+        'updateAbsence',
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Educateur',
+    ]);
+
+    Route::delete('/mobile/absences/{absence}', [
+        MobileAbsenceRetardController::class,
+        'destroyAbsence',
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Educateur',
+    ]);
+
+    // Gestion des retards.
+    Route::post('/mobile/retards', [
+        MobileAbsenceRetardController::class,
+        'storeRetard',
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Educateur',
+    ]);
+
+    Route::put('/mobile/retards/{retard}', [
+        MobileAbsenceRetardController::class,
+        'updateRetard',
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Educateur',
+    ]);
+
+    Route::delete('/mobile/retards/{retard}', [
+        MobileAbsenceRetardController::class,
+        'destroyRetard',
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Educateur',
     ]);
 });
