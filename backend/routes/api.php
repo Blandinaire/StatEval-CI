@@ -109,6 +109,14 @@ Route::middleware('auth:sanctum')->group(function () {
         'role:SuperAdmin|Administrateur|Direction|Educateur|Professeur|Parent',
     ]);
 
+    Route::get('/mobile/eleves/{eleve}/notes', [
+        MobileDataController::class,
+        'notesEleve',
+    ])->middleware([
+        'abilities:*',
+        'role:Parent',
+    ]);
+
     Route::post('/mobile/eleves', [
         MobileDataController::class,
         'storeEleve',

@@ -11,6 +11,7 @@ use App\Models\Eleve;
 use App\Models\User;
 use App\Models\EmploiDuTemps;
 use App\Models\CreneauHoraire;
+use App\Models\Note;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -68,18 +69,38 @@ class MobileDataController extends Controller
             $anneeId
         );
 
+        $classes = $query->get([
+            'id',
+            'etablissement_id',
+            'annee_scolaire_id',
+            'libelle',
+            'cycle_id',
+            'niveau_id',
+            'serie_id',
+            'capacite',
+            'active',
+        ]);
+
+        // Réponse simplifiée pour le Parent.
+        if ($user->hasRole('Parent')) {
+            $data = $classes->map(function (Classe $classe) {
+                return [
+                    'id' => $classe->id,
+                    'libelle' => $classe->libelle,
+                    'niveau' => $classe->niveau?->libelle,
+                    'cycle' => $classe->cycle?->libelle,
+                    'serie' => $classe->serie?->libelle,
+                ];
+            });
+
+            return response()->json([
+                'data' => $data,
+            ]);
+        }
+
+        // Les autres profils conservent leur réponse actuelle.
         return response()->json([
-            'data' => $query->get([
-                'id',
-                'etablissement_id',
-                'annee_scolaire_id',
-                'libelle',
-                'cycle_id',
-                'niveau_id',
-                'serie_id',
-                'capacite',
-                'active',
-            ]),
+            'data' => $classes,
         ]);
     }
 
@@ -201,11 +222,10 @@ class MobileDataController extends Controller
 
         // Liste blanche : uniquement les champs nécessaires au mobile.
         $data = $paginator->getCollection()->map(
-            function (Eleve $eleve) {
-                return [
+            function (Eleve $eleve) use ($user) {
+                $ligne = [
                     'id' => $eleve->id,
                     'code_eleve' => $eleve->code_eleve,
-                    'matricule' => $eleve->matricule,
                     'nom' => $eleve->nom,
                     'prenoms' => $eleve->prenoms,
                     'sexe' => $eleve->sexe,
@@ -219,6 +239,14 @@ class MobileDataController extends Controller
                         'serie' => $eleve->classe->serie?->libelle,
                     ] : null,
                 ];
+
+                // Le matricule national reste accessible
+                // aux profils administratifs autorisés.
+                if (! $user->hasRole('Parent')) {
+                    $ligne['matricule'] = $eleve->matricule;
+                }
+
+                return $ligne;
             }
         );
 
@@ -308,12 +336,13 @@ class MobileDataController extends Controller
         return $user;
     }
 
+
     /**
      * Fiche détaillée d'un élève pour l'application mobile.
      */
     public function showEleve(Request $request, Eleve $eleve): JsonResponse
     {
-        $this->verifierEleveMobile($request, $eleve);
+        $user = $this->verifierEleveMobile($request, $eleve);
 
         $eleve->load([
             'classe:id,libelle,niveau_id,cycle_id,serie_id',
@@ -323,10 +352,37 @@ class MobileDataController extends Controller
             'anneeScolaire:id,libelle',
         ]);
 
+        // Pour le Parent : ne renvoyer que les informations
+        // scolaires et d'identification nécessaires.
+        if ($user->hasRole('Parent')) {
+            return response()->json([
+                'data' => [
+                    'id' => $eleve->id,
+                    'code_eleve' => $eleve->code_eleve,
+                    'nom' => $eleve->nom,
+                    'prenoms' => $eleve->prenoms,
+                    'sexe' => $eleve->sexe,
+                    'statut' => $eleve->statut,
+
+                    'classe' => $eleve->classe ? [
+                        'id' => $eleve->classe->id,
+                        'libelle' => $eleve->classe->libelle,
+                        'niveau' => $eleve->classe->niveau?->libelle,
+                        'cycle' => $eleve->classe->cycle?->libelle,
+                        'serie' => $eleve->classe->serie?->libelle,
+                    ] : null,
+
+                    'annee_scolaire' => $eleve->anneeScolaire?->libelle,
+                ],
+            ]);
+        }
+
+        // Les autres profils conservent leur réponse actuelle.
         return response()->json([
             'data' => $eleve,
         ]);
     }
+
 
     /**
      * Création d'un élève depuis le mobile.
@@ -828,33 +884,42 @@ class MobileDataController extends Controller
                 $ligne->creneau?->heure_debut ?? '',
             ])
             ->values()
-            ->map(fn($ligne) => [
-                'id' => $ligne->id,
-                'jour' => $ligne->jour,
-                'groupe' => $ligne->groupe,
-                'activite' => $ligne->activite,
-                'classe_id' => $ligne->classe_id,
-                'classe' => $ligne->classe?->libelle,
-                'matiere' => $ligne->matiere?->libelle,
-                'matiere_code' => $ligne->matiere?->code,
-                'matiere_couleur' => $ligne->matiere?->couleur,
-                'enseignant_id' => $ligne->enseignant_id,
-                'enseignant' => $ligne->enseignant
-                    ? trim(
-                        $ligne->enseignant->nom . ' ' .
-                            $ligne->enseignant->prenoms
-                    )
-                    : null,
-                'creneau' => $ligne->creneau ? [
-                    'libelle' => $ligne->creneau->libelle,
-                    'type' => $ligne->creneau->type,
-                    'heure_debut' => $ligne->creneau->heure_debut,
-                    'heure_fin' => $ligne->creneau->heure_fin,
-                    'ordre' => $ligne->creneau->ordre,
-                ] : null,
-                'salle' => $ligne->salleAssociee?->nom
-                    ?? $ligne->salle,
-            ]);
+            ->map(function ($ligne) use ($user) {
+                $data = [
+                    'id' => $ligne->id,
+                    'jour' => $ligne->jour,
+                    'groupe' => $ligne->groupe,
+                    'activite' => $ligne->activite,
+                    'classe' => $ligne->classe?->libelle,
+                    'matiere' => $ligne->matiere?->libelle,
+                    'matiere_code' => $ligne->matiere?->code,
+                    'matiere_couleur' => $ligne->matiere?->couleur,
+                    'enseignant' => $ligne->enseignant
+                        ? trim(
+                            $ligne->enseignant->nom . ' ' .
+                                $ligne->enseignant->prenoms
+                        )
+                        : null,
+                    'creneau' => $ligne->creneau ? [
+                        'libelle' => $ligne->creneau->libelle,
+                        'type' => $ligne->creneau->type,
+                        'heure_debut' => $ligne->creneau->heure_debut,
+                        'heure_fin' => $ligne->creneau->heure_fin,
+                        'ordre' => $ligne->creneau->ordre,
+                    ] : null,
+                    'salle' => $ligne->salleAssociee?->nom
+                        ?? $ligne->salle,
+                ];
+
+                // Les profils autres que Parent conservent
+                // les identifiants techniques nécessaires.
+                if (! $user->hasRole('Parent')) {
+                    $data['classe_id'] = $ligne->classe_id;
+                    $data['enseignant_id'] = $ligne->enseignant_id;
+                }
+
+                return $data;
+            });
 
         $creneaux = CreneauHoraire::query()
             ->where('etablissement_id', $emploi->etablissement_id)
@@ -877,6 +942,93 @@ class MobileDataController extends Controller
                 'annee_scolaire' => $emploi->anneeScolaire?->libelle,
                 'creneaux' => $creneaux,
                 'lignes' => $lignes,
+            ],
+        ]);
+    }
+
+    /**
+     * Notes publiées aux parents pour un élève associé.
+     */
+    public function notesEleve(Request $request, Eleve $eleve): JsonResponse
+    {
+        $user = $this->verifierEleveMobile($request, $eleve);
+
+        abort_unless(
+            $user->hasRole('Parent'),
+            403,
+            'Cette consultation est réservée à l’espace Parent.'
+        );
+
+        $validated = $request->validate([
+            'periode_scolaire_id' => ['nullable', 'integer', 'min:1'],
+            'matiere_id' => ['nullable', 'integer', 'min:1'],
+        ]);
+
+        $query = Note::query()
+            ->where('eleve_id', $eleve->id)
+            ->whereHas('evaluation', function ($evaluation) use ($eleve, $validated) {
+                $evaluation
+                    ->where('etablissement_id', $eleve->etablissement_id)
+                    ->where('annee_scolaire_id', $eleve->annee_scolaire_id)
+                    ->where('active', true)
+                    ->where('statut', 'active')
+                    ->where('publier_parents', true)
+                    ->where(function ($classes) use ($eleve) {
+                        $classes
+                            ->where('classe_id', $eleve->classe_id)
+                            ->orWhereHas('classes', function ($classe) use ($eleve) {
+                                $classe->whereKey($eleve->classe_id);
+                            });
+                    });
+
+                if (!empty($validated['periode_scolaire_id'])) {
+                    $evaluation->where(
+                        'periode_scolaire_id',
+                        $validated['periode_scolaire_id']
+                    );
+                }
+
+                if (!empty($validated['matiere_id'])) {
+                    $evaluation->where(
+                        'matiere_id',
+                        $validated['matiere_id']
+                    );
+                }
+            })
+            ->with([
+                'evaluation:id,libelle,type,date_evaluation,bareme,coefficient,periode,periode_scolaire_id,matiere_id,prise_en_compte_moyenne',
+                'evaluation.matiere:id,libelle',
+                'evaluation.periodeScolaire:id,libelle',
+            ]);
+
+        $notes = $query
+            ->get()
+            ->sortByDesc(fn($note) => $note->evaluation?->date_evaluation)
+            ->values()
+            ->map(fn($note) => [
+                'id' => $note->id,
+                'note' => $note->note,
+                'absent' => (bool) $note->absent,
+                'appreciation' => $note->appreciation,
+                'observation' => $note->observation,
+                'evaluation' => [
+                    'libelle' => $note->evaluation?->libelle,
+                    'type' => $note->evaluation?->type,
+                    'date' => $note->evaluation?->date_evaluation?->format('Y-m-d'),
+                    'bareme' => $note->evaluation?->bareme,
+                    'coefficient' => $note->evaluation?->coefficient,
+                    'periode' => $note->evaluation?->periodeScolaire?->libelle
+                        ?? $note->evaluation?->periode,
+                    'matiere' => $note->evaluation?->matiere?->libelle,
+                    'prise_en_compte_moyenne' =>
+                    (bool) $note->evaluation?->prise_en_compte_moyenne,
+                ],
+            ]);
+
+        return response()->json([
+            'data' => $notes,
+            'meta' => [
+                'total' => $notes->count(),
             ],
         ]);
     }

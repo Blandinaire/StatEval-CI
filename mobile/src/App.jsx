@@ -134,7 +134,13 @@ const MODULES = [
     label: "Notes et évaluations",
     description: "Suivi des évaluations scolaires",
     icon: ClipboardCheck,
-    roles: ["SuperAdmin", "Administrateur", "Direction", "Professeur", "Parent"],
+    roles: [
+      "SuperAdmin",
+      "Administrateur",
+      "Direction",
+      "Professeur",
+      "Parent",
+    ],
   },
   {
     id: "profil",
@@ -214,6 +220,11 @@ export default function App() {
 
   const [activePage, setActivePage] = useState("dashboard");
   const [eleves, setEleves] = useState([]);
+  const [elevesParent, setElevesParent] = useState([]);
+  const [eleveNotesSelectionne, setEleveNotesSelectionne] = useState("");
+  const [notesEleve, setNotesEleve] = useState([]);
+  const [chargementNotes, setChargementNotes] = useState(false);
+  const [erreurNotes, setErreurNotes] = useState("");
   const [classes, setClasses] = useState([]);
   const [classesEmploi, setClassesEmploi] = useState([]);
   const [emploiDuTemps, setEmploiDuTemps] = useState(null);
@@ -254,6 +265,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const userRole = getRole(user);
 
   useEffect(() => {
     let cancelled = false;
@@ -333,6 +345,88 @@ export default function App() {
       annule = true;
     };
   }, [token, activePage, rechercheEleve, classeSelectionnee]);
+
+  useEffect(() => {
+    if (!token || userRole !== "Parent" || activePage !== "notes") return;
+
+    let annule = false;
+
+    async function chargerElevesParent() {
+      try {
+        const resultat = await apiRequest("/mobile/eleves", { token });
+
+        if (!annule) {
+          const liste = resultat.data || [];
+          setElevesParent(liste);
+
+          if (liste.length > 0) {
+            setEleveNotesSelectionne((actuel) =>
+              liste.some((eleve) => String(eleve.id) === String(actuel))
+                ? actuel
+                : String(liste[0].id),
+            );
+          } else {
+            setEleveNotesSelectionne("");
+          }
+        }
+      } catch (err) {
+        if (!annule) {
+          setErreurNotes(err.message);
+        }
+      }
+    }
+
+    chargerElevesParent();
+
+    return () => {
+      annule = true;
+    };
+  }, [token, userRole, activePage]);
+
+  useEffect(() => {
+    if (
+      !token ||
+      userRole !== "Parent" ||
+      activePage !== "notes" ||
+      !eleveNotesSelectionne
+    ) {
+      setNotesEleve([]);
+      return;
+    }
+
+    let annule = false;
+
+    async function chargerNotesEleve() {
+      setChargementNotes(true);
+      setErreurNotes("");
+
+      try {
+        const resultat = await apiRequest(
+          `/mobile/eleves/${eleveNotesSelectionne}/notes`,
+          { token },
+        );
+
+        if (!annule) {
+          setNotesEleve(resultat.data || []);
+        }
+      } catch (err) {
+        if (!annule) {
+          setErreurNotes(err.message);
+          setNotesEleve([]);
+        }
+      } finally {
+        if (!annule) {
+          setChargementNotes(false);
+        }
+      }
+    }
+
+    chargerNotesEleve();
+
+    return () => {
+      annule = true;
+    };
+  }, [token, userRole, activePage, eleveNotesSelectionne]);
 
   useEffect(() => {
     if (!token || activePage !== "emploi") return;
@@ -686,7 +780,6 @@ export default function App() {
     setMessage("");
   }
 
-  const userRole = getRole(user);
   const isSuperAdmin = userRole === "SuperAdmin";
   const lignesEmploi = emploiDuTemps?.lignes || [];
   const classeEmploiActive = classesEmploi.some(
@@ -1883,10 +1976,134 @@ export default function App() {
             </section>
           )}
 
+          {activePage === "notes" && userRole === "Parent" && (
+            <section className="eleves-mobile">
+              <button
+                type="button"
+                className="back-link"
+                onClick={() => openPage("dashboard")}
+              >
+                <ArrowLeft size={17} />
+                Retour au tableau de bord
+              </button>
+
+              <div className="page-intro">
+                <div className="page-icon">
+                  <ClipboardCheck size={25} />
+                </div>
+                <div>
+                  <h1>Notes et évaluations</h1>
+                  <p>Consultez les résultats scolaires de vos enfants.</p>
+                </div>
+              </div>
+
+              <div className="eleves-filtres">
+                <label htmlFor="eleve-notes">Choisir un enfant</label>
+                <select
+                  id="eleve-notes"
+                  value={eleveNotesSelectionne}
+                  onChange={(e) => setEleveNotesSelectionne(e.target.value)}
+                  disabled={elevesParent.length === 0}
+                >
+                  {elevesParent.length === 0 ? (
+                    <option value="">Aucun enfant disponible</option>
+                  ) : (
+                    elevesParent.map((eleve) => (
+                      <option key={eleve.id} value={eleve.id}>
+                        {eleve.nom} {eleve.prenoms}
+                        {eleve.classe?.libelle
+                          ? ` — ${eleve.classe.libelle}`
+                          : ""}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              {erreurNotes && (
+                <div className="notice error" role="alert">
+                  {erreurNotes}
+                </div>
+              )}
+
+              <div className="eleves-resultats">
+                <div className="eleves-resultats-entete">
+                  <strong>Résultats scolaires</strong>
+                  <span>{notesEleve.length} note(s)</span>
+                </div>
+
+                {chargementNotes ? (
+                  <p className="eleves-etat">Chargement des notes...</p>
+                ) : !eleveNotesSelectionne ? (
+                  <p className="eleves-etat">
+                    Aucun enfant associé à ce compte.
+                  </p>
+                ) : notesEleve.length === 0 ? (
+                  <p className="eleves-etat">
+                    Aucune note publiée aux parents pour cet enfant.
+                  </p>
+                ) : (
+                  <div className="eleves-liste">
+                    {notesEleve.map((item) => (
+                      <article className="eleve-mobile-card" key={item.id}>
+                        <div className="eleve-mobile-infos">
+                          <strong>
+                            {item.evaluation?.matiere ||
+                              "Matière non renseignée"}
+                          </strong>
+
+                          <span>
+                            {item.evaluation?.libelle || "Évaluation"}
+                          </span>
+
+                          <span>
+                            Date : {item.evaluation?.date || "Non renseignée"}
+                          </span>
+
+                          <span>
+                            Période :{" "}
+                            {item.evaluation?.periode || "Non renseignée"}
+                          </span>
+
+                          <span>
+                            {item.absent
+                              ? "Absent"
+                              : `Note : ${item.note ?? "Non renseignée"} / ${
+                                  item.evaluation?.bareme ?? 20
+                                }`}
+                          </span>
+
+                          {item.evaluation?.coefficient != null && (
+                            <span>
+                              Coefficient : {item.evaluation.coefficient}
+                            </span>
+                          )}
+
+                          {item.appreciation && (
+                            <span>Appréciation : {item.appreciation}</span>
+                          )}
+
+                          {item.observation && (
+                            <span>Observation : {item.observation}</span>
+                          )}
+
+                          {!item.evaluation?.prise_en_compte_moyenne && (
+                            <span>Non prise en compte dans la moyenne</span>
+                          )}
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
           {activePage !== "dashboard" &&
             activePage !== "profil" &&
             activePage !== "eleves" &&
-            activePage !== "emploi" && (
+            activePage !== "emploi" &&
+            !(activePage === "notes" && userRole === "Parent") && (
               <div className="module-placeholder">
                 <button
                   type="button"
