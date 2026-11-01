@@ -86,6 +86,47 @@ export default function Show({ classe, eleves = [], evaluations = [] }) {
                     </Link>
                 </div>
 
+                <section className="grid gap-4 rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:grid-cols-2 lg:grid-cols-4">
+                    <div>
+                        <p className="text-sm text-slate-500">
+                            Professeur principal
+                        </p>
+                        <p className="font-semibold">
+                            {classe.professeur_principal
+                                ? `${classe.professeur_principal.nom} ${classe.professeur_principal.prenoms}`
+                                : "Non désigné"}
+                        </p>
+                    </div>
+                    <div>
+                        <p className="text-sm text-slate-500">
+                            Délégué de classe
+                        </p>
+                        <p className="font-semibold">
+                            {classe.delegue
+                                ? `${classe.delegue.nom} ${classe.delegue.prenoms}`
+                                : "Non désigné"}
+                        </p>
+                    </div>
+                    <div>
+                        <p className="text-sm text-slate-500">
+                            Sous-délégué de classe
+                        </p>
+                        <p className="font-semibold">
+                            {classe.sous_delegue
+                                ? `${classe.sous_delegue.nom} ${classe.sous_delegue.prenoms}`
+                                : "Non désigné"}
+                        </p>
+                    </div>
+                    <div className="md:col-span-2 lg:col-span-4">
+                        <p className="text-sm text-slate-500">
+                            Observations sur la classe
+                        </p>
+                        <p className="whitespace-pre-wrap font-medium">
+                            {classe.observations || "Aucune observation"}
+                        </p>
+                    </div>
+                </section>
+
                 <div className="grid grid-cols-1 gap-4 rounded-xl border border-gray-200 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
                     <label className="text-sm font-medium text-gray-700">
                         Trimestre

@@ -22,6 +22,20 @@ export default function Index({
     const [recherche, setRecherche] = useState(filtres.recherche || "");
     const rechercheTimer = useRef(null);
 
+    function supprimerAbsence(absence) {
+        if (
+            !window.confirm(
+                "Voulez-vous vraiment supprimer cette absence ? Cette action est irréversible.",
+            )
+        ) {
+            return;
+        }
+
+        router.delete(route("absences.destroy", absence.id), {
+            preserveScroll: true,
+        });
+    }
+
     /*
      * Classes affichées dans le filtre.
      */
@@ -405,6 +419,16 @@ export default function Index({
                                                 >
                                                     Modifier
                                                 </Link>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        supprimerAbsence(absence)
+                                                    }
+                                                    className="rounded bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700"
+                                                >
+                                                    Supprimer
+                                                </button>
 
                                                 <a
                                                     href={route(

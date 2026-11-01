@@ -19,12 +19,6 @@ const MOIS = [
 
 const JOURS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
 
-const TRIMESTRES = [
-    { value: "1", label: "Trimestre 1", mois: [9, 10, 11] },
-    { value: "2", label: "Trimestre 2", mois: [0, 1, 11] },
-    { value: "3", label: "Trimestre 3", mois: [2, 3, 4, 5] },
-];
-
 function dateLocale(date) {
     if (!date) return "-";
 
@@ -95,12 +89,37 @@ function obtenirJoursDuMois(annee, mois) {
     return jours;
 }
 
+function moisEntreDates(dateDebut, dateFin) {
+    if (!dateDebut || !dateFin) return [];
+
+    const [anneeDebut, moisDebut] = cleDate(dateDebut)
+        .split("-")
+        .map(Number);
+    const [anneeFin, moisFin] = cleDate(dateFin).split("-").map(Number);
+    const mois = [];
+
+    for (
+        let index = anneeDebut * 12 + moisDebut - 1;
+        index <= anneeFin * 12 + moisFin - 1;
+        index++
+    ) {
+        mois.push({
+            annee: Math.floor(index / 12),
+            mois: index % 12,
+        });
+    }
+
+    return mois;
+}
+
 function CalendrierMois({
     annee,
     mois,
     evaluationsParDate,
     onSelectionner,
     dateSelectionnee,
+    dateDebut = null,
+    dateFin = null,
 }) {
     const jours = obtenirJoursDuMois(annee, mois);
 
@@ -136,16 +155,26 @@ function CalendrierMois({
 
                     const evenements = evaluationsParDate[date] ?? [];
                     const selectionne = dateSelectionnee === date;
+                    const dansPeriode =
+                        (!dateDebut || date >= cleDate(dateDebut)) &&
+                        (!dateFin || date <= cleDate(dateFin));
 
                     return (
                         <button
                             type="button"
                             key={date}
                             onClick={() => onSelectionner(date)}
-                            className={`min-h-24 border-b border-r p-1 text-left transition hover:bg-blue-50 sm:min-h-32 sm:p-2 ${
+                            disabled={!dansPeriode}
+                            className={`min-h-24 border-b border-r p-1 text-left transition sm:min-h-32 sm:p-2 ${
+                                !dansPeriode
+                                    ? "cursor-not-allowed bg-gray-50/60 text-gray-300"
+                                    : "hover:bg-blue-50"
+                            } ${
                                 selectionne
                                     ? "bg-blue-50 ring-2 ring-inset ring-blue-500"
-                                    : "bg-white"
+                                    : dansPeriode
+                                      ? "bg-white"
+                                      : ""
                             }`}
                         >
                             <div
@@ -221,6 +250,7 @@ function CarteEvaluation({ item }) {
 export default function Calendrier({
     evaluations = [],
     annees = [],
+    periodesScolaires = [],
     anneeScolaireActiveId = null,
 }) {
     const aujourdHui = new Date();
@@ -238,12 +268,22 @@ export default function Calendrier({
 
     const [anneeCalendrier, setAnneeCalendrier] = useState(anneeInitiale.annee);
     const [mois, setMois] = useState(anneeInitiale.mois);
-    const [trimestre, setTrimestre] = useState("1");
+    const [periodeId, setPeriodeId] = useState("");
     const [dateSelectionnee, setDateSelectionnee] = useState(null);
 
     const anneeSelectionnee = annees.find(
         (item) => String(item.id) === String(anneeId),
     );
+
+    const periodesAnnee = periodesScolaires.filter(
+        (item) => String(item.annee_scolaire_id) === String(anneeId),
+    );
+    const periodeInitiale =
+        periodesAnnee.find((item) => item.actif) ?? periodesAnnee[0] ?? null;
+    const periodeSelectionnee =
+        periodesAnnee.find(
+            (item) => String(item.id) === String(periodeId),
+        ) ?? periodeInitiale;
 
     const evaluationsAnnee = useMemo(() => {
         return evaluations.filter((item) => {
@@ -253,8 +293,21 @@ export default function Calendrier({
         });
     }, [evaluations, anneeId]);
 
+    const evaluationsPeriode = useMemo(() => {
+        if (!periodeSelectionnee) return [];
+
+        return evaluationsAnnee.filter(
+            (item) =>
+                String(item.periode_scolaire_id) ===
+                String(periodeSelectionnee.id),
+        );
+    }, [evaluationsAnnee, periodeSelectionnee]);
+
+    const evaluationsAffichees =
+        vue === "periode" ? evaluationsPeriode : evaluationsAnnee;
+
     const evaluationsParDate = useMemo(() => {
-        return evaluationsAnnee.reduce((acc, item) => {
+        return evaluationsAffichees.reduce((acc, item) => {
             const date = cleDate(item.date_evaluation);
 
             if (!date) return acc;
@@ -265,7 +318,7 @@ export default function Calendrier({
 
             return acc;
         }, {});
-    }, [evaluationsAnnee]);
+    }, [evaluationsAffichees]);
 
     const evaluationsMois = useMemo(() => {
         return evaluationsAnnee.filter((item) => {
@@ -276,20 +329,6 @@ export default function Calendrier({
             );
         });
     }, [evaluationsAnnee, anneeCalendrier, mois]);
-
-    const evaluationsTrimestre = useMemo(() => {
-        const configuration = TRIMESTRES.find(
-            (item) => item.value === trimestre,
-        );
-
-        if (!configuration) return [];
-
-        return evaluationsAnnee.filter((item) => {
-            const { mois: moisEvaluation } = obtenirMois(item.date_evaluation);
-
-            return configuration.mois.includes(moisEvaluation);
-        });
-    }, [evaluationsAnnee, trimestre]);
 
     const evaluationsAnnuelles = useMemo(() => {
         return [...evaluationsAnnee].sort((a, b) =>
@@ -326,20 +365,53 @@ export default function Calendrier({
         setDateSelectionnee(null);
 
         const annee = annees.find((item) => String(item.id) === String(valeur));
+        const periode = periodesScolaires.find(
+            (item) =>
+                String(item.annee_scolaire_id) === String(valeur) && item.actif,
+        ) ?? periodesScolaires.find(
+            (item) => String(item.annee_scolaire_id) === String(valeur),
+        );
 
-        if (annee?.date_debut) {
-            const debut = obtenirMois(annee.date_debut);
+        setPeriodeId(periode ? String(periode.id) : "");
+
+        const dateDebut = periode?.date_debut ?? annee?.date_debut;
+        if (dateDebut) {
+            const debut = obtenirMois(dateDebut);
 
             setAnneeCalendrier(debut.annee);
             setMois(debut.mois);
         }
     }
 
+    function changerPeriode(valeur) {
+        setPeriodeId(valeur);
+        setDateSelectionnee(null);
+
+        const periode = periodesAnnee.find(
+            (item) => String(item.id) === String(valeur),
+        );
+        if (periode?.date_debut) {
+            const debut = obtenirMois(periode.date_debut);
+            setAnneeCalendrier(debut.annee);
+            setMois(debut.mois);
+        }
+    }
+
+    const moisPeriode = periodeSelectionnee
+        ? moisEntreDates(
+              periodeSelectionnee.date_debut,
+              periodeSelectionnee.date_fin,
+          )
+        : [];
+    const libelleTypePeriode =
+        anneeSelectionnee?.mode_periodes === "semestriel"
+            ? "Semestre scolaire"
+            : "Trimestre scolaire";
     const titrePeriode =
         vue === "mois"
             ? dateLocaleMois(anneeCalendrier, mois)
-            : vue === "trimestre"
-              ? TRIMESTRES.find((item) => item.value === trimestre)?.label
+            : vue === "periode"
+              ? periodeSelectionnee?.libelle ?? "Aucune période scolaire"
               : (anneeSelectionnee?.libelle ?? "Année scolaire");
 
     return (
@@ -387,7 +459,7 @@ export default function Calendrier({
                             className="w-full rounded-lg border-gray-300 p-3 focus:border-blue-500 focus:ring-blue-500"
                         >
                             <option value="mois">Mensuelle</option>
-                            <option value="trimestre">Trimestrielle</option>
+                            <option value="periode">{libelleTypePeriode}</option>
                             <option value="annee">Annuelle</option>
                         </select>
                     </div>
@@ -423,8 +495,8 @@ export default function Calendrier({
                         >
                             {vue === "mois"
                                 ? "Mois"
-                                : vue === "trimestre"
-                                  ? "Trimestre"
+                                : vue === "periode"
+                                  ? libelleTypePeriode
                                   : "Période annuelle"}
                         </label>
 
@@ -444,18 +516,24 @@ export default function Calendrier({
                                     </option>
                                 ))}
                             </select>
-                        ) : vue === "trimestre" ? (
+                        ) : vue === "periode" ? (
                             <select
                                 id="periode-calendrier"
-                                value={trimestre}
-                                onChange={(e) => setTrimestre(e.target.value)}
+                                value={periodeSelectionnee?.id ?? ""}
+                                onChange={(e) => changerPeriode(e.target.value)}
                                 className="w-full rounded-lg border-gray-300 p-3 focus:border-blue-500 focus:ring-blue-500"
+                                disabled={periodesAnnee.length === 0}
                             >
-                                {TRIMESTRES.map((item) => (
-                                    <option key={item.value} value={item.value}>
-                                        {item.label}
+                                {periodesAnnee.map((item) => (
+                                    <option key={item.id} value={item.id}>
+                                        {item.libelle}
                                     </option>
                                 ))}
+                                {periodesAnnee.length === 0 && (
+                                    <option value="">
+                                        Aucune période définie
+                                    </option>
+                                )}
                             </select>
                         ) : (
                             <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
@@ -475,8 +553,12 @@ export default function Calendrier({
                         <p className="text-sm text-gray-500">
                             {vue === "mois"
                                 ? `${evaluationsMois.length} évaluation(s)`
-                                : vue === "trimestre"
-                                  ? `${evaluationsTrimestre.length} évaluation(s)`
+                                : vue === "periode"
+                                  ? `${evaluationsPeriode.length} évaluation(s)${
+                                        periodeSelectionnee
+                                            ? ` · ${dateLocale(periodeSelectionnee.date_debut)} au ${dateLocale(periodeSelectionnee.date_fin)}`
+                                            : ""
+                                    }`
                                   : `${evaluationsAnnuelles.length} évaluation(s)`}
                         </p>
                     </div>
@@ -521,47 +603,36 @@ export default function Calendrier({
                     />
                 )}
 
-                {/* Vue trimestrielle */}
-                {vue === "trimestre" && (
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-                        {TRIMESTRES.map((item) => (
-                            <button
-                                type="button"
-                                key={item.value}
-                                onClick={() => setTrimestre(item.value)}
-                                className={`rounded-xl border p-5 text-left transition ${
-                                    trimestre === item.value
-                                        ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
-                                        : "border-gray-200 bg-white hover:bg-gray-50"
-                                }`}
-                            >
-                                <h3 className="font-semibold text-gray-800">
-                                    {item.label}
-                                </h3>
-
-                                <p className="mt-1 text-sm text-gray-500">
-                                    {item.mois.map((m) => MOIS[m]).join(", ")}
-                                </p>
-
-                                <p className="mt-3 text-2xl font-bold text-blue-700">
-                                    {
-                                        evaluationsAnnee.filter((evaluation) =>
-                                            item.mois.includes(
-                                                obtenirMois(
-                                                    evaluation.date_evaluation,
-                                                ).mois,
-                                            ),
-                                        ).length
-                                    }
-                                </p>
-
-                                <p className="text-sm text-gray-500">
-                                    évaluation(s)
-                                </p>
-                            </button>
-                        ))}
-                    </div>
-                )}
+                {/* Vue selon les périodes configurées pour l'année scolaire */}
+                {vue === "periode" &&
+                    (periodeSelectionnee ? (
+                        <div className="grid grid-cols-1 gap-6">
+                            {moisPeriode.map(({ annee, mois }) => (
+                                <section
+                                    key={`${annee}-${mois}`}
+                                    className="space-y-2"
+                                >
+                                    <h3 className="text-lg font-semibold capitalize text-gray-700">
+                                        {dateLocaleMois(annee, mois)}
+                                    </h3>
+                                    <CalendrierMois
+                                        annee={annee}
+                                        mois={mois}
+                                        evaluationsParDate={evaluationsParDate}
+                                        dateSelectionnee={dateSelectionnee}
+                                        onSelectionner={setDateSelectionnee}
+                                        dateDebut={periodeSelectionnee.date_debut}
+                                        dateFin={periodeSelectionnee.date_fin}
+                                    />
+                                </section>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="rounded-xl border bg-white p-10 text-center text-gray-500">
+                            Aucune période scolaire n’est définie pour cette
+                            année.
+                        </div>
+                    ))}
 
                 {/* Vue annuelle : 12 mini-calendriers */}
                 {vue === "annee" && (
@@ -652,12 +723,12 @@ export default function Calendrier({
                             Liste des évaluations
                         </h3>
 
-                        {(vue === "trimestre"
-                            ? evaluationsTrimestre
+                        {(vue === "periode"
+                            ? evaluationsPeriode
                             : evaluationsAnnuelles
                         ).length > 0 ? (
-                            (vue === "trimestre"
-                                ? evaluationsTrimestre
+                            (vue === "periode"
+                                ? evaluationsPeriode
                                 : evaluationsAnnuelles
                             ).map((item) => (
                                 <CarteEvaluation key={item.id} item={item} />

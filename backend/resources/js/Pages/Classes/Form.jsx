@@ -12,6 +12,8 @@ export default function Form({
     series,
     maquettes,
     salles,
+    enseignants = [],
+    eleves = [],
     errors = {},
     processing = false,
     submit,
@@ -49,6 +51,15 @@ export default function Form({
             String(salle.etablissement_id) === String(data.etablissement_id)
         );
     });
+
+    const enseignantsDisponibles = enseignants.filter(
+        (enseignant) =>
+            !data.etablissement_id ||
+            String(enseignant.etablissement_id ?? data.etablissement_id) ===
+                String(data.etablissement_id),
+    );
+
+    const elevesDisponibles = Array.isArray(eleves) ? eleves : [];
     /*
     |--------------------------------------------------------------------------
     | PRÉFIXES DES CLASSES
@@ -216,6 +227,9 @@ export default function Form({
             serie_id: "",
             maquette_id: "",
             salle_id: "",
+            professeur_principal_id: "",
+            delegue_id: "",
+            sous_delegue_id: "",
 
             suffixe: "",
             libelle: "",
@@ -760,6 +774,125 @@ export default function Form({
                     temps de cette classe.
                 </p>
             </div>
+
+            <section className="space-y-4 rounded-xl border border-slate-200 bg-slate-50 p-5">
+                <div>
+                    <h2 className="text-lg font-bold text-slate-800">
+                        Informations pédagogiques
+                    </h2>
+                    <p className="mt-1 text-sm text-slate-600">
+                        Désignez les responsables de la classe et ajoutez une
+                        observation utile à son suivi.
+                    </p>
+                </div>
+
+                <div>
+                    <label
+                        htmlFor="professeur_principal_id"
+                        className="mb-2 block font-semibold"
+                    >
+                        Professeur principal
+                    </label>
+                    <select
+                        id="professeur_principal_id"
+                        value={data.professeur_principal_id || ""}
+                        onChange={(event) =>
+                            setData(
+                                "professeur_principal_id",
+                                event.target.value,
+                            )
+                        }
+                        disabled={!data.etablissement_id}
+                        className="w-full rounded-lg border p-3 disabled:bg-gray-100"
+                    >
+                        <option value="">Aucun professeur principal</option>
+                        {enseignantsDisponibles.map((enseignant) => (
+                            <option key={enseignant.id} value={enseignant.id}>
+                                {enseignant.nom} {enseignant.prenoms}
+                            </option>
+                        ))}
+                    </select>
+                    {errors.professeur_principal_id && (
+                        <p className="mt-1 text-sm text-red-600">
+                            {errors.professeur_principal_id}
+                        </p>
+                    )}
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                    {[
+                        ["delegue_id", "Délégué de classe"],
+                        ["sous_delegue_id", "Sous-délégué de classe"],
+                    ].map(([field, label]) => (
+                        <div key={field}>
+                            <label
+                                htmlFor={field}
+                                className="mb-2 block font-semibold"
+                            >
+                                {label}
+                            </label>
+                            <select
+                                id={field}
+                                value={data[field] || ""}
+                                onChange={(event) =>
+                                    setData(field, event.target.value)
+                                }
+                                disabled={elevesDisponibles.length === 0}
+                                className="w-full rounded-lg border p-3 disabled:bg-gray-100"
+                            >
+                                <option value="">
+                                    Aucun élève désigné
+                                </option>
+                                {elevesDisponibles.map((eleve) => (
+                                    <option key={eleve.id} value={eleve.id}>
+                                        {eleve.nom} {eleve.prenoms}
+                                        {eleve.matricule
+                                            ? ` — ${eleve.matricule}`
+                                            : ""}
+                                    </option>
+                                ))}
+                            </select>
+                            {errors[field] && (
+                                <p className="mt-1 text-sm text-red-600">
+                                    {errors[field]}
+                                </p>
+                            )}
+                        </div>
+                    ))}
+                </div>
+
+                {elevesDisponibles.length === 0 && (
+                    <p className="text-sm text-slate-500">
+                        Les délégués pourront être choisis après l’ajout des
+                        élèves à la classe.
+                    </p>
+                )}
+
+                <div>
+                    <label
+                        htmlFor="observations"
+                        className="mb-2 block font-semibold"
+                    >
+                        Observations sur la classe
+                    </label>
+                    <textarea
+                        id="observations"
+                        rows="3"
+                        maxLength="2000"
+                        value={data.observations || ""}
+                        onChange={(event) =>
+                            setData("observations", event.target.value)
+                        }
+                        className="w-full rounded-lg border p-3"
+                        placeholder="Informations complémentaires sur l’organisation ou le suivi de la classe"
+                    />
+                    {errors.observations && (
+                        <p className="mt-1 text-sm text-red-600">
+                            {errors.observations}
+                        </p>
+                    )}
+                </div>
+            </section>
 
             {/* ========================================================
                 ACTIVE

@@ -23,6 +23,20 @@ export default function Index({
     const [recherche, setRecherche] = useState(filtres.recherche || "");
     const rechercheTimer = useRef(null);
 
+    function supprimerRetard(retard) {
+        if (
+            !window.confirm(
+                "Voulez-vous vraiment supprimer ce retard ? Cette action est irréversible.",
+            )
+        ) {
+            return;
+        }
+
+        router.delete(route("retards.destroy", retard.id), {
+            preserveScroll: true,
+        });
+    }
+
     function appliquerFiltre(nouveauxFiltres) {
         router.get(route("retards.index"), nouveauxFiltres, {
             preserveState: true,
@@ -394,6 +408,16 @@ export default function Index({
                                                 >
                                                     Modifier
                                                 </Link>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                        supprimerRetard(retard)
+                                                    }
+                                                    className="rounded bg-red-600 px-3 py-2 text-sm text-white hover:bg-red-700"
+                                                >
+                                                    Supprimer
+                                                </button>
 
                                                 <a
                                                     href={route(

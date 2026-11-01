@@ -784,6 +784,7 @@ class EvaluationController extends Controller
                 'niveau',
                 'matiere',
                 'classes',
+                'periodeScolaire',
             ]);
 
         // Un utilisateur autre que SuperAdmin
@@ -806,13 +807,28 @@ class EvaluationController extends Controller
                 'libelle',
                 'date_debut',
                 'date_fin',
+                'mode_periodes',
             ]);
 
         $anneeActive = $annees->first();
+        $periodesScolaires = PeriodeScolaire::query()
+            ->whereIn('annee_scolaire_id', $annees->pluck('id'))
+            ->orderBy('annee_scolaire_id')
+            ->orderBy('ordre')
+            ->get([
+                'id',
+                'annee_scolaire_id',
+                'libelle',
+                'ordre',
+                'date_debut',
+                'date_fin',
+                'actif',
+            ]);
 
         return Inertia::render('Evaluations/Calendrier', [
             'evaluations' => $evaluations,
             'annees' => $annees,
+            'periodesScolaires' => $periodesScolaires,
             'anneeScolaireActiveId' => $anneeActive?->id,
         ]);
     }

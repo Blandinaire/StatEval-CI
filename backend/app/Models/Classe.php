@@ -21,6 +21,10 @@ class Classe extends Model
         'libelle',
         'salle_par_defaut',
         'salle_id',
+        'professeur_principal_id',
+        'delegue_id',
+        'sous_delegue_id',
+        'observations',
         'capacite',
         'active',
     ];
@@ -78,5 +82,20 @@ class Classe extends Model
     public function salle()
     {
         return $this->belongsTo(Salle::class);
+    }
+
+    public function professeurPrincipal()
+    {
+        return $this->belongsTo(Enseignant::class, 'professeur_principal_id');
+    }
+
+    public function delegue()
+    {
+        return $this->belongsTo(Eleve::class, 'delegue_id');
+    }
+
+    public function sousDelegue()
+    {
+        return $this->belongsTo(Eleve::class, 'sous_delegue_id');
     }
 }

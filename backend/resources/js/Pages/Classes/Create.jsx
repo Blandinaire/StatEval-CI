@@ -12,7 +12,8 @@ export default function Create({
     series,
     maquettes,
     salles,
-   }) {
+    enseignants = [],
+}) {
     const { data, setData, post, processing, errors } = useForm({
         etablissement_id: estSuperAdmin
             ? ""
@@ -31,6 +32,10 @@ export default function Create({
 
         libelle: "",
         capacite: 60,
+        professeur_principal_id: "",
+        delegue_id: "",
+        sous_delegue_id: "",
+        observations: "",
         active: true,
     });
 
@@ -74,6 +79,8 @@ export default function Create({
                         series={series}
                         maquettes={maquettes}
                         salles={salles}
+                        enseignants={enseignants}
+                        eleves={[]}
                         errors={errors}
                         processing={processing}
                         submit={submit}

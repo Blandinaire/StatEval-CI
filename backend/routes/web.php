@@ -556,6 +556,11 @@ Route::middleware('auth')->group(function () {
         [AffectationController::class, 'storeBulk']
     )->name('affectations.bulk.store');
 
+    Route::delete(
+        'conduites/classe/{classe}/periode/{periodeScolaire}',
+        [ConduiteController::class, 'destroyClasse']
+    )->name('conduites.destroy-classe');
+
     Route::resource('conduites', ConduiteController::class)
         ->only([
             'index',

@@ -1,7 +1,17 @@
 import AdminLayout from "@/Layouts/AdminLayout";
-import { Head, Link } from "@inertiajs/react";
+import { Head, Link, router } from "@inertiajs/react";
 
 export default function Show({ absence }) {
+    function supprimerAbsence() {
+        if (
+            window.confirm(
+                "Voulez-vous vraiment supprimer cette absence ? Cette action est irréversible.",
+            )
+        ) {
+            router.delete(route("absences.destroy", absence.id));
+        }
+    }
+
     return (
         <AdminLayout>
             <Head title="Détails de l'absence" />
@@ -25,6 +35,14 @@ export default function Show({ absence }) {
                         >
                             Modifier
                         </Link>
+
+                        <button
+                            type="button"
+                            onClick={supprimerAbsence}
+                            className="rounded-lg bg-red-600 px-5 py-3 text-white hover:bg-red-700"
+                        >
+                            Supprimer
+                        </button>
 
                         <a
                             href={route("absences.billet.pdf", absence.id)}

@@ -81,7 +81,7 @@ export default function Index({
     | Nombre de colonnes
     |--------------------------------------------------------------------------
     */
-    const nombreColonnes = isSuperAdmin ? 8 : 7;
+    const nombreColonnes = isSuperAdmin ? 9 : 8;
 
     return (
         <AdminLayout>
@@ -170,7 +170,7 @@ export default function Index({
 
                 <div className="rounded-xl bg-white shadow">
                     <ResponsiveTable
-                        minWidth={isSuperAdmin ? "1150px" : "950px"}
+                        minWidth={isSuperAdmin ? "1300px" : "1100px"}
                     >
                         <thead className="bg-gray-100">
                             <tr>
@@ -189,6 +189,10 @@ export default function Index({
                                 </th>
 
                                 <th className="p-4 text-left">Salle</th>
+
+                                <th className="p-4 text-left">
+                                    Professeur principal
+                                </th>
 
                                 <th className="p-4 text-center">Capacité</th>
 
@@ -249,6 +253,12 @@ export default function Index({
                                             {classe.salle?.nom ??
                                                 classe.salle_par_defaut ??
                                                 "—"}
+                                        </td>
+
+                                        <td className="p-4">
+                                            {classe.professeur_principal
+                                                ? `${classe.professeur_principal.nom} ${classe.professeur_principal.prenoms}`
+                                                : "—"}
                                         </td>
 
                                         {/* CAPACITÉ */}

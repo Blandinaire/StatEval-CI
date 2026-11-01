@@ -9,6 +9,7 @@ use App\Models\Classe;
 use App\Models\Cycle;
 use App\Models\Etablissement;
 use App\Models\Evaluation;
+use App\Models\Enseignant;
 use App\Models\Maquette;
 use App\Models\Niveau;
 use App\Models\Serie;
@@ -90,6 +91,22 @@ class ClasseController extends Controller
             ->pluck('id')
             ->unique()
             ->values();
+    }
+
+    private function enseignantsDisponibles(int $etablissementId)
+    {
+        return Enseignant::query()
+            ->where('actif', true)
+            ->when(
+                $etablissementId > 0,
+                fn ($query) => $query->where(
+                    'etablissement_id',
+                    $etablissementId
+                )
+            )
+            ->orderBy('nom')
+            ->orderBy('prenoms')
+            ->get(['id', 'etablissement_id', 'nom', 'prenoms']);
     }
 
     /**
@@ -187,6 +204,7 @@ class ClasseController extends Controller
             'serie',
             'maquette',
             'salle',
+            'professeurPrincipal',
         ])->withCount('eleves');
 
         /*
@@ -302,6 +320,9 @@ class ClasseController extends Controller
             'etablissement',
             'anneeScolaire',
             'niveau',
+            'professeurPrincipal',
+            'delegue',
+            'sousDelegue',
         ]);
 
         $eleves = $classe->eleves()
@@ -451,6 +472,12 @@ class ClasseController extends Controller
 
             'salles' =>
             $salles,
+
+            'enseignants' => $this->enseignantsDisponibles(
+                $this->estSuperAdmin($user)
+                    ? 0
+                    : (int) ($user->etablissement_id ?? 0)
+            ),
         ]);
     }
 
@@ -573,6 +600,28 @@ class ClasseController extends Controller
                 'capacite',
             ]);
 
+        $enseignants = Enseignant::query()
+            ->where('etablissement_id', $classe->etablissement_id)
+            ->where(function ($query) use ($classe) {
+                $query->where('actif', true)
+                    ->orWhere('id', $classe->professeur_principal_id);
+            })
+            ->orderBy('nom')
+            ->orderBy('prenoms')
+            ->get(['id', 'etablissement_id', 'nom', 'prenoms']);
+
+        $eleves = $classe->eleves()
+            ->where(function ($query) use ($classe) {
+                $query->where('actif', true)
+                    ->orWhereIn('id', array_filter([
+                        $classe->delegue_id,
+                        $classe->sous_delegue_id,
+                    ]));
+            })
+            ->orderBy('nom')
+            ->orderBy('prenoms')
+            ->get(['id', 'nom', 'prenoms', 'matricule']);
+
         return Inertia::render('Classes/Edit', [
 
             'classe' =>
@@ -614,6 +663,10 @@ class ClasseController extends Controller
 
             'salles' =>
             $salles,
+
+            'enseignants' => $enseignants,
+
+            'eleves' => $eleves,
         ]);
     }
 

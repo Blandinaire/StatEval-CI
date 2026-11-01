@@ -1,7 +1,17 @@
 import AdminLayout from "@/Layouts/AdminLayout";
-import { Head, Link } from "@inertiajs/react";
+import { Head, Link, router } from "@inertiajs/react";
 
 export default function Show({ retard }) {
+    function supprimerRetard() {
+        if (
+            window.confirm(
+                "Voulez-vous vraiment supprimer ce retard ? Cette action est irréversible.",
+            )
+        ) {
+            router.delete(route("retards.destroy", retard.id));
+        }
+    }
+
     return (
         <AdminLayout>
             <Head title="Détails du retard" />
@@ -28,6 +38,14 @@ export default function Show({ retard }) {
                         >
                             Modifier
                         </Link>
+
+                        <button
+                            type="button"
+                            onClick={supprimerRetard}
+                            className="rounded-lg bg-red-600 px-5 py-3 text-white hover:bg-red-700"
+                        >
+                            Supprimer
+                        </button>
 
                         <a
                             href={route(

@@ -13,6 +13,8 @@ export default function Edit({
     series,
     maquettes,
     salles,
+    enseignants = [],
+    eleves = [],
 }) {
     /*
     |--------------------------------------------------------------------------
@@ -89,6 +91,18 @@ export default function Edit({
 
         capacite:
             classe?.capacite || 60,
+
+        professeur_principal_id:
+            classe?.professeur_principal_id || "",
+
+        delegue_id:
+            classe?.delegue_id || "",
+
+        sous_delegue_id:
+            classe?.sous_delegue_id || "",
+
+        observations:
+            classe?.observations || "",
 
         active:
             Boolean(classe?.active),
@@ -181,6 +195,18 @@ export default function Edit({
                         salles={
                             Array.isArray(salles)
                                 ? salles
+                                : []
+                        }
+
+                        enseignants={
+                            Array.isArray(enseignants)
+                                ? enseignants
+                                : []
+                        }
+
+                        eleves={
+                            Array.isArray(eleves)
+                                ? eleves
                                 : []
                         }
 

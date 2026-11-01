@@ -639,6 +639,9 @@ class ConduiteController extends Controller
 
                 'isSuperAdmin' =>
                 $isSuperAdmin,
+
+                'isEducateur' =>
+                $isEducateur,
             ]
         );
     }
@@ -1576,6 +1579,70 @@ class ConduiteController extends Controller
                 'success',
                 'Note de conduite modifiée avec succès.'
             );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | DESTROY CLASSE
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Suppression des notes de conduite d'une classe pour une période.
+     */
+    public function destroyClasse(
+        Classe $classe,
+        PeriodeScolaire $periodeScolaire
+    ): RedirectResponse {
+        $user = auth()->user();
+
+        $this->checkClasseAccess($classe);
+
+        if (
+            (int) $periodeScolaire->annee_scolaire_id !==
+            (int) $classe->annee_scolaire_id
+        ) {
+            abort(
+                422,
+                'La période sélectionnée ne correspond pas à l’année scolaire de cette classe.'
+            );
+        }
+
+        $query = Conduite::query()
+            ->where('classe_id', $classe->id)
+            ->where('annee_scolaire_id', $classe->annee_scolaire_id)
+            ->where('periode_scolaire_id', $periodeScolaire->id);
+
+        if (! $user->hasRole('SuperAdmin')) {
+            $query->whereHas(
+                'eleve',
+                function ($eleves) use ($user) {
+                    $eleves->where(
+                        'etablissement_id',
+                        $user->etablissement_id
+                    );
+                }
+            );
+        }
+
+        if ($user->hasRole('Educateur')) {
+            $query->where('educateur_id', $user->educateur_id);
+        }
+
+        $nombreSupprime = DB::transaction(
+            fn () => $query->delete()
+        );
+
+        $message = $nombreSupprime === 1
+            ? '1 note de conduite supprimée.'
+            : "{$nombreSupprime} notes de conduite supprimées.";
+
+        return redirect()
+            ->route('conduites.index', [
+                'classe_id' => $classe->id,
+                'periode_scolaire_id' => $periodeScolaire->id,
+            ])
+            ->with('success', $message);
     }
 
     /*

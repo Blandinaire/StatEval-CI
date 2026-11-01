@@ -33,7 +33,12 @@ class BulletinController extends Controller
             : $user->etablissement_id;
 
         $queryClasses = Classe::query()
-            ->with(['maquette', 'etablissement', 'anneeScolaire'])
+            ->with([
+                'maquette',
+                'etablissement',
+                'anneeScolaire',
+                'professeurPrincipal',
+            ])
             ->orderBy('libelle');
 
         if ($estSuperAdmin) {
@@ -56,6 +61,7 @@ class BulletinController extends Controller
             'etablissement_id',
             'annee_scolaire_id',
             'maquette_id',
+            'professeur_principal_id',
         ]);
 
         $classeId = $request->integer('classe_id');
@@ -66,7 +72,9 @@ class BulletinController extends Controller
         $periodes = collect();
         $eleves = collect();
         $bulletin = null;
+        $bulletins = [];
         $configuration = null;
+        $modeClasse = $request->boolean('toute_classe');
 
         if ($classe) {
             $etablissementSelectionne = $classe->etablissement_id;
@@ -109,6 +117,13 @@ class BulletinController extends Controller
                     'matricule',
                     'nom',
                     'prenoms',
+                    'sexe',
+                    'date_naissance',
+                    'lieu_naissance',
+                    'nationalite',
+                    'photo',
+                    'redoublant',
+                    'regime',
                     'classe_id',
                     'etablissement_id',
                     'annee_scolaire_id',
@@ -122,8 +137,11 @@ class BulletinController extends Controller
             $periodeId = $request->integer('periode_id');
 
             $periode = $periodes->firstWhere('id', $periodeId);
+            $elevesAProduire = $modeClasse
+                ? $eleves
+                : collect([$eleve])->filter();
 
-            if ($eleve && $periode && $classe->maquette) {
+            if ($elevesAProduire->isNotEmpty() && $periode && $classe->maquette) {
                 $evaluations = Evaluation::query()
                     ->where('etablissement_id', $classe->etablissement_id)
                     ->where('annee_scolaire_id', $classe->annee_scolaire_id)
@@ -139,26 +157,8 @@ class BulletinController extends Controller
 
                 $lignesMaquette = $classe->maquette
                     ->lignes()
-                    ->with('matiere')
+                    ->with('matiere.parent')
                     ->get();
-
-                $notesEleve = $evaluations
-                    ->flatMap(function ($evaluation) use ($eleve) {
-                        return $evaluation->notes
-                            ->filter(
-                                fn($note) =>
-                                (int) $note->eleve_id === (int) $eleve->id
-                            )
-                            ->map(function ($note) use ($evaluation) {
-                                $note->setRelation('evaluation', $evaluation);
-                                return $note;
-                            });
-                    });
-
-                $moyennes = $calcul->calculerMoyennesEleve(
-                    $notesEleve,
-                    $lignesMaquette
-                );
 
                 // Enseignants affectés à la classe et à l'année scolaire.
                 $affectations = Affectation::query()
@@ -170,63 +170,32 @@ class BulletinController extends Controller
                     ->get()
                     ->keyBy('matiere_id');
 
-                $matieres = [];
+                $notesParEleve = $evaluations
+                    ->flatMap(function ($evaluation) {
+                        return $evaluation->notes->map(function ($note) use ($evaluation) {
+                            $note->setRelation('evaluation', $evaluation);
 
-                foreach ($lignesMaquette as $ligne) {
-                    $matiereId = (int) $ligne->matiere_id;
+                            return $note;
+                        });
+                    })
+                    ->groupBy('eleve_id');
 
-                    $notesMatiere = $notesEleve->filter(
-                        fn($note) =>
-                        (int) $note->evaluation?->matiere_id === $matiereId
-                    );
-
-                    $appreciations = $notesMatiere
-                        ->pluck('appreciation')
-                        ->filter(
-                            fn($valeur) =>
-                            is_string($valeur) && trim($valeur) !== ''
-                        )
-                        ->unique()
-                        ->values()
-                        ->all();
-
-                    $enseignant = $affectations->get($matiereId)?->enseignant;
-
-                    $matieres[] = [
-                        'matiere_id' => $matiereId,
-                        'matiere' => $ligne->matiere?->libelle ?? 'Matière',
-                        'coefficient' => (float) $ligne->coefficient,
-                        'moyenne' => $moyennes['moyennes_matieres'][$matiereId] ?? null,
-                        'active' => (bool) $ligne->active,
-                        'prise_en_compte_moyenne' => (bool) $ligne->prise_en_compte_moyenne,
-                        'appreciation' => implode(' ; ', $appreciations),
-                        'professeur' => $enseignant
-                            ? trim($enseignant->nom . ' ' . $enseignant->prenoms)
-                            : '',
-                    ];
-                }
-
-                // Rang de l'élève : classement par moyenne générale décroissante.
                 $classements = [];
+                $moyennesParEleve = [];
 
                 foreach ($eleves as $eleveClasse) {
-                    $notesClasse = $evaluations
-                        ->flatMap(function ($evaluation) use ($eleveClasse) {
-                            return $evaluation->notes
-                                ->filter(
-                                    fn($note) =>
-                                    (int) $note->eleve_id === (int) $eleveClasse->id
-                                )
-                                ->map(function ($note) use ($evaluation) {
-                                    $note->setRelation('evaluation', $evaluation);
-                                    return $note;
-                                });
-                        });
+                    $notesClasse = $notesParEleve->get(
+                        $eleveClasse->id,
+                        collect()
+                    );
 
                     $resultatClasse = $calcul->calculerMoyennesEleve(
                         $notesClasse,
                         $lignesMaquette
                     );
+
+                    $moyennesParEleve[(int) $eleveClasse->id] =
+                        $resultatClasse['moyennes_matieres'];
 
                     $classements[] = [
                         'eleve_id' => $eleveClasse->id,
@@ -238,10 +207,9 @@ class BulletinController extends Controller
                     return ($b['moyenne'] ?? -1) <=> ($a['moyenne'] ?? -1);
                 });
 
-                $rang = null;
+                $rangsGeneraux = [];
                 $position = 0;
                 $rangPrecedent = null;
-
                 foreach ($classements as $index => $resultat) {
                     if ($resultat['moyenne'] === null) {
                         continue;
@@ -255,38 +223,148 @@ class BulletinController extends Controller
                         $rangPrecedent = $resultat['moyenne'];
                     }
 
-                    if ((int) $resultat['eleve_id'] === (int) $eleve->id) {
-                        $rang = $position;
-                        break;
+                    $rangsGeneraux[$resultat['eleve_id']] = $position;
+                }
+
+                $rangsParMatiere = [];
+
+                foreach ($lignesMaquette as $ligne) {
+                    $matiereId = (int) $ligne->matiere_id;
+                    $classementMatiere = [];
+
+                    foreach ($moyennesParEleve as $eleveClasseId => $moyennesClasse) {
+                        $moyenneMatiere = $moyennesClasse[$matiereId] ?? null;
+
+                        if ($moyenneMatiere !== null) {
+                            $classementMatiere[] = [
+                                'eleve_id' => $eleveClasseId,
+                                'moyenne' => (float) $moyenneMatiere,
+                            ];
+                        }
+                    }
+
+                    usort(
+                        $classementMatiere,
+                        fn ($a, $b) => $b['moyenne'] <=> $a['moyenne']
+                    );
+
+                    $position = 0;
+                    $rangPrecedent = null;
+
+                    foreach ($classementMatiere as $index => $resultat) {
+                        if (
+                            $rangPrecedent === null ||
+                            $resultat['moyenne'] !== $rangPrecedent
+                        ) {
+                            $position = $index + 1;
+                            $rangPrecedent = $resultat['moyenne'];
+                        }
+
+                        $rangsParMatiere[$matiereId][$resultat['eleve_id']] =
+                            $position;
                     }
                 }
 
-                // Absences et retards de l'année scolaire sélectionnée.
-                $absences = Absence::query()
-                    ->where('eleve_id', $eleve->id)
-                    ->where('annee_scolaire_id', $classe->annee_scolaire_id)
-                    ->get(['duree_heures', 'justifiee']);
+                $moyennesClasse = collect($classements)
+                    ->pluck('moyenne')
+                    ->filter(fn ($moyenne) => $moyenne !== null);
 
-                $retards = Retard::query()
-                    ->where('eleve_id', $eleve->id)
-                    ->where('annee_scolaire_id', $classe->annee_scolaire_id)
-                    ->get(['duree_minutes']);
+                foreach ($elevesAProduire as $eleve) {
+                    $notesEleve = $notesParEleve->get(
+                        $eleve->id,
+                        collect()
+                    );
+                    $moyennes = $calcul->calculerMoyennesEleve(
+                        $notesEleve,
+                        $lignesMaquette
+                    );
+                    $matieres = [];
 
-                $conduite = Conduite::query()
-                    ->where('eleve_id', $eleve->id)
-                    ->where('annee_scolaire_id', $classe->annee_scolaire_id)
-                    ->where('classe_id', $classe->id)
-                    ->where('periode', $periode->libelle)
-                    ->first();
+                    foreach ($lignesMaquette as $ligne) {
+                        $matiereId = (int) $ligne->matiere_id;
+                        $notesMatiere = $notesEleve->filter(
+                            fn ($note) =>
+                                (int) $note->evaluation?->matiere_id === $matiereId
+                        );
+                        $appreciations = $notesMatiere
+                            ->pluck('appreciation')
+                            ->filter(
+                                fn ($valeur) =>
+                                    is_string($valeur) && trim($valeur) !== ''
+                            )
+                            ->unique()
+                            ->values()
+                            ->all();
+                        $enseignant = $affectations->get($matiereId)?->enseignant;
 
-                $bulletin = [
-                    'eleve' => [
+                        $matieres[] = [
+                            'matiere_id' => $matiereId,
+                            'matiere' => $ligne->matiere?->libelle ?? 'Matière',
+                            'groupe' => $ligne->matiere?->parent?->libelle,
+                            'coefficient' => (float) $ligne->coefficient,
+                            'moyenne' => $moyennes['moyennes_matieres'][$matiereId] ?? null,
+                            'moyenne_ponderee' => (
+                                (bool) $ligne->active &&
+                                (bool) $ligne->prise_en_compte_moyenne &&
+                                isset($moyennes['moyennes_matieres'][$matiereId])
+                            )
+                                ? round(
+                                    (float) $moyennes['moyennes_matieres'][$matiereId]
+                                        * (float) $ligne->coefficient,
+                                    2
+                                )
+                                : null,
+                            'active' => (bool) $ligne->active,
+                            'prise_en_compte_moyenne' => (bool) $ligne->prise_en_compte_moyenne,
+                            'appreciation' => implode(' ; ', $appreciations),
+                            'professeur' => $enseignant
+                                ? trim($enseignant->nom . ' ' . $enseignant->prenoms)
+                                : '',
+                            'rang' => $rangsParMatiere[$matiereId][$eleve->id] ?? null,
+                        ];
+                    }
+
+                    $rang = $rangsGeneraux[$eleve->id] ?? null;
+                    $lignesComptabilisees = collect($matieres)
+                        ->filter(
+                            fn ($matiere) =>
+                                $matiere['active'] &&
+                                $matiere['prise_en_compte_moyenne'] &&
+                                $matiere['moyenne'] !== null
+                        );
+
+                    $absences = Absence::query()
+                        ->where('eleve_id', $eleve->id)
+                        ->where('annee_scolaire_id', $classe->annee_scolaire_id)
+                        ->get(['duree_heures', 'justifiee']);
+
+                    $retards = Retard::query()
+                        ->where('eleve_id', $eleve->id)
+                        ->where('annee_scolaire_id', $classe->annee_scolaire_id)
+                        ->get(['duree_minutes']);
+
+                    $conduite = Conduite::query()
+                        ->where('eleve_id', $eleve->id)
+                        ->where('annee_scolaire_id', $classe->annee_scolaire_id)
+                        ->where('classe_id', $classe->id)
+                        ->where('periode', $periode->libelle)
+                        ->first();
+
+                    $bulletins[] = [
+                        'eleve' => [
                         'id' => $eleve->id,
                         'matricule' => $eleve->matricule,
                         'nom' => $eleve->nom,
                         'prenoms' => $eleve->prenoms,
-                    ],
-                    'classe' => $classe->libelle,
+                        'sexe' => $eleve->sexe,
+                        'date_naissance' => $eleve->date_naissance?->format('Y-m-d'),
+                        'lieu_naissance' => $eleve->lieu_naissance,
+                        'nationalite' => $eleve->nationalite,
+                        'photo' => $eleve->photo,
+                        'redoublant' => (bool) $eleve->redoublant,
+                        'regime' => $eleve->regime,
+                        ],
+                        'classe' => $classe->libelle,
                     'periode' => $periode->libelle,
                     'etablissement' => [
                         'nom' => $classe->etablissement?->nom ?? '',
@@ -294,18 +372,34 @@ class BulletinController extends Controller
                         'adresse' => $classe->etablissement?->adresse ?? '',
                         'ville' => $classe->etablissement?->ville ?? '',
                         'telephone' => $classe->etablissement?->telephone ?? '',
+                        'email' => $classe->etablissement?->email ?? '',
+                        'code' => $classe->etablissement?->code ?? '',
+                        'type' => $classe->etablissement?->type ?? '',
+                        'direction_regionale' => $classe->etablissement?->direction_regionale ?? '',
                         'directeur' => $classe->etablissement?->directeur ?? '',
                         'logo' => $classe->etablissement?->logo ?? null,
                     ],
                     'annee_scolaire' => $classe->anneeScolaire?->libelle ?? '',
+                    'professeur_principal' => $classe->professeurPrincipal
+                        ? trim(
+                            $classe->professeurPrincipal->nom . ' ' .
+                                $classe->professeurPrincipal->prenoms
+                        )
+                        : null,
                     'matieres' => $matieres,
                     'moyenne_generale' => $moyennes['moyenne_generale'],
+                    'moyenne_classe' => $moyennesClasse->avg(),
+                    'moyenne_minimale' => $moyennesClasse->min(),
+                    'moyenne_maximale' => $moyennesClasse->max(),
                     'rang' => $rang,
                     'effectif_classe' => $eleves->count(),
+                    'total_coefficients' => $lignesComptabilisees->sum('coefficient'),
+                    'total_points' => $lignesComptabilisees->sum('moyenne_ponderee'),
                     'absences' => [
                         'nombre' => $absences->count(),
                         'heures' => (float) $absences->sum('duree_heures'),
                         'justifiees' => $absences->where('justifiee', true)->count(),
+                        'non_justifiees' => $absences->where('justifiee', false)->count(),
                     ],
                     'retards' => [
                         'nombre' => $retards->count(),
@@ -313,7 +407,10 @@ class BulletinController extends Controller
                     ],
                     'conduite' => $conduite?->note,
                     'observation_conduite' => $conduite?->observation,
-                ];
+                    ];
+                }
+
+                $bulletin = $bulletins[0] ?? null;
             }
         }
 
@@ -328,6 +425,8 @@ class BulletinController extends Controller
             'eleves' => $eleves,
             'eleveSelectionne' => $request->integer('eleve_id') ?: null,
             'bulletin' => $bulletin,
+            'bulletins' => $bulletins,
+            'modeClasse' => $modeClasse,
             'configuration' => $configuration,
         ]);
     }

@@ -89,6 +89,8 @@ class StoreClasseRequest extends FormRequest
         $classeId = is_object($classe)
             ? $classe->id
             : $classe;
+        $etablissementId = $this->input('etablissement_id')
+            ?: (is_object($classe) ? $classe->etablissement_id : null);
 
         return [
 
@@ -126,6 +128,41 @@ class StoreClasseRequest extends FormRequest
                 'nullable',
                 'integer',
                 'exists:salles,id',
+            ],
+
+            'professeur_principal_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('enseignants', 'id')
+                    ->where('etablissement_id', $etablissementId)
+                    ->where('actif', true),
+            ],
+
+            'delegue_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('eleves', 'id')
+                    ->where('classe_id', $classeId ?: 0)
+                    ->where('etablissement_id', $etablissementId)
+                    ->where('annee_scolaire_id', $this->input('annee_scolaire_id'))
+                    ->where('actif', true),
+            ],
+
+            'sous_delegue_id' => [
+                'nullable',
+                'integer',
+                'different:delegue_id',
+                Rule::exists('eleves', 'id')
+                    ->where('classe_id', $classeId ?: 0)
+                    ->where('etablissement_id', $etablissementId)
+                    ->where('annee_scolaire_id', $this->input('annee_scolaire_id'))
+                    ->where('actif', true),
+            ],
+
+            'observations' => [
+                'nullable',
+                'string',
+                'max:2000',
             ],
 
             'libelle' => [

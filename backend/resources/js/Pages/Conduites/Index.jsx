@@ -10,6 +10,7 @@ export default function Index({
     periodesScolaires = [],
     filters = {},
     isSuperAdmin = false,
+    isEducateur = false,
 }) {
     const filtres = {
         etablissement_id: "",
@@ -22,6 +23,41 @@ export default function Index({
     // État local de recherche : la saisie reste fluide pendant les requêtes Inertia.
     const [recherche, setRecherche] = useState(filtres.recherche || "");
     const rechercheTimer = useRef(null);
+
+    function supprimerConduitesClasse() {
+        const classe = classes.find(
+            (item) => String(item.id) === String(filtres.classe_id),
+        );
+        const periode = periodesScolaires.find(
+            (item) =>
+                String(item.id) === String(filtres.periode_scolaire_id),
+        );
+
+        if (!classe || !periode) {
+            window.alert(
+                "La classe ou la période sélectionnée n’est plus disponible. Actualisez la page puis réessayez.",
+            );
+            return;
+        }
+
+        if (
+            !window.confirm(
+                `Supprimer ${isEducateur ? "les notes de conduite que vous avez saisies" : "toutes les notes de conduite"} de la classe « ${classe.libelle} » pour la période « ${periode.libelle} » ? Cette action est irréversible.`,
+            )
+        ) {
+            return;
+        }
+
+        router.delete(
+            route("conduites.destroy-classe", {
+                classe: classe.id,
+                periodeScolaire: periode.id,
+            }),
+            {
+                preserveScroll: true,
+            },
+        );
+    }
 
     /*
     |--------------------------------------------------------------------------
@@ -288,6 +324,17 @@ export default function Index({
                                 {conduites.length > 1 ? "s" : ""}
                             </p>
                         </div>
+
+                        {filtres.classe_id &&
+                            filtres.periode_scolaire_id && (
+                                <button
+                                    type="button"
+                                    onClick={supprimerConduitesClasse}
+                                    className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
+                                >
+                                    Supprimer les notes de la classe
+                                </button>
+                            )}
                     </div>
 
                     <div className="rounded-xl bg-white shadow">
