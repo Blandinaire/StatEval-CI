@@ -98,20 +98,30 @@ class MobileAbsenceRetardController extends Controller
      */
     private function appliquerPerimetre($query, User $user, Request $request): void
     {
+        // 1. Périmètre de l'établissement
         if (!$user->hasRole('SuperAdmin')) {
-            abort_unless($user->etablissement_id, 403, 'Aucun établissement associé.');
+            abort_unless(
+                $user->etablissement_id,
+                403,
+                'Aucun établissement associé.'
+            );
 
-            $query->where(
-                'etablissement_id',
-                $user->etablissement_id
-            );
-        } elseif ($request->filled('etablissement_id')) {
-            $query->where(
-                'etablissement_id',
-                $request->integer('etablissement_id')
-            );
+            $etablissementId = $user->etablissement_id;
+        } else {
+            $etablissementId = $request->filled('etablissement_id')
+                ? $request->integer('etablissement_id')
+                : null;
         }
 
+        // Les absences et retards sont rattachés à un élève.
+        // On filtre donc par l'établissement de cet élève.
+        if ($etablissementId) {
+            $query->whereHas('eleve', function ($q) use ($etablissementId) {
+                $q->where('etablissement_id', $etablissementId);
+            });
+        }
+
+        // 2. Périmètre du parent : ses propres enfants uniquement
         if ($user->hasRole('Parent')) {
             $query->whereIn(
                 'eleve_id',
@@ -119,6 +129,7 @@ class MobileAbsenceRetardController extends Controller
             );
         }
 
+        // 3. Périmètre de l'éducateur : ses classes actives uniquement
         if ($user->hasRole('Educateur')) {
             abort_unless($user->educateur_id, 403);
 

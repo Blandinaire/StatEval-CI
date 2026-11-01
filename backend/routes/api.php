@@ -162,7 +162,7 @@ Route::middleware('auth:sanctum')->group(function () {
         'absences',
     ])->middleware([
         'abilities:*',
-        'role:SuperAdmin|Administrateur|Direction|Educateur|Parent',
+        'role:SuperAdmin|Administrateur|Direction|Educateur|Professeur|Parent',
     ]);
 
     Route::get('/mobile/retards', [
@@ -170,7 +170,7 @@ Route::middleware('auth:sanctum')->group(function () {
         'retards',
     ])->middleware([
         'abilities:*',
-        'role:SuperAdmin|Administrateur|Direction|Educateur|Parent',
+        'role:SuperAdmin|Administrateur|Direction|Educateur|Professeur|Parent',
     ]);
 
     // Gestion des absences.
