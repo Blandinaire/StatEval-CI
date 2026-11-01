@@ -27,6 +27,7 @@ use App\Models\Enseignant;
     'enseignant_id',
     'educateur_id',
     'actif',
+    'genere_automatiquement',
     'initial_password',
     'must_change_password',
     'etablissement_responsable_id',
@@ -111,6 +112,7 @@ class User extends Authenticatable
             'actif' => 'boolean',
             'must_change_password' => 'boolean',
             'initial_password' => 'encrypted',
+            'genere_automatiquement' => 'boolean',
         ];
     }
 }

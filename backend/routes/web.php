@@ -32,6 +32,7 @@ use App\Http\Controllers\AutrePersonnelController;
 use App\Http\Controllers\ResultatController;
 use App\Http\Controllers\BulletinController;
 use App\Http\Controllers\ConfigurationBulletinController;
+use App\Http\Controllers\ParentController;
 use Illuminate\Foundation\Application;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
@@ -532,6 +533,31 @@ Route::middleware('auth')->group(function () {
             'users/{user}/toggle',
             [UserController::class, 'toggle']
         )->name('users.toggle');
+    });
+
+    Route::middleware('role:SuperAdmin|Administrateur|Direction')->group(function () {
+        Route::get('/parents', [ParentController::class, 'index'])
+            ->name('parents.index');
+    });
+
+    Route::post('/parents/generer', [ParentController::class, 'generer'])
+        ->name('parents.generer');
+
+    Route::middleware('role:SuperAdmin|Administrateur|Direction')->group(function () {
+        Route::post('/parents/apercu-generation', [
+            ParentController::class,
+            'previsualiser',
+        ])->name('parents.previsualiser');
+
+        Route::post('/parents/generer', [
+            ParentController::class,
+            'generer',
+        ])->name('parents.generer');
+
+        Route::get('/parents', [
+            ParentController::class,
+            'index',
+        ])->name('parents.index');
     });
 
     Route::get(

@@ -68,6 +68,8 @@ export default function Sidebar({ isOpen, closeSidebar }) {
     // SuperAdmin / Administrateur / Direction
     const canManagePersonnel = isSuperAdmin || isAdmin || isDirection;
 
+    const canManageParents = isSuperAdmin || isAdmin || isDirection;
+
     // =========================================================
     // SCOLARITÉ
     // =========================================================
@@ -464,6 +466,21 @@ export default function Sidebar({ isOpen, closeSidebar }) {
                             onClick={closeSidebar}
                         >
                             Configuration des bulletins
+                        </MenuItem>
+                    </>
+                )}
+
+                {canManageParents && (
+                    <>
+                        <SectionTitle>Familles</SectionTitle>
+
+                        <MenuItem
+                            href="/parents"
+                            icon={Users}
+                            activeMatch={["/parents"]}
+                            onClick={closeSidebar}
+                        >
+                            Comptes parents
                         </MenuItem>
                     </>
                 )}
