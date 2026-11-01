@@ -321,6 +321,11 @@ export default function Index() {
                                         "text-green-700",
                                     ],
                                     [
+                                        "Numéros en conflit",
+                                        apercu.conflits_telephone,
+                                        "text-red-700",
+                                    ],
+                                    [
                                         "Sans téléphone / nom",
                                         apercu.sans_telephone,
                                         "text-red-600",

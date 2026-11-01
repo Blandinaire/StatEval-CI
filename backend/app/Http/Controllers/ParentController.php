@@ -82,10 +82,57 @@ class ParentController extends Controller
         return $query;
     }
 
+
     private function telephoneNormalise(?string $telephone): string
     {
-        return preg_replace('/\s+/', '', trim($telephone ?? ''));
+        $numero = preg_replace('/\D+/', '', $telephone ?? '');
+
+        if (str_starts_with($numero, '00')) {
+            $numero = substr($numero, 2);
+        }
+
+        // Numéro ivoirien au format national à 10 chiffres.
+        if (strlen($numero) === 10 && !str_starts_with($numero, '225')) {
+            $numero = '225' . $numero;
+        }
+
+        return $numero;
     }
+
+    /**
+     * Indexe les comptes utilisateurs d'un établissement par téléphone normalisé.
+     */
+    private function comptesParTelephone(int $etablissementId): array
+    {
+        $comptes = User::query()
+            ->with('roles')
+            ->where('etablissement_id', $etablissementId)
+            ->whereNotNull('telephone')
+            ->get();
+
+        $index = [];
+
+        foreach ($comptes as $compte) {
+            $telephone = $this->telephoneNormalise($compte->telephone);
+
+            if ($telephone === '') {
+                continue;
+            }
+
+            $index[$telephone][] = $compte;
+        }
+
+        return $index;
+    }
+
+    /**
+     * Détermine si un compte possède le rôle Parent.
+     */
+    private function estCompteParent(User $user): bool
+    {
+        return $user->hasRole('Parent');
+    }
+
 
     public function index(Request $request)
     {
@@ -173,6 +220,7 @@ class ParentController extends Controller
     /**
      * Aperçu avant génération des comptes.
      */
+
     public function previsualiser(Request $request)
     {
         $this->autoriser();
@@ -188,49 +236,82 @@ class ParentController extends Controller
                 'responsable_telephone',
             ]);
 
-        $telephones = [];
+        $groupes = [];
         $sansTelephone = 0;
         $sansMatricule = 0;
 
         foreach ($eleves as $eleve) {
-            $telephone = $this->telephoneNormalise($eleve->responsable_telephone);
+            $telephone = $this->telephoneNormalise(
+                $eleve->responsable_telephone
+            );
 
-            if (!$telephone || !$eleve->responsable_nom) {
+            $nom = trim(
+                ($eleve->responsable_nom ?? '') . ' ' .
+                    ($eleve->responsable_prenoms ?? '')
+            );
+
+            if (!$telephone || !$nom) {
                 $sansTelephone++;
                 continue;
             }
 
-            if (!$eleve->matricule) {
-                $sansMatricule++;
-                continue;
-            }
+            $groupes[$telephone][] = $eleve;
 
-            $telephones[$telephone] = true;
+            if (!trim($eleve->matricule ?? '')) {
+                $sansMatricule++;
+            }
         }
 
-        $numeros = array_keys($telephones);
+        $comptesIndex = $this->comptesParTelephone($etablissementId);
 
-        $existants = User::query()
-            ->where('etablissement_id', $etablissementId)
-            ->whereIn('telephone', $numeros)
-            ->whereHas('roles', fn($q) => $q->where('name', 'Parent'))
-            ->pluck('telephone')
-            ->unique()
-            ->count();
+        $existants = 0;
+        $conflits = 0;
+        $nouveaux = 0;
+
+        foreach ($groupes as $telephone => $elevesDuParent) {
+            $comptes = $comptesIndex[$telephone] ?? [];
+
+            $parents = array_filter(
+                $comptes,
+                fn($compte) => $this->estCompteParent($compte)
+            );
+
+            $autresComptes = array_filter(
+                $comptes,
+                fn($compte) => !$this->estCompteParent($compte)
+            );
+
+            if (count($autresComptes) > 0) {
+                $conflits++;
+            } elseif (count($parents) > 0) {
+                $existants++;
+            } else {
+                $possedeMatricule = collect($elevesDuParent)->contains(
+                    fn($eleve) => trim($eleve->matricule ?? '') !== ''
+                );
+
+                if ($possedeMatricule) {
+                    $nouveaux++;
+                }
+            }
+        }
 
         return response()->json([
             'eleves' => $eleves->count(),
-            'parents_distincts' => count($numeros),
+            'parents_distincts' => count($groupes),
             'comptes_existants' => $existants,
-            'nouveaux_comptes' => max(0, count($numeros) - $existants),
+            'nouveaux_comptes' => $nouveaux,
+            'conflits_telephone' => $conflits,
             'sans_telephone' => $sansTelephone,
             'sans_matricule' => $sansMatricule,
         ]);
     }
 
+
     /**
      * Génération effective des comptes.
      */
+
     public function generer(Request $request)
     {
         $this->autoriser();
@@ -240,41 +321,83 @@ class ParentController extends Controller
         $eleves = $this->elevesDuPerimetre($request, $etablissementId)
             ->get();
 
+        $groupes = [];
+
+        foreach ($eleves as $eleve) {
+            $telephone = $this->telephoneNormalise(
+                $eleve->responsable_telephone
+            );
+
+            $nom = trim(
+                ($eleve->responsable_nom ?? '') . ' ' .
+                    ($eleve->responsable_prenoms ?? '')
+            );
+
+            if (!$telephone || !$nom) {
+                continue;
+            }
+
+            $groupes[$telephone][] = $eleve;
+        }
+
         $crees = 0;
         $associes = 0;
         $ignores = 0;
+        $conflits = 0;
 
         DB::transaction(function () use (
-            $eleves,
+            $groupes,
             $etablissementId,
             &$crees,
             &$associes,
-            &$ignores
+            &$ignores,
+            &$conflits
         ) {
-            foreach ($eleves as $eleve) {
-                $nom = trim(
-                    ($eleve->responsable_nom ?? '') . ' ' .
-                        ($eleve->responsable_prenoms ?? '')
+            $comptesIndex = $this->comptesParTelephone($etablissementId);
+
+            foreach ($groupes as $telephone => $elevesDuParent) {
+                $comptes = $comptesIndex[$telephone] ?? [];
+
+                $parents = array_values(array_filter(
+                    $comptes,
+                    fn($compte) => $this->estCompteParent($compte)
+                ));
+
+                $autresComptes = array_filter(
+                    $comptes,
+                    fn($compte) => !$this->estCompteParent($compte)
                 );
 
-                $telephone = $this->telephoneNormalise(
-                    $eleve->responsable_telephone
-                );
-
-                $matricule = trim($eleve->matricule ?? '');
-
-                if (!$nom || !$telephone || !$matricule) {
-                    $ignores++;
+                // Un numéro utilisé par un autre profil ne doit pas
+                // servir à créer un deuxième compte.
+                if (count($autresComptes) > 0) {
+                    $conflits++;
+                    $ignores += count($elevesDuParent);
                     continue;
                 }
 
-                $parent = User::query()
-                    ->where('telephone', $telephone)
-                    ->where('etablissement_id', $etablissementId)
-                    ->whereHas('roles', fn($q) => $q->where('name', 'Parent'))
-                    ->first();
+                $parent = $parents[0] ?? null;
+
+                // Chercher un matricule parmi tous les enfants du parent.
+                $eleveAvecMatricule = collect($elevesDuParent)->first(
+                    fn($eleve) => trim($eleve->matricule ?? '') !== ''
+                );
+
+                if (!$parent && !$eleveAvecMatricule) {
+                    $ignores += count($elevesDuParent);
+                    continue;
+                }
 
                 if (!$parent) {
+                    $premierEleve = $elevesDuParent[0];
+
+                    $nom = trim(
+                        ($premierEleve->responsable_nom ?? '') . ' ' .
+                            ($premierEleve->responsable_prenoms ?? '')
+                    );
+
+                    $matricule = trim($eleveAvecMatricule->matricule);
+
                     $parent = User::create([
                         'name' => $nom,
                         'email' => null,
@@ -290,19 +413,24 @@ class ParentController extends Controller
 
                     $parent->assignRole('Parent');
                     $crees++;
+
+                    // Ajouter le compte créé à l'index pour éviter
+                    // toute nouvelle création pendant cette opération.
+                    $comptesIndex[$telephone][] = $parent;
                 }
 
-                if ((int) $parent->etablissement_id !== $etablissementId) {
-                    $ignores++;
-                    continue;
-                }
+                foreach ($elevesDuParent as $eleve) {
+                    if (!$parent->eleves()
+                        ->where('eleves.id', $eleve->id)
+                        ->exists()) {
 
-                if (!$parent->eleves()->where('eleves.id', $eleve->id)->exists()) {
-                    $parent->eleves()->attach($eleve->id, [
-                        'lien' => $eleve->type_tuteur ?? 'Responsable légal',
-                    ]);
+                        $parent->eleves()->attach($eleve->id, [
+                            'lien' => $eleve->type_tuteur
+                                ?? 'Responsable légal',
+                        ]);
 
-                    $associes++;
+                        $associes++;
+                    }
                 }
             }
         });
@@ -311,6 +439,7 @@ class ParentController extends Controller
             'success',
             "Génération terminée : {$crees} compte(s) créé(s), " .
                 "{$associes} association(s) effectuée(s), " .
+                "{$conflits} numéro(s) en conflit, " .
                 "{$ignores} fiche(s) ignorée(s)."
         );
     }
