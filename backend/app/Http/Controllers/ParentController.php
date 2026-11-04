@@ -198,12 +198,17 @@ class ParentController extends Controller
             ->orderBy('libelle')
             ->get(['id', 'libelle', 'niveau_id']);
 
+        $comptesAutomatiques = (clone $statsQuery)
+            ->where('genere_automatiquement', true)
+            ->count();
+
         return Inertia::render('Parents/Index', [
             'parents' => $parents,
             'stats' => [
                 'total' => (clone $statsQuery)->count(),
                 'actifs' => (clone $statsQuery)->where('actif', true)->count(),
                 'inactifs' => (clone $statsQuery)->where('actif', false)->count(),
+                'automatiques' => $comptesAutomatiques,
             ],
             'etablissements' => $etablissements,
             'niveaux' => $niveaux,
@@ -441,6 +446,73 @@ class ParentController extends Controller
                 "{$associes} association(s) effectuée(s), " .
                 "{$conflits} numéro(s) en conflit, " .
                 "{$ignores} fiche(s) ignorée(s)."
+        );
+    }
+
+    /**
+     * Supprimer un compte parent généré automatiquement.
+     */
+    public function destroy(User $parent)
+    {
+        $this->autoriser();
+
+        abort_unless($parent->hasRole('Parent'), 404);
+
+        abort_unless(
+            $parent->genere_automatiquement === true,
+            403,
+            'Seuls les comptes générés automatiquement peuvent être supprimés ici.'
+        );
+
+        $user = Auth::user();
+
+        // Un utilisateur non SuperAdmin ne peut supprimer
+        // que les comptes de son propre établissement.
+        abort_unless(
+            $user->hasRole('SuperAdmin') ||
+                (int) $parent->etablissement_id === (int) $user->etablissement_id,
+            403
+        );
+
+        DB::transaction(function () use ($parent) {
+            $parent->eleves()->detach();
+            $parent->delete();
+        });
+
+        return back()->with(
+            'success',
+            'Le compte parent a été supprimé avec succès.'
+        );
+    }
+
+    /**
+     * Supprimer tous les comptes parents générés automatiquement
+     * dans un établissement.
+     */
+    public function supprimerAutomatiques(Request $request)
+    {
+        $this->autoriser();
+
+        $etablissementId = $this->etablissementId($request);
+
+        $comptes = User::query()
+            ->where('etablissement_id', $etablissementId)
+            ->where('genere_automatiquement', true)
+            ->whereHas('roles', fn($q) => $q->where('name', 'Parent'))
+            ->get();
+
+        $nombre = $comptes->count();
+
+        DB::transaction(function () use ($comptes) {
+            foreach ($comptes as $parent) {
+                $parent->eleves()->detach();
+                $parent->delete();
+            }
+        });
+
+        return back()->with(
+            'success',
+            "{$nombre} compte(s) parent(s) généré(s) automatiquement supprimé(s)."
         );
     }
 }

@@ -28,6 +28,7 @@ export default function Index() {
     const [chargementApercu, setChargementApercu] = useState(false);
     const [generation, setGeneration] = useState(false);
     const [erreur, setErreur] = useState("");
+    const [suppression, setSuppression] = useState(false);
 
     const classesFiltrees = classes.filter(
         (classe) => !niveauId || String(classe.niveau_id) === String(niveauId),
@@ -118,6 +119,49 @@ export default function Index() {
             preserveScroll: true,
             onFinish: () => setGeneration(false),
             onSuccess: () => setApercu(null),
+        });
+    };
+
+    const supprimerParent = (parent) => {
+        if (
+            !confirm(
+                `Voulez-vous vraiment supprimer le compte parent de ${parent.name} ?\n\n` +
+                    `Les associations avec ses enfants seront supprimées, mais les fiches des élèves seront conservées.`,
+            )
+        ) {
+            return;
+        }
+
+        router.delete(route("parents.destroy", parent.id), {
+            preserveScroll: true,
+        });
+    };
+
+    const supprimerTousLesComptes = () => {
+        if (isSuperAdmin && !etablissementId) {
+            alert("Veuillez sélectionner un établissement.");
+            return;
+        }
+
+        if (
+            !confirm(
+                `ATTENTION !\n\n` +
+                    `Vous allez supprimer les ${stats.automatiques} compte(s) parent(s) généré(s) automatiquement dans cet établissement.\n\n` +
+                    `Les comptes créés manuellement seront conservés. Les fiches des élèves ne seront pas supprimées.\n\n` +
+                    `Voulez-vous continuer ?`,
+            )
+        ) {
+            return;
+        }
+
+        setSuppression(true);
+
+        router.delete(route("parents.supprimer-automatiques"), {
+            data: {
+                etablissement_id: etablissementId,
+            },
+            preserveScroll: true,
+            onFinish: () => setSuppression(false),
         });
     };
 
@@ -373,11 +417,16 @@ export default function Index() {
                 </div>
 
                 {/* STATISTIQUES */}
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                     {[
                         ["Total parents", stats.total, "text-gray-800"],
                         ["Comptes actifs", stats.actifs, "text-green-600"],
                         ["Comptes désactivés", stats.inactifs, "text-red-600"],
+                        [
+                            "Comptes générés automatiquement",
+                            stats.automatiques,
+                            "text-blue-600",
+                        ],
                     ].map(([label, valeur, couleur]) => (
                         <div
                             key={label}
@@ -390,6 +439,22 @@ export default function Index() {
                         </div>
                     ))}
                 </div>
+
+                {stats.automatiques > 0 &&
+                    (!isSuperAdmin || etablissementId) && (
+                        <div className="flex justify-end">
+                            <button
+                                type="button"
+                                onClick={supprimerTousLesComptes}
+                                disabled={suppression}
+                                className="rounded-lg bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                            >
+                                {suppression
+                                    ? "Suppression en cours..."
+                                    : `Supprimer les ${stats.automatiques} comptes générés`}
+                            </button>
+                        </div>
+                    )}
 
                 {/* FILTRES */}
                 <form
@@ -458,6 +523,7 @@ export default function Index() {
                                         "Établissement",
                                         "Enfants",
                                         "Statut",
+                                        "Actions",
                                     ].map((titre) => (
                                         <th
                                             key={titre}
@@ -473,7 +539,7 @@ export default function Index() {
                                 {parents.data.length === 0 ? (
                                     <tr>
                                         <td
-                                            colSpan="5"
+                                            colSpan="6"
                                             className="p-10 text-center text-gray-500"
                                         >
                                             Aucun compte parent trouvé.
@@ -532,6 +598,26 @@ export default function Index() {
                                                         ? "Actif"
                                                         : "Désactivé"}
                                                 </span>
+                                            </td>
+
+                                            <td className="px-5 py-4">
+                                                {parent.genere_automatiquement ? (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            supprimerParent(
+                                                                parent,
+                                                            )
+                                                        }
+                                                        className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                                                    >
+                                                        Supprimer
+                                                    </button>
+                                                ) : (
+                                                    <span className="text-xs text-gray-400">
+                                                        Compte manuel
+                                                    </span>
+                                                )}
                                             </td>
                                         </tr>
                                     ))

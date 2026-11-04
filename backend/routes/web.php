@@ -536,14 +536,12 @@ Route::middleware('auth')->group(function () {
     });
 
     Route::middleware('role:SuperAdmin|Administrateur|Direction')->group(function () {
-        Route::get('/parents', [ParentController::class, 'index'])
-            ->name('parents.index');
-    });
 
-    Route::post('/parents/generer', [ParentController::class, 'generer'])
-        ->name('parents.generer');
+        Route::get('/parents', [
+            ParentController::class,
+            'index',
+        ])->name('parents.index');
 
-    Route::middleware('role:SuperAdmin|Administrateur|Direction')->group(function () {
         Route::post('/parents/apercu-generation', [
             ParentController::class,
             'previsualiser',
@@ -554,10 +552,15 @@ Route::middleware('auth')->group(function () {
             'generer',
         ])->name('parents.generer');
 
-        Route::get('/parents', [
+        Route::delete('/parents/{parent}', [
             ParentController::class,
-            'index',
-        ])->name('parents.index');
+            'destroy',
+        ])->name('parents.destroy');
+
+        Route::delete('/parents/suppression-automatique', [
+            ParentController::class,
+            'supprimerAutomatiques',
+        ])->name('parents.supprimer-automatiques');
     });
 
     Route::get(
