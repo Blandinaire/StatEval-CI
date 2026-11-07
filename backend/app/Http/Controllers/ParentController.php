@@ -165,6 +165,56 @@ class ParentController extends Controller
         }
     }
 
+
+    /**
+     * Consultation détaillée d'un compte parent et de ses enfants.
+     */
+    public function show(User $parent)
+    {
+        $this->autoriserAccesParent($parent);
+
+        $parent->load([
+            'etablissement:id,nom',
+            'eleves' => function ($query) {
+                $query->orderBy('nom')
+                    ->orderBy('prenoms')
+                    ->with([
+                        'classe:id,libelle,niveau_id',
+                        'classe.niveau:id,libelle',
+                    ]);
+            },
+        ]);
+
+        $enfants = $parent->eleves->map(function (Eleve $eleve) {
+            return [
+                'id' => $eleve->id,
+                'matricule' => $eleve->matricule ?: $eleve->code_eleve,
+                'nom' => $eleve->nom,
+                'prenoms' => $eleve->prenoms,
+                'sexe' => $eleve->sexe,
+                'classe' => $eleve->classe?->libelle,
+                'niveau' => $eleve->classe?->niveau?->libelle,
+                'statut' => $eleve->statut,
+                'lien' => $eleve->pivot?->lien,
+            ];
+        })->values();
+
+        return Inertia::render('Parents/Show', [
+            'parent' => [
+                'id' => $parent->id,
+                'name' => $parent->name,
+                'telephone' => $parent->telephone,
+                'email' => $parent->email,
+                'actif' => $parent->actif,
+                'genere_automatiquement' => $parent->genere_automatiquement,
+                'created_at' => $parent->created_at?->format('d/m/Y à H:i'),
+                'etablissement' => $parent->etablissement?->nom,
+            ],
+            'enfants' => $enfants,
+        ]);
+    }
+
+
     /**
      * Formulaire de modification d'un compte parent.
      */

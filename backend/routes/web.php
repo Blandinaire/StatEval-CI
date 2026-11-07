@@ -542,6 +542,11 @@ Route::middleware('auth')->group(function () {
             'index',
         ])->name('parents.index');
 
+        Route::get('/parents/{parent}', [
+            ParentController::class,
+            'show',
+        ])->name('parents.show');
+
         Route::post('/parents/apercu-generation', [
             ParentController::class,
             'previsualiser',

@@ -723,6 +723,21 @@ export default function Index() {
                                                         onClick={() =>
                                                             router.get(
                                                                 route(
+                                                                    "parents.show",
+                                                                    parent.id,
+                                                                ),
+                                                            )
+                                                        }
+                                                        className="rounded-lg bg-indigo-50 px-3 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-100"
+                                                    >
+                                                        Consulter
+                                                    </button>
+                                                    
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            router.get(
+                                                                route(
                                                                     "parents.edit",
                                                                     parent.id,
                                                                 ),
