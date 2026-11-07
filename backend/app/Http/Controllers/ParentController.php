@@ -10,6 +10,7 @@ use App\Models\Niveau;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class ParentController extends Controller
@@ -144,6 +145,113 @@ class ParentController extends Controller
         return $user->hasRole('Parent');
     }
 
+    /**
+     * Vérifie qu'un compte Parent appartient au périmètre de l'utilisateur.
+     */
+    private function autoriserAccesParent(User $parent): void
+    {
+        $this->autoriser();
+
+        abort_unless($parent->hasRole('Parent'), 404);
+
+        $user = Auth::user();
+
+        if (!$user->hasRole('SuperAdmin')) {
+            abort_unless(
+                (int) $parent->etablissement_id === (int) $user->etablissement_id,
+                403,
+                'Vous ne pouvez pas gérer un compte parent d’un autre établissement.'
+            );
+        }
+    }
+
+    /**
+     * Formulaire de modification d'un compte parent.
+     */
+    public function edit(User $parent)
+    {
+        $this->autoriserAccesParent($parent);
+
+        return Inertia::render('Parents/Edit', [
+            'parent' => $parent->load('etablissement'),
+        ]);
+    }
+
+    /**
+     * Enregistrement des modifications d'un compte parent.
+     */
+    public function update(Request $request, User $parent)
+    {
+        $this->autoriserAccesParent($parent);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:150'],
+            'telephone' => ['nullable', 'string', 'max:30'],
+            'email' => [
+                'nullable',
+                'email',
+                'max:255',
+                'unique:users,email,' . $parent->id,
+            ],
+        ]);
+
+        $parent->update([
+            'name' => $validated['name'],
+            'telephone' => $validated['telephone'] ?? null,
+            'email' => $validated['email'] ?? null,
+            'fonction' => 'Parent',
+        ]);
+
+        return redirect()
+            ->route('parents.index')
+            ->with('success', 'Compte parent modifié avec succès.');
+    }
+
+    /**
+     * Réinitialisation du mot de passe d'un compte parent.
+     */
+    public function resetPassword(User $parent)
+    {
+        $this->autoriserAccesParent($parent);
+
+        $initialPassword = Str::random(12);
+
+        $parent->update([
+            'password' => $initialPassword,
+            'initial_password' => $initialPassword,
+            'must_change_password' => true,
+        ]);
+
+        return back()
+            ->with('success', "Mot de passe de {$parent->name} réinitialisé.")
+            ->with('initial_password', $initialPassword)
+            ->with('created_user', $parent->name);
+    }
+
+    /**
+     * Activation ou désactivation d'un compte parent.
+     */
+    public function toggle(User $parent)
+    {
+        $this->autoriserAccesParent($parent);
+
+        abort_if(
+            $parent->id === (int) Auth::id(),
+            403,
+            'Vous ne pouvez pas désactiver votre propre compte.'
+        );
+
+        $parent->update([
+            'actif' => !$parent->actif,
+        ]);
+
+        return back()->with(
+            'success',
+            $parent->actif
+                ? 'Compte parent activé avec succès.'
+                : 'Compte parent désactivé avec succès.'
+        );
+    }
 
     public function index(Request $request)
     {
@@ -181,6 +289,24 @@ class ParentController extends Controller
             ->orderBy('name')
             ->paginate(15)
             ->withQueryString();
+
+        // Exposer le mot de passe initial uniquement si le parent
+        // ne l'a pas encore changé.
+        $parents->getCollection()->transform(function (User $parent) {
+            $motDePasseInitial = $parent->must_change_password
+                ? $parent->initial_password
+                : null;
+
+            // Ne jamais transmettre directement le champ initial_password.
+            $parent->makeHidden('initial_password');
+
+            $parent->setAttribute(
+                'mot_de_passe_initial',
+                $motDePasseInitial
+            );
+
+            return $parent;
+        });
 
         $statsQuery = User::query()
             ->whereHas('roles', fn($q) => $q->where('name', 'Parent'));

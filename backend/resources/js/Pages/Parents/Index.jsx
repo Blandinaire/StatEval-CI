@@ -14,6 +14,8 @@ export default function Index() {
         isSuperAdmin,
     } = usePage().props;
 
+    const { flash } = usePage().props;
+
     const [recherche, setRecherche] = useState(filtres.recherche || "");
     const [statut, setStatut] = useState(filtres.statut || "");
     const [etablissementId, setEtablissementId] = useState(
@@ -137,6 +139,40 @@ export default function Index() {
         });
     };
 
+    const reinitialiserMotDePasse = (parent) => {
+        if (
+            !confirm(
+                `Réinitialiser le mot de passe de ${parent.name} ?\n\nUn nouveau mot de passe sera généré et devra être changé à la prochaine connexion.`,
+            )
+        ) {
+            return;
+        }
+
+        router.patch(
+            route("parents.reset-password", parent.id),
+            {},
+            { preserveScroll: true },
+        );
+    };
+
+    const changerStatutParent = (parent) => {
+        const action = parent.actif ? "désactiver" : "activer";
+
+        if (
+            !confirm(
+                `Voulez-vous vraiment ${action} le compte de ${parent.name} ?`,
+            )
+        ) {
+            return;
+        }
+
+        router.patch(
+            route("parents.toggle", parent.id),
+            {},
+            { preserveScroll: true },
+        );
+    };
+
     const supprimerTousLesComptes = () => {
         if (isSuperAdmin && !etablissementId) {
             alert("Veuillez sélectionner un établissement.");
@@ -168,6 +204,41 @@ export default function Index() {
     return (
         <AdminLayout>
             <Head title="Gestion des comptes parents" />
+
+            {flash?.initial_password && (
+                <div className="rounded-xl border border-green-200 bg-green-50 p-4">
+                    <p className="font-semibold text-green-800">
+                        Mot de passe réinitialisé
+                    </p>
+
+                    <p className="mt-2 text-sm text-green-700">
+                        Compte : {flash.created_user}
+                    </p>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <code className="rounded bg-white px-3 py-2 font-bold text-green-900">
+                            {flash.initial_password}
+                        </code>
+
+                        <button
+                            type="button"
+                            onClick={() =>
+                                navigator.clipboard.writeText(
+                                    flash.initial_password,
+                                )
+                            }
+                            className="rounded-lg bg-green-700 px-3 py-2 text-sm font-semibold text-white hover:bg-green-800"
+                        >
+                            Copier le mot de passe
+                        </button>
+                    </div>
+
+                    <p className="mt-2 text-xs text-green-700">
+                        Ce mot de passe devra être changé lors de la prochaine
+                        connexion.
+                    </p>
+                </div>
+            )}
 
             <div className="mx-auto max-w-7xl space-y-6">
                 <div>
@@ -532,6 +603,7 @@ export default function Index() {
                                     {[
                                         "Parent",
                                         "Téléphone",
+                                        "Mot de passe initial",
                                         "Établissement",
                                         "Enfants",
                                         "Statut",
@@ -551,7 +623,7 @@ export default function Index() {
                                 {parents.data.length === 0 ? (
                                     <tr>
                                         <td
-                                            colSpan="6"
+                                            colSpan="7"
                                             className="p-10 text-center text-gray-500"
                                         >
                                             Aucun compte parent trouvé.
@@ -575,6 +647,38 @@ export default function Index() {
 
                                             <td className="px-5 py-4">
                                                 {parent.telephone || "—"}
+                                            </td>
+
+                                            <td className="px-5 py-4">
+                                                {parent.must_change_password &&
+                                                parent.mot_de_passe_initial ? (
+                                                    <div className="flex items-center gap-2">
+                                                        <code className="rounded bg-amber-50 px-2 py-1 font-semibold text-amber-800">
+                                                            {
+                                                                parent.mot_de_passe_initial
+                                                            }
+                                                        </code>
+
+                                                        <button
+                                                            type="button"
+                                                            title="Copier le mot de passe"
+                                                            onClick={() =>
+                                                                navigator.clipboard.writeText(
+                                                                    parent.mot_de_passe_initial,
+                                                                )
+                                                            }
+                                                            className="rounded p-1 text-blue-600 hover:bg-blue-50"
+                                                        >
+                                                            <span aria-hidden="true">
+                                                                📋
+                                                            </span>
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <span className="text-sm text-gray-400">
+                                                        Déjà modifié
+                                                    </span>
+                                                )}
                                             </td>
 
                                             <td className="px-5 py-4">
@@ -613,26 +717,67 @@ export default function Index() {
                                             </td>
 
                                             <td className="px-5 py-4">
-                                                {isSuperAdmin &&
-                                                parent.genere_automatiquement ? (
+                                                <div className="flex flex-wrap gap-2">
                                                     <button
                                                         type="button"
                                                         onClick={() =>
-                                                            supprimerParent(
+                                                            router.get(
+                                                                route(
+                                                                    "parents.edit",
+                                                                    parent.id,
+                                                                ),
+                                                            )
+                                                        }
+                                                        className="rounded-lg bg-blue-50 px-3 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-100"
+                                                    >
+                                                        Modifier
+                                                    </button>
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            reinitialiserMotDePasse(
                                                                 parent,
                                                             )
                                                         }
-                                                        className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                                                        className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-700 hover:bg-amber-100"
                                                     >
-                                                        Supprimer
+                                                        Réinitialiser
                                                     </button>
-                                                ) : (
-                                                    <span className="text-xs text-gray-400">
-                                                        {parent.genere_automatiquement
-                                                            ? "Compte automatique"
-                                                            : "Compte manuel"}
-                                                    </span>
-                                                )}
+
+                                                    <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                            changerStatutParent(
+                                                                parent,
+                                                            )
+                                                        }
+                                                        className={`rounded-lg px-3 py-2 text-sm font-semibold ${
+                                                            parent.actif
+                                                                ? "bg-orange-50 text-orange-700 hover:bg-orange-100"
+                                                                : "bg-green-50 text-green-700 hover:bg-green-100"
+                                                        }`}
+                                                    >
+                                                        {parent.actif
+                                                            ? "Désactiver"
+                                                            : "Activer"}
+                                                    </button>
+
+                                                    {isSuperAdmin &&
+                                                        parent.genere_automatiquement && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    supprimerParent(
+                                                                        parent,
+                                                                    )
+                                                                }
+                                                                className="rounded-lg bg-red-50 px-3 py-2 text-sm font-semibold text-red-700 hover:bg-red-100"
+                                                            >
+                                                                Supprimer
+                                                            </button>
+                                                        )}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))

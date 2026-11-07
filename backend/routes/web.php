@@ -552,6 +552,26 @@ Route::middleware('auth')->group(function () {
             'generer',
         ])->middleware('role:SuperAdmin')->name('parents.generer');
 
+        Route::get('/parents/{parent}/edit', [
+            ParentController::class,
+            'edit',
+        ])->name('parents.edit');
+
+        Route::put('/parents/{parent}', [
+            ParentController::class,
+            'update',
+        ])->name('parents.update');
+
+        Route::patch('/parents/{parent}/reset-password', [
+            ParentController::class,
+            'resetPassword',
+        ])->name('parents.reset-password');
+
+        Route::patch('/parents/{parent}/toggle', [
+            ParentController::class,
+            'toggle',
+        ])->name('parents.toggle');
+
         Route::delete('/parents/{parent}', [
             ParentController::class,
             'destroy',
