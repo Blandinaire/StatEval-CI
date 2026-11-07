@@ -453,21 +453,20 @@ export default function Index() {
                     ))}
                 </div>
 
-                {stats.automatiques > 0 &&
-                    (!isSuperAdmin || etablissementId) && (
-                        <div className="flex justify-end">
-                            <button
-                                type="button"
-                                onClick={supprimerTousLesComptes}
-                                disabled={suppression}
-                                className="rounded-lg bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-                            >
-                                {suppression
-                                    ? "Suppression en cours..."
-                                    : `Supprimer les ${stats.automatiques} comptes générés`}
-                            </button>
-                        </div>
-                    )}
+                {isSuperAdmin && stats.automatiques > 0 && etablissementId && (
+                    <div className="flex justify-end">
+                        <button
+                            type="button"
+                            onClick={supprimerTousLesComptes}
+                            disabled={suppression}
+                            className="rounded-lg bg-red-600 px-5 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+                        >
+                            {suppression
+                                ? "Suppression en cours..."
+                                : `Supprimer les ${stats.automatiques} comptes générés`}
+                        </button>
+                    </div>
+                )}
 
                 {/* FILTRES */}
                 <form
@@ -614,7 +613,8 @@ export default function Index() {
                                             </td>
 
                                             <td className="px-5 py-4">
-                                                {parent.genere_automatiquement ? (
+                                                {isSuperAdmin &&
+                                                parent.genere_automatiquement ? (
                                                     <button
                                                         type="button"
                                                         onClick={() =>
@@ -628,7 +628,9 @@ export default function Index() {
                                                     </button>
                                                 ) : (
                                                     <span className="text-xs text-gray-400">
-                                                        Compte manuel
+                                                        {parent.genere_automatiquement
+                                                            ? "Compte automatique"
+                                                            : "Compte manuel"}
                                                     </span>
                                                 )}
                                             </td>

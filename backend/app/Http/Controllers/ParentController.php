@@ -147,7 +147,7 @@ class ParentController extends Controller
 
     public function index(Request $request)
     {
-        $this->autoriserSuperAdmin();
+        $this->autoriser();
 
         $user = Auth::user();
 
