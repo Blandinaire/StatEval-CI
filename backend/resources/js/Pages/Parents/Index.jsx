@@ -180,241 +180,254 @@ export default function Index() {
                     </p>
                 </div>
 
-                {/* GÉNÉRATION AUTOMATIQUE */}
-                <div className="rounded-xl border bg-white p-5 shadow-sm space-y-5">
-                    <div>
-                        <h2 className="text-lg font-bold text-gray-800">
-                            Génération automatique des comptes
-                        </h2>
-                        <p className="mt-1 text-sm text-gray-500">
-                            Sélectionnez les élèves concernés, vérifiez l'aperçu
-                            puis confirmez la création des comptes.
-                        </p>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                        {isSuperAdmin && (
+                {isSuperAdmin && (
+                    <>
+                        {/* GÉNÉRATION AUTOMATIQUE */}
+                        <div className="rounded-xl border bg-white p-5 shadow-sm space-y-5">
                             <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">
-                                    Établissement
-                                </label>
-
-                                <select
-                                    value={etablissementId || ""}
-                                    onChange={(e) => {
-                                        setEtablissementId(e.target.value);
-                                        setApercu(null);
-                                    }}
-                                    className="w-full rounded-lg border-gray-300"
-                                >
-                                    <option value="">
-                                        Sélectionner un établissement
-                                    </option>
-
-                                    {etablissements.map((etablissement) => (
-                                        <option
-                                            key={etablissement.id}
-                                            value={etablissement.id}
-                                        >
-                                            {etablissement.nom}
-                                        </option>
-                                    ))}
-                                </select>
+                                <h2 className="text-lg font-bold text-gray-800">
+                                    Génération automatique des comptes
+                                </h2>
+                                <p className="mt-1 text-sm text-gray-500">
+                                    Sélectionnez les élèves concernés, vérifiez
+                                    l'aperçu puis confirmez la création des
+                                    comptes.
+                                </p>
                             </div>
-                        )}
 
-                        <div>
-                            <label className="mb-1 block text-sm font-medium text-gray-700">
-                                Périmètre de génération
-                            </label>
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                                {isSuperAdmin && (
+                                    <div>
+                                        <label className="mb-1 block text-sm font-medium text-gray-700">
+                                            Établissement
+                                        </label>
 
-                            <select
-                                value={typePerimetre}
-                                onChange={(e) => {
-                                    setTypePerimetre(e.target.value);
-                                    setApercu(null);
-                                }}
-                                className="w-full rounded-lg border-gray-300"
-                            >
-                                <option value="etablissement">
-                                    Tout l'établissement
-                                </option>
-                                <option value="niveau">Un niveau</option>
-                                <option value="classe">Une classe</option>
-                            </select>
-                        </div>
-
-                        {typePerimetre === "niveau" && (
-                            <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">
-                                    Niveau
-                                </label>
-
-                                <select
-                                    value={niveauId}
-                                    onChange={(e) => {
-                                        setNiveauId(e.target.value);
-                                        setApercu(null);
-                                    }}
-                                    className="w-full rounded-lg border-gray-300"
-                                >
-                                    <option value="">
-                                        Sélectionner un niveau
-                                    </option>
-
-                                    {niveaux.map((niveau) => (
-                                        <option
-                                            key={niveau.id}
-                                            value={niveau.id}
+                                        <select
+                                            value={etablissementId || ""}
+                                            onChange={(e) => {
+                                                setEtablissementId(
+                                                    e.target.value,
+                                                );
+                                                setApercu(null);
+                                            }}
+                                            className="w-full rounded-lg border-gray-300"
                                         >
-                                            {niveau.libelle}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
+                                            <option value="">
+                                                Sélectionner un établissement
+                                            </option>
 
-                        {typePerimetre === "classe" && (
-                            <div>
-                                <label className="mb-1 block text-sm font-medium text-gray-700">
-                                    Classe
-                                </label>
-
-                                <select
-                                    value={classeId}
-                                    onChange={(e) => {
-                                        setClasseId(e.target.value);
-                                        setApercu(null);
-                                    }}
-                                    className="w-full rounded-lg border-gray-300"
-                                >
-                                    <option value="">
-                                        Sélectionner une classe
-                                    </option>
-
-                                    {classes.map((classe) => (
-                                        <option
-                                            key={classe.id}
-                                            value={classe.id}
-                                        >
-                                            {classe.libelle}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-                    </div>
-
-                    {erreur && (
-                        <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
-                            {erreur}
-                        </div>
-                    )}
-
-                    <div className="flex flex-wrap gap-3">
-                        <button
-                            type="button"
-                            onClick={afficherApercu}
-                            disabled={chargementApercu || generation}
-                            className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-                        >
-                            {chargementApercu
-                                ? "Calcul de l'aperçu..."
-                                : "Afficher l'aperçu"}
-                        </button>
-
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setApercu(null);
-                                setErreur("");
-                            }}
-                            className="rounded-lg border px-5 py-3 font-medium text-gray-700 hover:bg-gray-50"
-                        >
-                            Réinitialiser l'aperçu
-                        </button>
-                    </div>
-
-                    {/* RÉSULTAT DE L'APERÇU */}
-                    {apercu && (
-                        <div className="border-t pt-5 space-y-4">
-                            <h3 className="font-bold text-gray-800">
-                                Résultat de l'aperçu
-                            </h3>
-
-                            <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-                                {[
-                                    [
-                                        "Élèves concernés",
-                                        apercu.eleves,
-                                        "text-gray-800",
-                                    ],
-                                    [
-                                        "Parents distincts",
-                                        apercu.parents_distincts,
-                                        "text-gray-800",
-                                    ],
-                                    [
-                                        "Comptes existants",
-                                        apercu.comptes_existants,
-                                        "text-blue-700",
-                                    ],
-                                    [
-                                        "Nouveaux comptes",
-                                        apercu.nouveaux_comptes,
-                                        "text-green-700",
-                                    ],
-                                    [
-                                        "Numéros en conflit",
-                                        apercu.conflits_telephone,
-                                        "text-red-700",
-                                    ],
-                                    [
-                                        "Sans téléphone / nom",
-                                        apercu.sans_telephone,
-                                        "text-red-600",
-                                    ],
-                                    [
-                                        "Sans matricule",
-                                        apercu.sans_matricule,
-                                        "text-orange-600",
-                                    ],
-                                ].map(([label, valeur, couleur]) => (
-                                    <div
-                                        key={label}
-                                        className="rounded-lg border bg-gray-50 p-4"
-                                    >
-                                        <p className="text-sm text-gray-500">
-                                            {label}
-                                        </p>
-                                        <p
-                                            className={`mt-1 text-2xl font-bold ${couleur}`}
-                                        >
-                                            {valeur}
-                                        </p>
+                                            {etablissements.map(
+                                                (etablissement) => (
+                                                    <option
+                                                        key={etablissement.id}
+                                                        value={etablissement.id}
+                                                    >
+                                                        {etablissement.nom}
+                                                    </option>
+                                                ),
+                                            )}
+                                        </select>
                                     </div>
-                                ))}
+                                )}
+
+                                <div>
+                                    <label className="mb-1 block text-sm font-medium text-gray-700">
+                                        Périmètre de génération
+                                    </label>
+
+                                    <select
+                                        value={typePerimetre}
+                                        onChange={(e) => {
+                                            setTypePerimetre(e.target.value);
+                                            setApercu(null);
+                                        }}
+                                        className="w-full rounded-lg border-gray-300"
+                                    >
+                                        <option value="etablissement">
+                                            Tout l'établissement
+                                        </option>
+                                        <option value="niveau">
+                                            Un niveau
+                                        </option>
+                                        <option value="classe">
+                                            Une classe
+                                        </option>
+                                    </select>
+                                </div>
+
+                                {typePerimetre === "niveau" && (
+                                    <div>
+                                        <label className="mb-1 block text-sm font-medium text-gray-700">
+                                            Niveau
+                                        </label>
+
+                                        <select
+                                            value={niveauId}
+                                            onChange={(e) => {
+                                                setNiveauId(e.target.value);
+                                                setApercu(null);
+                                            }}
+                                            className="w-full rounded-lg border-gray-300"
+                                        >
+                                            <option value="">
+                                                Sélectionner un niveau
+                                            </option>
+
+                                            {niveaux.map((niveau) => (
+                                                <option
+                                                    key={niveau.id}
+                                                    value={niveau.id}
+                                                >
+                                                    {niveau.libelle}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {typePerimetre === "classe" && (
+                                    <div>
+                                        <label className="mb-1 block text-sm font-medium text-gray-700">
+                                            Classe
+                                        </label>
+
+                                        <select
+                                            value={classeId}
+                                            onChange={(e) => {
+                                                setClasseId(e.target.value);
+                                                setApercu(null);
+                                            }}
+                                            className="w-full rounded-lg border-gray-300"
+                                        >
+                                            <option value="">
+                                                Sélectionner une classe
+                                            </option>
+
+                                            {classes.map((classe) => (
+                                                <option
+                                                    key={classe.id}
+                                                    value={classe.id}
+                                                >
+                                                    {classe.libelle}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
                             </div>
 
-                            <p className="text-sm text-gray-600">
-                                Les comptes existants seront réutilisés. Aucun
-                                compte parent créé manuellement ne sera supprimé
-                                ou remplacé.
-                            </p>
+                            {erreur && (
+                                <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700">
+                                    {erreur}
+                                </div>
+                            )}
 
-                            <button
-                                type="button"
-                                onClick={lancerGeneration}
-                                disabled={generation}
-                                className="rounded-lg bg-green-600 px-5 py-3 font-semibold text-white hover:bg-green-700 disabled:opacity-50"
-                            >
-                                {generation
-                                    ? "Génération en cours..."
-                                    : "Confirmer et générer les comptes"}
-                            </button>
+                            <div className="flex flex-wrap gap-3">
+                                <button
+                                    type="button"
+                                    onClick={afficherApercu}
+                                    disabled={chargementApercu || generation}
+                                    className="rounded-lg bg-blue-600 px-5 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                    {chargementApercu
+                                        ? "Calcul de l'aperçu..."
+                                        : "Afficher l'aperçu"}
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setApercu(null);
+                                        setErreur("");
+                                    }}
+                                    className="rounded-lg border px-5 py-3 font-medium text-gray-700 hover:bg-gray-50"
+                                >
+                                    Réinitialiser l'aperçu
+                                </button>
+                            </div>
+
+                            {/* RÉSULTAT DE L'APERÇU */}
+                            {apercu && (
+                                <div className="border-t pt-5 space-y-4">
+                                    <h3 className="font-bold text-gray-800">
+                                        Résultat de l'aperçu
+                                    </h3>
+
+                                    <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                                        {[
+                                            [
+                                                "Élèves concernés",
+                                                apercu.eleves,
+                                                "text-gray-800",
+                                            ],
+                                            [
+                                                "Parents distincts",
+                                                apercu.parents_distincts,
+                                                "text-gray-800",
+                                            ],
+                                            [
+                                                "Comptes existants",
+                                                apercu.comptes_existants,
+                                                "text-blue-700",
+                                            ],
+                                            [
+                                                "Nouveaux comptes",
+                                                apercu.nouveaux_comptes,
+                                                "text-green-700",
+                                            ],
+                                            [
+                                                "Numéros en conflit",
+                                                apercu.conflits_telephone,
+                                                "text-red-700",
+                                            ],
+                                            [
+                                                "Sans téléphone / nom",
+                                                apercu.sans_telephone,
+                                                "text-red-600",
+                                            ],
+                                            [
+                                                "Sans matricule",
+                                                apercu.sans_matricule,
+                                                "text-orange-600",
+                                            ],
+                                        ].map(([label, valeur, couleur]) => (
+                                            <div
+                                                key={label}
+                                                className="rounded-lg border bg-gray-50 p-4"
+                                            >
+                                                <p className="text-sm text-gray-500">
+                                                    {label}
+                                                </p>
+                                                <p
+                                                    className={`mt-1 text-2xl font-bold ${couleur}`}
+                                                >
+                                                    {valeur}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <p className="text-sm text-gray-600">
+                                        Les comptes existants seront réutilisés.
+                                        Aucun compte parent créé manuellement ne
+                                        sera supprimé ou remplacé.
+                                    </p>
+
+                                    <button
+                                        type="button"
+                                        onClick={lancerGeneration}
+                                        disabled={generation}
+                                        className="rounded-lg bg-green-600 px-5 py-3 font-semibold text-white hover:bg-green-700 disabled:opacity-50"
+                                    >
+                                        {generation
+                                            ? "Génération en cours..."
+                                            : "Confirmer et générer les comptes"}
+                                    </button>
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
+                    </>
+                )}
 
                 {/* STATISTIQUES */}
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">

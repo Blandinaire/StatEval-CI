@@ -26,6 +26,15 @@ class ParentController extends Controller
         );
     }
 
+    private function autoriserSuperAdmin(): void
+    {
+        abort_unless(
+            Auth::user()->hasRole('SuperAdmin'),
+            403,
+            'Seul le SuperAdmin peut générer les comptes parents.'
+        );
+    }
+
     private function etablissementId(Request $request): int
     {
         $user = Auth::user();
@@ -87,16 +96,18 @@ class ParentController extends Controller
     {
         $numero = preg_replace('/\D+/', '', $telephone ?? '');
 
+        // Retirer le préfixe international 00.
         if (str_starts_with($numero, '00')) {
             $numero = substr($numero, 2);
         }
 
-        // Numéro ivoirien au format national à 10 chiffres.
-        if (strlen($numero) === 10 && !str_starts_with($numero, '225')) {
-            $numero = '225' . $numero;
+        // Retirer l'indicatif ivoirien 225 si le numéro comporte 13 chiffres.
+        if (str_starts_with($numero, '225') && strlen($numero) === 13) {
+            $numero = substr($numero, 3);
         }
 
-        return $numero;
+        // Seuls les numéros nationaux à 10 chiffres sont acceptés.
+        return strlen($numero) === 10 ? $numero : '';
     }
 
     /**
@@ -136,7 +147,7 @@ class ParentController extends Controller
 
     public function index(Request $request)
     {
-        $this->autoriser();
+        $this->autoriserSuperAdmin();
 
         $user = Auth::user();
 
@@ -228,7 +239,7 @@ class ParentController extends Controller
 
     public function previsualiser(Request $request)
     {
-        $this->autoriser();
+        $this->autoriserSuperAdmin();
 
         $etablissementId = $this->etablissementId($request);
 
@@ -319,7 +330,7 @@ class ParentController extends Controller
 
     public function generer(Request $request)
     {
-        $this->autoriser();
+        $this->autoriserSuperAdmin();
 
         $etablissementId = $this->etablissementId($request);
 
@@ -422,6 +433,12 @@ class ParentController extends Controller
                     // Ajouter le compte créé à l'index pour éviter
                     // toute nouvelle création pendant cette opération.
                     $comptesIndex[$telephone][] = $parent;
+
+                    // Garantir le stockage du numéro au format national à 10 chiffres.
+                    if ($parent->telephone !== $telephone) {
+                        $parent->telephone = $telephone;
+                        $parent->save();
+                    }
                 }
 
                 foreach ($elevesDuParent as $eleve) {
@@ -454,7 +471,7 @@ class ParentController extends Controller
      */
     public function destroy(User $parent)
     {
-        $this->autoriser();
+        $this->autoriserSuperAdmin();
 
         abort_unless($parent->hasRole('Parent'), 404);
 
@@ -491,7 +508,7 @@ class ParentController extends Controller
      */
     public function supprimerAutomatiques(Request $request)
     {
-        $this->autoriser();
+        $this->autoriserSuperAdmin();
 
         $etablissementId = $this->etablissementId($request);
 

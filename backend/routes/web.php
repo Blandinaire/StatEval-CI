@@ -545,22 +545,22 @@ Route::middleware('auth')->group(function () {
         Route::post('/parents/apercu-generation', [
             ParentController::class,
             'previsualiser',
-        ])->name('parents.previsualiser');
+        ])->middleware('role:SuperAdmin')->name('parents.previsualiser');
 
         Route::post('/parents/generer', [
             ParentController::class,
             'generer',
-        ])->name('parents.generer');
+        ])->middleware('role:SuperAdmin')->name('parents.generer');
 
         Route::delete('/parents/{parent}', [
             ParentController::class,
             'destroy',
-        ])->name('parents.destroy');
+        ])->middleware('role:SuperAdmin')->name('parents.destroy');
 
         Route::delete('/parents/suppression-automatique', [
             ParentController::class,
             'supprimerAutomatiques',
-        ])->name('parents.supprimer-automatiques');
+        ])->middleware('role:SuperAdmin')->name('parents.supprimer-automatiques');
     });
 
     Route::get(
