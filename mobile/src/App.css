@@ -1665,4 +1665,45 @@ button:disabled {
   .notes-table tbody tr:hover {
     background: #eff6ff;
   }
+
+  /* CORRECTION AFFICHAGE DU TABLEAU DES NOTES SUR MOBILE */
+
+  .eleves-resultats {
+    overflow: visible !important;
+    min-width: 0;
+  }
+
+  .notes-table-container {
+    display: block !important;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: scroll !important;
+    overflow-y: visible;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+    scrollbar-width: thin;
+  }
+
+  .notes-table {
+    display: table !important;
+    width: 900px !important;
+    min-width: 900px !important;
+    table-layout: auto;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .notes-table-container::-webkit-scrollbar {
+    height: 7px;
+  }
+
+  .notes-table-container::-webkit-scrollbar-track {
+    background: #e2e8f0;
+    border-radius: 10px;
+  }
+
+  .notes-table-container::-webkit-scrollbar-thumb {
+    background: #64748b;
+    border-radius: 10px;
+  }
 }
