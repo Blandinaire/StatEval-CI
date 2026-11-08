@@ -244,6 +244,17 @@ export default function App() {
   const [matiereEvaluation, setMatiereEvaluation] = useState("");
   const [periodeEvaluation, setPeriodeEvaluation] = useState("");
   const [statutEvaluation, setStatutEvaluation] = useState("");
+  const [evaluationSelectionnee, setEvaluationSelectionnee] = useState(null);
+  const [classesEvaluationDetail, setClassesEvaluationDetail] = useState([]);
+  const [classeNotesSelectionnee, setClasseNotesSelectionnee] = useState("");
+  const [donneesNotesEvaluation, setDonneesNotesEvaluation] = useState(null);
+  const [formNotesEvaluation, setFormNotesEvaluation] = useState([]);
+  const [chargementDetailEvaluation, setChargementDetailEvaluation] =
+    useState(false);
+  const [enregistrementNotesEvaluation, setEnregistrementNotesEvaluation] =
+    useState(false);
+  const [erreurDetailEvaluation, setErreurDetailEvaluation] = useState("");
+  const [messageDetailEvaluation, setMessageDetailEvaluation] = useState("");
   const [classes, setClasses] = useState([]);
   const [classesEmploi, setClassesEmploi] = useState([]);
   const [emploiDuTemps, setEmploiDuTemps] = useState(null);
@@ -285,6 +296,102 @@ export default function App() {
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const userRole = getRole(user);
+
+  async function chargerNotesEvaluation(evaluation, classeId) {
+    if (!evaluation || !classeId) return;
+
+    setChargementDetailEvaluation(true);
+    setErreurDetailEvaluation("");
+    setMessageDetailEvaluation("");
+
+    try {
+      const resultat = await apiRequest(
+        `/mobile/evaluations/${evaluation.id}/notes?classe_id=${classeId}`,
+        { token },
+      );
+
+      setDonneesNotesEvaluation(resultat);
+
+      setFormNotesEvaluation(
+        (resultat.eleves || []).map((eleve) => ({
+          eleve_id: eleve.id,
+          note: eleve.note?.note ?? "",
+          absent: Boolean(eleve.note?.absent),
+          appreciation: eleve.note?.appreciation || "",
+          observation: eleve.note?.observation || "",
+        })),
+      );
+
+      setClasseNotesSelectionnee(String(classeId));
+    } catch (err) {
+      setErreurDetailEvaluation(err.message);
+    } finally {
+      setChargementDetailEvaluation(false);
+    }
+  }
+
+  async function ouvrirEvaluation(evaluation) {
+    const classesDisponibles =
+      evaluation.classes?.length > 0
+        ? evaluation.classes
+        : evaluation.classe_id
+          ? [{ id: evaluation.classe_id, libelle: evaluation.classe }]
+          : [];
+
+    if (classesDisponibles.length === 0) {
+      setErreurDetailEvaluation("Aucune classe associée à cette évaluation.");
+      return;
+    }
+
+    setEvaluationSelectionnee(evaluation);
+    setClassesEvaluationDetail(classesDisponibles);
+
+    await chargerNotesEvaluation(evaluation, classesDisponibles[0].id);
+  }
+
+  async function enregistrerNotesEvaluationMobile() {
+    if (!evaluationSelectionnee || !classeNotesSelectionnee) return;
+
+    setEnregistrementNotesEvaluation(true);
+    setErreurDetailEvaluation("");
+    setMessageDetailEvaluation("");
+
+    try {
+      const notes = formNotesEvaluation.map((ligne) => ({
+        eleve_id: ligne.eleve_id,
+        note:
+          ligne.note === "" || ligne.note === null ? null : Number(ligne.note),
+        absent: ligne.absent,
+        appreciation: ligne.appreciation || null,
+        observation: ligne.observation || null,
+      }));
+
+      const resultat = await apiRequest(
+        `/mobile/evaluations/${evaluationSelectionnee.id}/notes`,
+        {
+          token,
+          method: "PUT",
+          body: JSON.stringify({
+            classe_id: Number(classeNotesSelectionnee),
+            notes,
+          }),
+        },
+      );
+
+      setMessageDetailEvaluation(
+        resultat.message || "Notes enregistrées avec succès.",
+      );
+
+      await chargerNotesEvaluation(
+        evaluationSelectionnee,
+        classeNotesSelectionnee,
+      );
+    } catch (err) {
+      setErreurDetailEvaluation(err.message);
+    } finally {
+      setEnregistrementNotesEvaluation(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -2366,6 +2473,213 @@ export default function App() {
                 </select>
               </div>
 
+              {evaluationSelectionnee && (
+                <div className="eleves-resultats" style={{ marginBottom: 20 }}>
+                  <div className="eleves-resultats-entete">
+                    <strong>
+                      {evaluationSelectionnee.libelle} — Saisie des notes
+                    </strong>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEvaluationSelectionnee(null);
+                        setDonneesNotesEvaluation(null);
+                        setFormNotesEvaluation([]);
+                        setErreurDetailEvaluation("");
+                        setMessageDetailEvaluation("");
+                      }}
+                    >
+                      Fermer
+                    </button>
+                  </div>
+
+                  {classesEvaluationDetail.length > 1 && (
+                    <div className="eleves-filtres">
+                      <label>Classe concernée</label>
+
+                      <select
+                        value={classeNotesSelectionnee}
+                        onChange={(e) =>
+                          chargerNotesEvaluation(
+                            evaluationSelectionnee,
+                            e.target.value,
+                          )
+                        }
+                      >
+                        {classesEvaluationDetail.map((classe) => (
+                          <option key={classe.id} value={classe.id}>
+                            {classe.libelle}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {erreurDetailEvaluation && (
+                    <div className="notice error" role="alert">
+                      {erreurDetailEvaluation}
+                    </div>
+                  )}
+
+                  {messageDetailEvaluation && (
+                    <div className="notice success">
+                      {messageDetailEvaluation}
+                    </div>
+                  )}
+
+                  {chargementDetailEvaluation ? (
+                    <p className="eleves-etat">Chargement des élèves...</p>
+                  ) : donneesNotesEvaluation ? (
+                    <>
+                      <p>
+                        Classe :{" "}
+                        <strong>
+                          {donneesNotesEvaluation.classe?.libelle}
+                        </strong>
+                      </p>
+
+                      <p>
+                        Barème :{" "}
+                        <strong>
+                          {donneesNotesEvaluation.evaluation?.bareme}
+                        </strong>
+                      </p>
+
+                      {donneesNotesEvaluation.eleves.map((eleve, index) => {
+                        const ligne = formNotesEvaluation[index];
+
+                        if (!ligne) return null;
+
+                        return (
+                          <article className="eleve-mobile-card" key={eleve.id}>
+                            <div className="eleve-mobile-infos">
+                              <strong>
+                                {eleve.nom} {eleve.prenoms}
+                              </strong>
+
+                              <span>
+                                Matricule :{" "}
+                                {eleve.matricule ||
+                                  eleve.code_eleve ||
+                                  "Non renseigné"}
+                              </span>
+
+                              <label>
+                                Note /{" "}
+                                {donneesNotesEvaluation.evaluation.bareme}
+                              </label>
+
+                              <input
+                                type="number"
+                                min="0"
+                                max={donneesNotesEvaluation.evaluation.bareme}
+                                step="0.25"
+                                value={ligne.absent ? "" : ligne.note}
+                                disabled={
+                                  ligne.absent || userRole !== "Professeur"
+                                }
+                                placeholder="Saisir la note"
+                                onChange={(e) => {
+                                  setFormNotesEvaluation((anciennes) =>
+                                    anciennes.map((item, i) =>
+                                      i === index
+                                        ? { ...item, note: e.target.value }
+                                        : item,
+                                    ),
+                                  );
+                                }}
+                              />
+
+                              <label>
+                                <input
+                                  type="checkbox"
+                                  checked={ligne.absent}
+                                  disabled={userRole !== "Professeur"}
+                                  onChange={(e) => {
+                                    setFormNotesEvaluation((anciennes) =>
+                                      anciennes.map((item, i) =>
+                                        i === index
+                                          ? {
+                                              ...item,
+                                              absent: e.target.checked,
+                                              note: e.target.checked
+                                                ? ""
+                                                : item.note,
+                                              appreciation: e.target.checked
+                                                ? "Absent"
+                                                : "",
+                                            }
+                                          : item,
+                                      ),
+                                    );
+                                  }}
+                                />
+                                Élève absent
+                              </label>
+
+                              <label>Appréciation</label>
+                              <input
+                                type="text"
+                                value={ligne.appreciation}
+                                disabled={
+                                  ligne.absent || userRole !== "Professeur"
+                                }
+                                placeholder="Appréciation"
+                                onChange={(e) => {
+                                  setFormNotesEvaluation((anciennes) =>
+                                    anciennes.map((item, i) =>
+                                      i === index
+                                        ? {
+                                            ...item,
+                                            appreciation: e.target.value,
+                                          }
+                                        : item,
+                                    ),
+                                  );
+                                }}
+                              />
+
+                              <label>Observation</label>
+                              <textarea
+                                value={ligne.observation}
+                                disabled={userRole !== "Professeur"}
+                                placeholder="Observation éventuelle"
+                                onChange={(e) => {
+                                  setFormNotesEvaluation((anciennes) =>
+                                    anciennes.map((item, i) =>
+                                      i === index
+                                        ? {
+                                            ...item,
+                                            observation: e.target.value,
+                                          }
+                                        : item,
+                                    ),
+                                  );
+                                }}
+                              />
+                            </div>
+                          </article>
+                        );
+                      })}
+
+                      {userRole === "Professeur" && (
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          disabled={enregistrementNotesEvaluation}
+                          onClick={enregistrerNotesEvaluationMobile}
+                        >
+                          {enregistrementNotesEvaluation
+                            ? "Enregistrement..."
+                            : "Enregistrer les notes"}
+                        </button>
+                      )}
+                    </>
+                  ) : null}
+                </div>
+              )}
+
               <div className="eleves-resultats">
                 <div className="eleves-resultats-entete">
                   <strong>Liste des évaluations</strong>
@@ -2421,6 +2735,15 @@ export default function App() {
                           <span>
                             Notes saisies : {evaluation.notes_count ?? 0}
                           </span>
+
+                          <button
+                            type="button"
+                            className="btn-primary"
+                            onClick={() => ouvrirEvaluation(evaluation)}
+                          >
+                            <ClipboardCheck size={16} />
+                            Consulter les élèves et les notes
+                          </button>
                         </div>
                       </article>
                     ))}

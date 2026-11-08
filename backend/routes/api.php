@@ -270,11 +270,4 @@ Route::middleware('auth:sanctum')->group(function () {
         'role:SuperAdmin|Administrateur|Direction|Directeur|Professeur',
     ]);
 
-    Route::put('/mobile/evaluations/{evaluation}/notes', [
-        MobileEvaluationController::class,
-        'storeNotes',
-    ])->middleware([
-        'abilities:*',
-        'role:Professeur',
-    ]);
 });
