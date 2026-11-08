@@ -245,4 +245,36 @@ Route::middleware('auth:sanctum')->group(function () {
         'abilities:*',
         'role:SuperAdmin|Administrateur|Direction|Directeur|Professeur',
     ]);
+
+    Route::get('/mobile/evaluations/{evaluation}/notes', [
+        MobileEvaluationController::class,
+        'notes',
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Directeur|Professeur',
+    ]);
+
+    Route::put('/mobile/evaluations/{evaluation}/notes', [
+        MobileEvaluationController::class,
+        'enregistrerNotes',
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Directeur|Professeur',
+    ]);
+
+    Route::get('/mobile/evaluations/{evaluation}', [
+        MobileEvaluationController::class,
+        'show',
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Directeur|Professeur',
+    ]);
+
+    Route::put('/mobile/evaluations/{evaluation}/notes', [
+        MobileEvaluationController::class,
+        'storeNotes',
+    ])->middleware([
+        'abilities:*',
+        'role:Professeur',
+    ]);
 });
