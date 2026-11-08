@@ -19,6 +19,7 @@ export default function Show({
 
     const [rechercheParent, setRechercheParent] = useState("");
     const [resultatsParents, setResultatsParents] = useState([]);
+    const [rechercheEffectuee, setRechercheEffectuee] = useState(false);
     const [parentSelectionne, setParentSelectionne] = useState(null);
 
     const [lienParent, setLienParent] = useState("Responsable légal");
@@ -39,6 +40,8 @@ export default function Show({
     ];
 
     const rechercherParents = async () => {
+        setRechercheEffectuee(false);
+
         if (rechercheParent.trim().length < 2) {
             setErreurParent(
                 "Saisissez au moins deux caractères pour rechercher.",
@@ -66,6 +69,7 @@ export default function Show({
             setErreurParent("Impossible de rechercher les comptes parents.");
         } finally {
             setRechercheEnCours(false);
+            setRechercheEffectuee(true);
         }
     };
 
@@ -421,12 +425,11 @@ export default function Show({
                                                 </div>
                                             )}
 
-                                            {rechercheParent.trim().length >=
-                                                2 &&
+                                            {rechercheEffectuee &&
                                                 !rechercheEnCours &&
                                                 resultatsParents.length === 0 &&
                                                 !erreurParent && (
-                                                    <p className="mt-3 rounded-lg bg-white p-3 text-sm text-gray-600">
+                                                    <p className="text-sm text-gray-500">
                                                         Aucun compte parent
                                                         trouvé avec ces
                                                         informations.
