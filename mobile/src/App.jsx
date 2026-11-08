@@ -227,6 +227,23 @@ export default function App() {
   const [matiereNotes, setMatiereNotes] = useState("");
   const [chargementNotes, setChargementNotes] = useState(false);
   const [erreurNotes, setErreurNotes] = useState("");
+  const [optionsEvaluations, setOptionsEvaluations] = useState({
+    annee: null,
+    years: [],
+    classes: [],
+    subjects: [],
+    periods: [],
+  });
+
+  const [evaluations, setEvaluations] = useState([]);
+  const [chargementEvaluations, setChargementEvaluations] = useState(false);
+  const [erreurEvaluations, setErreurEvaluations] = useState("");
+
+  const [anneeEvaluation, setAnneeEvaluation] = useState("");
+  const [classeEvaluation, setClasseEvaluation] = useState("");
+  const [matiereEvaluation, setMatiereEvaluation] = useState("");
+  const [periodeEvaluation, setPeriodeEvaluation] = useState("");
+  const [statutEvaluation, setStatutEvaluation] = useState("");
   const [classes, setClasses] = useState([]);
   const [classesEmploi, setClassesEmploi] = useState([]);
   const [emploiDuTemps, setEmploiDuTemps] = useState(null);
@@ -429,6 +446,99 @@ export default function App() {
       annule = true;
     };
   }, [token, userRole, activePage, eleveNotesSelectionne]);
+
+  useEffect(() => {
+    if (!token || activePage !== "notes" || userRole === "Parent") return;
+
+    let annule = false;
+
+    async function chargerOptionsEvaluations() {
+      setChargementEvaluations(true);
+      setErreurEvaluations("");
+
+      try {
+        const params = new URLSearchParams();
+
+        if (isSuperAdmin && user?.etablissement_id) {
+          params.set("etablissement_id", user.etablissement_id);
+        }
+
+        const resultat = await apiRequest(
+          `/mobile/evaluations/options?${params.toString()}`,
+          { token },
+        );
+
+        if (annule) return;
+
+        setOptionsEvaluations(resultat);
+
+        const anneeId = resultat.annee?.id ? String(resultat.annee.id) : "";
+
+        setAnneeEvaluation((actuelle) => actuelle || anneeId);
+      } catch (err) {
+        if (!annule) setErreurEvaluations(err.message);
+      } finally {
+        if (!annule) setChargementEvaluations(false);
+      }
+    }
+
+    chargerOptionsEvaluations();
+
+    return () => {
+      annule = true;
+    };
+  }, [token, activePage, userRole]);
+
+  useEffect(() => {
+    if (!token || activePage !== "notes" || userRole === "Parent") return;
+
+    let annule = false;
+
+    async function chargerEvaluations() {
+      setChargementEvaluations(true);
+      setErreurEvaluations("");
+
+      try {
+        const params = new URLSearchParams();
+
+        if (anneeEvaluation) params.set("annee_scolaire_id", anneeEvaluation);
+        if (classeEvaluation) params.set("classe_id", classeEvaluation);
+        if (matiereEvaluation) params.set("matiere_id", matiereEvaluation);
+        if (periodeEvaluation)
+          params.set("periode_scolaire_id", periodeEvaluation);
+        if (statutEvaluation) params.set("statut", statutEvaluation);
+
+        const resultat = await apiRequest(
+          `/mobile/evaluations?${params.toString()}`,
+          { token },
+        );
+
+        if (!annule) setEvaluations(resultat.data || []);
+      } catch (err) {
+        if (!annule) {
+          setErreurEvaluations(err.message);
+          setEvaluations([]);
+        }
+      } finally {
+        if (!annule) setChargementEvaluations(false);
+      }
+    }
+
+    chargerEvaluations();
+
+    return () => {
+      annule = true;
+    };
+  }, [
+    token,
+    activePage,
+    userRole,
+    anneeEvaluation,
+    classeEvaluation,
+    matiereEvaluation,
+    periodeEvaluation,
+    statutEvaluation,
+  ]);
 
   useEffect(() => {
     if (!token || activePage !== "emploi") return;
@@ -2161,11 +2271,170 @@ export default function App() {
             </section>
           )}
 
+          {activePage === "notes" && userRole !== "Parent" && (
+            <section className="eleves-mobile">
+              <button
+                type="button"
+                className="back-link"
+                onClick={() => openPage("dashboard")}
+              >
+                <ArrowLeft size={17} />
+                Retour au tableau de bord
+              </button>
+
+              <div className="page-intro">
+                <div className="page-icon">
+                  <ClipboardCheck size={25} />
+                </div>
+                <div>
+                  <h1>Notes et évaluations</h1>
+                  <p>
+                    {userRole === "Professeur"
+                      ? "Gérez vos évaluations et les résultats de vos élèves."
+                      : "Suivez et contrôlez les évaluations de l'établissement."}
+                  </p>
+                </div>
+              </div>
+
+              {erreurEvaluations && (
+                <div className="notice error" role="alert">
+                  {erreurEvaluations}
+                </div>
+              )}
+
+              <div className="eleves-filtres">
+                <label>Année scolaire</label>
+                <select
+                  value={anneeEvaluation}
+                  onChange={(e) => setAnneeEvaluation(e.target.value)}
+                >
+                  <option value="">Toutes les années</option>
+                  {(optionsEvaluations?.years || []).map((annee) => (
+                    <option key={annee.id} value={annee.id}>
+                      {annee.libelle}
+                    </option>
+                  ))}
+                </select>
+
+                <label>Classe</label>
+                <select
+                  value={classeEvaluation}
+                  onChange={(e) => setClasseEvaluation(e.target.value)}
+                >
+                  <option value="">Toutes les classes</option>
+                  {(optionsEvaluations?.classes || []).map((classe) => (
+                    <option key={classe.id} value={classe.id}>
+                      {classe.libelle}
+                    </option>
+                  ))}
+                </select>
+
+                <label>Matière</label>
+                <select
+                  value={matiereEvaluation}
+                  onChange={(e) => setMatiereEvaluation(e.target.value)}
+                >
+                  <option value="">Toutes les matières</option>
+                  {(optionsEvaluations?.subjects || []).map((matiere) => (
+                    <option key={matiere.id} value={matiere.id}>
+                      {matiere.libelle}
+                    </option>
+                  ))}
+                </select>
+
+                <label>Période scolaire</label>
+                <select
+                  value={periodeEvaluation}
+                  onChange={(e) => setPeriodeEvaluation(e.target.value)}
+                >
+                  <option value="">Toutes les périodes</option>
+                  {(optionsEvaluations?.periods || []).map((periode) => (
+                    <option key={periode.id} value={periode.id}>
+                      {periode.libelle}
+                    </option>
+                  ))}
+                </select>
+
+                <label>Statut</label>
+                <select
+                  value={statutEvaluation}
+                  onChange={(e) => setStatutEvaluation(e.target.value)}
+                >
+                  <option value="">Tous les statuts</option>
+                  <option value="programmee">Programmée</option>
+                  <option value="active">Active</option>
+                </select>
+              </div>
+
+              <div className="eleves-resultats">
+                <div className="eleves-resultats-entete">
+                  <strong>Liste des évaluations</strong>
+                  <span>{evaluations.length} évaluation(s)</span>
+                </div>
+
+                {chargementEvaluations ? (
+                  <p className="eleves-etat">Chargement des évaluations...</p>
+                ) : evaluations.length === 0 ? (
+                  <p className="eleves-etat">
+                    Aucune évaluation disponible pour ces critères.
+                  </p>
+                ) : (
+                  <div className="eleves-liste">
+                    {evaluations.map((evaluation) => (
+                      <article
+                        className="eleve-mobile-card"
+                        key={evaluation.id}
+                      >
+                        <div className="eleve-mobile-infos">
+                          <strong>{evaluation.libelle}</strong>
+                          <span>
+                            Classe :{" "}
+                            {evaluation.classes
+                              ?.map((c) => c.libelle)
+                              .join(", ") ||
+                              evaluation.classe?.libelle ||
+                              "Non renseignée"}
+                          </span>
+                          <span>
+                            Matière :{" "}
+                            {evaluation.matiere?.libelle ||
+                              evaluation.matiere?.nom ||
+                              "Non renseignée"}
+                          </span>
+                          <span>
+                            Date :{" "}
+                            {evaluation.date_evaluation || "Non renseignée"}
+                          </span>
+                          <span>
+                            Période :{" "}
+                            {evaluation.periode_scolaire?.libelle ||
+                              evaluation.periode?.libelle ||
+                              "Non renseignée"}
+                          </span>
+                          <span>
+                            Barème : {evaluation.bareme ?? 20} | Coefficient :{" "}
+                            {evaluation.coefficient ?? 1}
+                          </span>
+                          <span>
+                            Statut : {evaluation.statut || "Non renseigné"}
+                          </span>
+                          <span>
+                            Notes saisies : {evaluation.notes_count ?? 0}
+                          </span>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
+
           {activePage !== "dashboard" &&
             activePage !== "profil" &&
             activePage !== "eleves" &&
             activePage !== "emploi" &&
-            !(activePage === "notes" && userRole === "Parent") && (
+            activePage !== "notes" && (
               <div className="module-placeholder">
                 <button
                   type="button"

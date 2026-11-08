@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Http\Controllers\Api\MobileDataController;
 use App\Http\Controllers\Api\ParentAccountController;
 use App\Http\Controllers\Api\MobileAbsenceRetardController;
+use App\Http\Controllers\Api\MobileEvaluationController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -221,5 +222,27 @@ Route::middleware('auth:sanctum')->group(function () {
     ])->middleware([
         'abilities:*',
         'role:SuperAdmin|Administrateur|Direction|Educateur',
+    ]);
+
+    /*
+|--------------------------------------------------------------------------
+| Notes et évaluations - Application mobile
+|--------------------------------------------------------------------------
+*/
+
+    Route::get('/mobile/evaluations', [
+        MobileEvaluationController::class,
+        'index',
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Directeur|Professeur',
+    ]);
+
+    Route::get('/mobile/evaluations/options', [
+        MobileEvaluationController::class,
+        'options',
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Directeur|Professeur',
     ]);
 });

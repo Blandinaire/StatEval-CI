@@ -106,6 +106,7 @@ php artisan serve
 ```bash
 cd backend
 php artisan serve
+php artisan serve --host=0.0.0.0 --port=8000
 ```
 
 ---
@@ -115,7 +116,14 @@ php artisan serve
 ```bash
 cd backend
 npm run dev
+npm run dev -- --host 0.0.0.0
 ```
+
+## Terminal 3
+
+```bash
+cd mobile
+npm run dev -- --host 0.0.0.0
 
 ---
 
@@ -124,13 +132,17 @@ npm run dev
 Backend Laravel
 
 ```
+
 http://127.0.0.1:8000
+
 ```
 
 Frontend Vite
 
 ```
+
 http://localhost:5173
+
 ```
 
 ---
@@ -140,13 +152,17 @@ http://localhost:5173
 Nom :
 
 ```
+
 stateval_ci
+
 ```
 
 Gestion :
 
 ```
+
 phpMyAdmin (Laragon)
+
 ```
 
 ---
@@ -167,3 +183,4 @@ phpMyAdmin (Laragon)
 Version du projet
 
 StatEval-CI v0.2
+```
