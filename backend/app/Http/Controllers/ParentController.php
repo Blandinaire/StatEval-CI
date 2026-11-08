@@ -834,8 +834,10 @@ class ParentController extends Controller
         );
     }
 
+
     /**
-     * Supprimer un compte parent généré automatiquement.
+     * Supprimer un compte parent, qu'il soit créé manuellement
+     * ou généré automatiquement.
      */
     public function destroy(User $parent)
     {
@@ -843,24 +845,12 @@ class ParentController extends Controller
 
         abort_unless($parent->hasRole('Parent'), 404);
 
-        abort_unless(
-            $parent->genere_automatiquement === true,
-            403,
-            'Seuls les comptes générés automatiquement peuvent être supprimés ici.'
-        );
-
-        $user = Auth::user();
-
-        // Un utilisateur non SuperAdmin ne peut supprimer
-        // que les comptes de son propre établissement.
-        abort_unless(
-            $user->hasRole('SuperAdmin') ||
-                (int) $parent->etablissement_id === (int) $user->etablissement_id,
-            403
-        );
-
         DB::transaction(function () use ($parent) {
+            // Supprimer uniquement les associations avec les élèves.
+            // Les fiches des élèves et leurs autres parents sont conservés.
             $parent->eleves()->detach();
+
+            // Supprimer le compte parent.
             $parent->delete();
         });
 
@@ -869,6 +859,7 @@ class ParentController extends Controller
             'Le compte parent a été supprimé avec succès.'
         );
     }
+
 
     /**
      * Supprimer tous les comptes parents générés automatiquement

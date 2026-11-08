@@ -903,8 +903,7 @@ export default function Index() {
                                                             : "Activer"}
                                                     </button>
 
-                                                    {isSuperAdmin &&
-                                                        parent.genere_automatiquement && (
+                                                    {isSuperAdmin && (
                                                             <button
                                                                 type="button"
                                                                 onClick={() =>
