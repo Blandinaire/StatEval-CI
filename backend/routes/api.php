@@ -224,6 +224,14 @@ Route::middleware('auth:sanctum')->group(function () {
         'role:SuperAdmin|Administrateur|Direction|Educateur',
     ]);
 
+    Route::post('/mobile/evaluations/programmer', [
+        MobileEvaluationController::class,
+        'programmer',
+    ])->middleware([
+        'abilities:*',
+        'role:SuperAdmin|Administrateur|Direction|Directeur',
+    ]);
+
     /*
 |--------------------------------------------------------------------------
 | Notes et évaluations - Application mobile
@@ -269,5 +277,4 @@ Route::middleware('auth:sanctum')->group(function () {
         'abilities:*',
         'role:SuperAdmin|Administrateur|Direction|Directeur|Professeur',
     ]);
-
 });

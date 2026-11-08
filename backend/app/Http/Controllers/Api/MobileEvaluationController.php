@@ -11,6 +11,9 @@ use App\Models\Matiere;
 use App\Models\PeriodeScolaire;
 use App\Models\Eleve;
 use App\Models\Note;
+use App\Models\Enseignant;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -496,6 +499,232 @@ class MobileEvaluationController extends Controller
         return response()->json([
             'message' => 'Les notes ont été enregistrées avec succès.',
         ]);
+    }
+
+
+    /**
+     * Programmer une évaluation depuis l'application mobile.
+     * Réservé à l'administration, à la direction et au SuperAdmin.
+     */
+    public function programmer(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user->hasRole([
+                'SuperAdmin',
+                'Administrateur',
+                'Direction',
+                'Directeur',
+            ]),
+            403,
+            'Vous n’êtes pas autorisé à programmer une évaluation.'
+        );
+
+        $validated = $request->validate([
+            'etablissement_id' => ['required', 'integer', 'exists:etablissements,id'],
+            'annee_scolaire_id' => ['required', 'integer', 'exists:annee_scolaires,id'],
+            'niveau_id' => ['required', 'integer', 'exists:niveaux,id'],
+            'classe_ids' => ['required', 'array', 'min:1'],
+            'classe_ids.*' => ['required', 'integer', 'distinct', 'exists:classes,id'],
+            'matiere_id' => ['required', 'integer', 'exists:matieres,id'],
+            'libelle' => ['required', 'string', 'max:255'],
+            'type' => [
+                'required',
+                'in:Devoir de niveau,Composition trimestrielle,Examen blanc,Devoir commun,Évaluation commune,Test diagnostique,Examen,Autre',
+            ],
+            'numero' => ['nullable', 'integer', 'min:1'],
+            'date_evaluation' => ['required', 'date'],
+            'heure_debut' => ['nullable', 'date_format:H:i'],
+            'heure_fin' => ['nullable', 'date_format:H:i', 'after:heure_debut'],
+            'bareme' => ['required', 'numeric', 'min:1'],
+            'coefficient' => ['required', 'numeric', 'min:0.1'],
+            'periode_scolaire_id' => [
+                'required',
+                'integer',
+                'exists:periodes_scolaires,id',
+            ],
+            'prise_en_compte_moyenne' => ['sometimes', 'boolean'],
+            'notifier_professeurs' => ['sometimes', 'boolean'],
+            'publier_eleves' => ['sometimes', 'boolean'],
+            'publier_parents' => ['sometimes', 'boolean'],
+        ]);
+
+        // Vérifier l'établissement autorisé.
+        abort_unless(
+            $user->hasRole('SuperAdmin') ||
+                (int) $validated['etablissement_id'] === (int) $user->etablissement_id,
+            403,
+            'Vous ne pouvez pas programmer une évaluation dans cet établissement.'
+        );
+
+        // Vérifier la période scolaire.
+        $periodeScolaire = PeriodeScolaire::query()
+            ->whereKey($validated['periode_scolaire_id'])
+            ->where('annee_scolaire_id', $validated['annee_scolaire_id'])
+            ->where('actif', true)
+            ->first();
+
+        abort_unless(
+            $periodeScolaire,
+            422,
+            'La période sélectionnée ne correspond pas à l’année scolaire ou est inactive.'
+        );
+
+        if (
+            $validated['date_evaluation'] < $periodeScolaire->date_debut->format('Y-m-d') ||
+            $validated['date_evaluation'] > $periodeScolaire->date_fin->format('Y-m-d')
+        ) {
+            throw ValidationException::withMessages([
+                'date_evaluation' => 'La date doit être comprise dans la période scolaire sélectionnée.',
+            ]);
+        }
+
+        // Vérifier les classes sélectionnées.
+        $classeIds = array_map('intval', $validated['classe_ids']);
+
+        $classes = Classe::query()
+            ->whereIn('id', $classeIds)
+            ->where('etablissement_id', $validated['etablissement_id'])
+            ->where('annee_scolaire_id', $validated['annee_scolaire_id'])
+            ->get();
+
+        abort_unless(
+            $classes->count() === count($classeIds),
+            422,
+            'Une ou plusieurs classes ne correspondent pas à cet établissement ou à cette année scolaire.'
+        );
+
+        abort_unless(
+            $classes->every(
+                fn($classe) =>
+                (int) $classe->niveau_id === (int) $validated['niveau_id']
+            ),
+            422,
+            'Toutes les classes doivent appartenir au niveau sélectionné.'
+        );
+
+        // Vérifier que la matière figure dans la maquette de chaque classe.
+        $classes->load('maquette.matieres');
+
+        $matiereValide = $classes->every(
+            fn($classe) =>
+            $classe->maquette?->matieres->contains(
+                'id',
+                $validated['matiere_id']
+            )
+        );
+
+        abort_unless(
+            $matiereValide,
+            422,
+            'La matière sélectionnée ne figure pas dans la maquette de chaque classe.'
+        );
+
+        // Récupérer les enseignants affectés à chaque classe.
+        $affectations = Affectation::query()
+            ->where('etablissement_id', $validated['etablissement_id'])
+            ->where('annee_scolaire_id', $validated['annee_scolaire_id'])
+            ->whereIn('classe_id', $classes->pluck('id'))
+            ->where('matiere_id', $validated['matiere_id'])
+            ->where('actif', true)
+            ->get()
+            ->groupBy('classe_id');
+
+        $classesSansProfesseur = $classes->filter(
+            fn($classe) => !$affectations->has($classe->id)
+        );
+
+        // Vérifier les conflits de programmation sur les classes.
+        $conflitQuery = Evaluation::query()
+            ->where('etablissement_id', $validated['etablissement_id'])
+            ->whereDate('date_evaluation', $validated['date_evaluation'])
+            ->whereIn('statut', ['programmee', 'active'])
+            ->whereHas('classes', function ($query) use ($classes) {
+                $query->whereIn('classes.id', $classes->pluck('id'));
+            });
+
+        if (!empty($validated['heure_debut']) && !empty($validated['heure_fin'])) {
+            $conflitQuery->whereNotNull('heure_debut')
+                ->whereNotNull('heure_fin')
+                ->where('heure_debut', '<', $validated['heure_fin'])
+                ->where('heure_fin', '>', $validated['heure_debut']);
+        }
+
+        abort_if(
+            $conflitQuery->exists(),
+            422,
+            'Une évaluation est déjà programmée sur une classe sélectionnée à ce moment.'
+        );
+
+        $premiereAffectation = $affectations->flatten()->first();
+
+        $donneesEvaluation = [
+            'etablissement_id' => $validated['etablissement_id'],
+            'annee_scolaire_id' => $validated['annee_scolaire_id'],
+            'niveau_id' => $validated['niveau_id'],
+            'classe_id' => $classes->first()->id,
+            'matiere_id' => $validated['matiere_id'],
+            'enseignant_id' => $premiereAffectation?->enseignant_id,
+            'origine' => 'administration',
+            'statut' => 'programmee',
+            'cree_par' => $user->id,
+            'active' => false,
+            'libelle' => $validated['libelle'],
+            'type' => $validated['type'],
+            'numero' => $validated['numero'] ?? null,
+            'date_evaluation' => $validated['date_evaluation'],
+            'heure_debut' => $validated['heure_debut'] ?? null,
+            'heure_fin' => $validated['heure_fin'] ?? null,
+            'bareme' => $validated['bareme'],
+            'coefficient' => $validated['coefficient'],
+            'prise_en_compte_moyenne' => $validated['prise_en_compte_moyenne'] ?? true,
+            'notifier_professeurs' => $validated['notifier_professeurs'] ?? false,
+            'publier_eleves' => $validated['publier_eleves'] ?? false,
+            'publier_parents' => $validated['publier_parents'] ?? false,
+            'periode_scolaire_id' => $periodeScolaire->id,
+            'periode' => $periodeScolaire->libelle,
+        ];
+
+        // Enregistrer l'évaluation et ses classes dans une transaction.
+        $evaluation = DB::transaction(function () use (
+            $donneesEvaluation,
+            $classes,
+            $affectations
+        ) {
+            $evaluation = Evaluation::create($donneesEvaluation);
+
+            $evaluation->classes()->sync(
+                $classes->mapWithKeys(fn($classe) => [
+                    $classe->id => [
+                        'enseignant_id' => $affectations
+                            ->get($classe->id)
+                            ?->first()
+                            ?->enseignant_id,
+                    ],
+                ])->all()
+            );
+
+            return $evaluation;
+        });
+
+        return response()->json([
+            'message' => 'Évaluation programmée avec succès.',
+            'data' => [
+                'id' => $evaluation->id,
+                'libelle' => $evaluation->libelle,
+                'statut' => $evaluation->statut,
+                'date_evaluation' => $evaluation->date_evaluation?->format('Y-m-d'),
+                'classes' => $classes->map(fn($classe) => [
+                    'id' => $classe->id,
+                    'libelle' => $classe->libelle,
+                    'enseignant_attribue' => $affectations->has($classe->id),
+                ])->values(),
+                'classes_sans_professeur' => $classesSansProfesseur
+                    ->pluck('libelle')
+                    ->values(),
+            ],
+        ], 201);
     }
 
 
