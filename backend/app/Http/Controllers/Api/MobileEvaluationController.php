@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Affectation;
 use App\Models\AnneeScolaire;
+use App\Models\Niveau;
 use App\Models\Classe;
 use App\Models\Evaluation;
 use App\Models\Matiere;
@@ -817,6 +818,18 @@ class MobileEvaluationController extends Controller
             ])
             : collect();
 
+        $niveaux = \App\Models\Niveau::query()
+            ->orderBy('ordre')
+            ->orderBy('libelle')
+            ->get(['id', 'libelle', 'ordre']);
+
+        $etablissements = $user->hasRole('SuperAdmin')
+            ? \App\Models\Etablissement::query()
+            ->where('actif', true)
+            ->orderBy('nom')
+            ->get(['id', 'nom'])
+            : collect();
+
         return response()->json([
             'data' => [
                 'annee_scolaire' => $annee ? [
@@ -828,6 +841,8 @@ class MobileEvaluationController extends Controller
                 'classes' => $classes,
                 'matieres' => $matieres,
                 'periodes' => $periodes,
+                'niveaux' => $niveaux,
+                'etablissements' => $etablissements
             ],
         ]);
     }
