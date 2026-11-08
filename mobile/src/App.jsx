@@ -3546,17 +3546,22 @@ export default function App() {
                           <strong>{evaluation.libelle}</strong>
                           <span>
                             Classe :{" "}
-                            {evaluation.classes
-                              ?.map((c) => c.libelle)
-                              .join(", ") ||
-                              evaluation.classe?.libelle ||
-                              "Non renseignée"}
+                            {evaluation.classes?.length > 0
+                              ? evaluation.classes
+                                  .map((c) => c.libelle)
+                                  .join(", ")
+                              : typeof evaluation.classe === "string"
+                                ? evaluation.classe
+                                : evaluation.classe?.libelle ||
+                                  "Non renseignée"}
                           </span>
                           <span>
                             Matière :{" "}
-                            {evaluation.matiere?.libelle ||
-                              evaluation.matiere?.nom ||
-                              "Non renseignée"}
+                            {typeof evaluation.matiere === "string"
+                              ? evaluation.matiere
+                              : evaluation.matiere?.libelle ||
+                                evaluation.matiere?.nom ||
+                                "Non renseignée"}
                           </span>
                           <span>
                             Date :{" "}
@@ -3564,9 +3569,11 @@ export default function App() {
                           </span>
                           <span>
                             Période :{" "}
-                            {evaluation.periode_scolaire?.libelle ||
-                              evaluation.periode?.libelle ||
-                              "Non renseignée"}
+                            {typeof evaluation.periode === "string"
+                              ? evaluation.periode
+                              : evaluation.periode?.libelle ||
+                                evaluation.periode_scolaire?.libelle ||
+                                "Non renseignée"}
                           </span>
                           <span>
                             Barème : {evaluation.bareme ?? 20} | Coefficient :{" "}
