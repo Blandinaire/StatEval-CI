@@ -230,6 +230,8 @@ export default function App() {
   const [optionsEvaluations, setOptionsEvaluations] = useState({
     annee: null,
     years: [],
+    etablissements: [],
+    niveaux: [],
     classes: [],
     subjects: [],
     periods: [],
@@ -586,6 +588,8 @@ export default function App() {
         setOptionsEvaluations({
           annee: donnees.annee_scolaire || null,
           years: donnees.annees || [],
+          etablissements: donnees.etablissements || [],
+          niveaux: donnees.niveaux || [],
           classes: donnees.classes || [],
           subjects: donnees.matieres || [],
           periods: donnees.periodes || [],
