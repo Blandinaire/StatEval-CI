@@ -13,7 +13,7 @@ use App\Models\PeriodeScolaire;
 use App\Models\Eleve;
 use App\Models\Note;
 use App\Models\Enseignant;
-use App\Sevices\App\Services\CalculMoyennesService;
+use App\Sevices\CalculMoyennesService;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;

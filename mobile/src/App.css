@@ -1707,3 +1707,60 @@ button:disabled {
   background: #64748b;
   border-radius: 10px;
 }
+
+/* Résultats synthétiques du professeur */
+
+.resultats-prof-section {
+  margin-bottom: 22px;
+  min-width: 0;
+}
+
+.resultats-prof-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin: 12px 0;
+}
+
+.resultats-prof-info {
+  margin: 10px 0;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.resultats-prof-table-container {
+  width: 100%;
+  overflow-x: auto !important;
+}
+
+.resultats-prof-table {
+  width: max-content !important;
+  min-width: 100% !important;
+}
+
+.resultats-prof-table th,
+.resultats-prof-table td {
+  min-width: 90px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.resultats-prof-table th:nth-child(2),
+.resultats-prof-table td:nth-child(2) {
+  min-width: 190px;
+  text-align: left;
+}
+
+.resultats-prof-table th small {
+  display: block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 400;
+  color: #64748b;
+  white-space: normal;
+}
+
+.resultats-prof-moyenne {
+  font-weight: 800;
+  color: #173e75;
+}
