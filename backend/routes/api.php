@@ -264,6 +264,14 @@ Route::middleware('auth:sanctum')->group(function () {
         'role:SuperAdmin|Administrateur|Direction|Directeur|Professeur',
     ]);
 
+    Route::get('/mobile/classes/{classe}/resultats', [
+        MobileEvaluationController::class,
+        'resultatsClasse',
+    ])->middleware([
+        'abilities:*',
+        'role:Professeur',
+    ]);
+
     Route::get('/mobile/evaluations/{evaluation}/notes', [
         MobileEvaluationController::class,
         'notes',

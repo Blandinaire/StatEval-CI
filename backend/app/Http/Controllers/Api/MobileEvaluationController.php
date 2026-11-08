@@ -13,6 +13,7 @@ use App\Models\PeriodeScolaire;
 use App\Models\Eleve;
 use App\Models\Note;
 use App\Models\Enseignant;
+use App\Sevices\App\Services\CalculMoyennesService;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\DB;
@@ -1317,6 +1318,347 @@ class MobileEvaluationController extends Controller
 
         return response()->json([
             'message' => 'Les notes ont été enregistrées avec succès.',
+        ]);
+    }
+
+
+    /**
+     * Résultats scolaires d'une classe pour un professeur.
+     *
+     * Les résultats globaux sont calculés avec toutes les matières
+     * de la maquette, tandis que les notes détaillées sont limitées
+     * aux évaluations attribuées au professeur connecté.
+     */
+    public function resultatsClasse(
+        Request $request,
+        Classe $classe,
+        CalculMoyennesService $calcul
+    ): JsonResponse {
+        $user = $request->user();
+
+        abort_unless(
+            $user->hasRole('Professeur') && !empty($user->enseignant_id),
+            403,
+            'Cette fonctionnalité est réservée aux professeurs.'
+        );
+
+        $validated = $request->validate([
+            'periode_scolaire_id' => [
+                'nullable',
+                'integer',
+                'exists:periodes_scolaires,id',
+            ],
+        ]);
+
+        // Vérifier l'établissement et l'activité de la classe.
+        $classe = Classe::query()
+            ->whereKey($classe->id)
+            ->where('etablissement_id', $user->etablissement_id)
+            ->where('active', true)
+            ->with(['maquette.lignes.matiere'])
+            ->firstOrFail();
+
+        // Vérifier que le professeur est effectivement affecté à cette classe.
+        $affectations = Affectation::query()
+            ->where('etablissement_id', $classe->etablissement_id)
+            ->where('annee_scolaire_id', $classe->annee_scolaire_id)
+            ->where('classe_id', $classe->id)
+            ->where('enseignant_id', $user->enseignant_id)
+            ->where('actif', true)
+            ->get();
+
+        abort_if(
+            $affectations->isEmpty(),
+            403,
+            'Vous n’êtes pas affecté à cette classe.'
+        );
+
+        abort_unless(
+            $classe->maquette,
+            422,
+            'Aucune maquette pédagogique n’est associée à cette classe.'
+        );
+
+        // Récupérer les périodes actives de l'année scolaire de la classe.
+        $periodes = PeriodeScolaire::query()
+            ->where('annee_scolaire_id', $classe->annee_scolaire_id)
+            ->where('actif', true)
+            ->orderBy('ordre')
+            ->get(['id', 'libelle', 'date_debut', 'date_fin']);
+
+        abort_if(
+            $periodes->isEmpty(),
+            422,
+            'Aucune période scolaire active n’est définie pour cette année.'
+        );
+
+        // Par défaut : période dont les dates couvrent aujourd'hui.
+        // Si aucune ne correspond, sélectionner la première période active.
+        $periodeDefaut = $periodes->first(function ($periode) {
+            return $periode->date_debut
+                && $periode->date_fin
+                && now()->toDateString() >= $periode->date_debut->format('Y-m-d')
+                && now()->toDateString() <= $periode->date_fin->format('Y-m-d');
+        }) ?? $periodes->first();
+
+        $periode = !empty($validated['periode_scolaire_id'])
+            ? $periodes->firstWhere(
+                'id',
+                (int) $validated['periode_scolaire_id']
+            )
+            : $periodeDefaut;
+
+        abort_unless(
+            $periode,
+            422,
+            'La période sélectionnée ne correspond pas à cette année scolaire.'
+        );
+
+        $lignesMaquette = $classe->maquette->lignes()
+            ->with('matiere')
+            ->get();
+
+        // Matières effectivement enseignées par ce professeur dans cette classe.
+        $matieresProfesseur = $affectations
+            ->pluck('matiere_id')
+            ->unique()
+            ->values();
+
+        // Élèves actifs de la classe.
+        $eleves = Eleve::query()
+            ->where('etablissement_id', $classe->etablissement_id)
+            ->where('annee_scolaire_id', $classe->annee_scolaire_id)
+            ->where('classe_id', $classe->id)
+            ->where('actif', true)
+            ->orderBy('nom')
+            ->orderBy('prenoms')
+            ->get([
+                'id',
+                'matricule',
+                'code_eleve',
+                'nom',
+                'prenoms',
+                'sexe',
+            ]);
+
+        // Toutes les évaluations de la classe et de la période :
+        // elles sont nécessaires au calcul du bulletin global.
+        $evaluationsToutes = Evaluation::query()
+            ->where('etablissement_id', $classe->etablissement_id)
+            ->where('annee_scolaire_id', $classe->annee_scolaire_id)
+            ->where('periode_scolaire_id', $periode->id)
+            ->where(function ($query) use ($classe) {
+                $query->where('classe_id', $classe->id)
+                    ->orWhereHas('classes', function ($q) use ($classe) {
+                        $q->where('classes.id', $classe->id);
+                    });
+            })
+            ->with('notes')
+            ->get();
+
+        // Associer chaque note à son évaluation pour le service de calcul.
+        $notesParEleve = $evaluationsToutes
+            ->flatMap(function ($evaluation) {
+                return $evaluation->notes->map(function ($note) use ($evaluation) {
+                    $note->setRelation('evaluation', $evaluation);
+                    return $note;
+                });
+            })
+            ->groupBy('eleve_id');
+
+        // Calculer les moyennes de toutes les matières pour chaque élève.
+        $moyennesParEleve = [];
+        $classements = [];
+
+        foreach ($eleves as $eleve) {
+            $notesEleve = $notesParEleve->get($eleve->id, collect());
+
+            $resultat = $calcul->calculerMoyennesEleve(
+                $notesEleve,
+                $lignesMaquette
+            );
+
+            $moyennesParEleve[(int) $eleve->id] =
+                $resultat['moyennes_matieres'];
+
+            $classements[] = [
+                'eleve_id' => (int) $eleve->id,
+                'moyenne' => $resultat['moyenne_generale'],
+            ];
+        }
+
+        // Classement général identique à celui du bulletin web.
+        usort($classements, function ($a, $b) {
+            return ($b['moyenne'] ?? -1) <=> ($a['moyenne'] ?? -1);
+        });
+
+        $rangsGeneraux = [];
+        $position = 0;
+        $rangPrecedent = null;
+
+        foreach ($classements as $index => $resultat) {
+            if ($resultat['moyenne'] === null) {
+                continue;
+            }
+
+            if (
+                $rangPrecedent === null
+                || (float) $resultat['moyenne'] !== (float) $rangPrecedent
+            ) {
+                $position = $index + 1;
+                $rangPrecedent = $resultat['moyenne'];
+            }
+
+            $rangsGeneraux[$resultat['eleve_id']] = $position;
+        }
+
+        // Total des points selon la formule du bulletin web.
+        $resultatsEleves = [];
+
+        foreach ($eleves as $eleve) {
+            $moyennes = $moyennesParEleve[(int) $eleve->id] ?? [];
+            $totalPoints = 0.0;
+            $totalCoefficients = 0.0;
+
+            foreach ($lignesMaquette as $ligne) {
+                $matiereId = (int) $ligne->matiere_id;
+                $moyenne = $moyennes[$matiereId] ?? null;
+
+                if (
+                    !(bool) $ligne->active
+                    || !(bool) $ligne->prise_en_compte_moyenne
+                    || $moyenne === null
+                ) {
+                    continue;
+                }
+
+                $coefficient = (float) $ligne->coefficient;
+
+                if ($coefficient <= 0) {
+                    continue;
+                }
+
+                $totalPoints += round(
+                    (float) $moyenne * $coefficient,
+                    2
+                );
+
+                $totalCoefficients += $coefficient;
+            }
+
+            $resultat = $calcul->calculerMoyennesEleve(
+                $notesParEleve->get($eleve->id, collect()),
+                $lignesMaquette
+            );
+
+            $moyennesProfesseur = [];
+
+            foreach ($matieresProfesseur as $matiereId) {
+                $ligne = $lignesMaquette->firstWhere(
+                    'matiere_id',
+                    (int) $matiereId
+                );
+
+                if (!$ligne) {
+                    continue;
+                }
+
+                $moyennesProfesseur[] = [
+                    'matiere_id' => (int) $matiereId,
+                    'libelle' => $ligne->matiere?->libelle ?? 'Matière',
+                    'coefficient' => (float) $ligne->coefficient,
+                    'moyenne' => $moyennes[$matiereId] ?? null,
+                ];
+            }
+
+            $resultatsEleves[(int) $eleve->id] = [
+                'id' => $eleve->id,
+                'matricule' => $eleve->matricule,
+                'code_eleve' => $eleve->code_eleve,
+                'nom' => $eleve->nom,
+                'prenoms' => $eleve->prenoms,
+                'moyennes_matieres' => $moyennesProfesseur,
+                'moyenne_generale' => $resultat['moyenne_generale'],
+                'total_points' => round($totalPoints, 2),
+                'total_coefficients' => round($totalCoefficients, 2),
+                'rang' => $rangsGeneraux[$eleve->id] ?? null,
+                'notes_evaluations' => [],
+            ];
+        }
+
+        // Ne renvoyer comme colonnes détaillées que les évaluations
+        // qui appartiennent à ce professeur pour cette classe.
+        $evaluationsProfesseur = Evaluation::query()
+            ->where('etablissement_id', $classe->etablissement_id)
+            ->where('annee_scolaire_id', $classe->annee_scolaire_id)
+            ->where('periode_scolaire_id', $periode->id)
+            ->whereIn('matiere_id', $matieresProfesseur)
+            ->where(function ($query) use ($user, $classe) {
+                $query->where(function ($q) use ($user, $classe) {
+                    $q->where('origine', 'professeur')
+                        ->where('enseignant_id', $user->enseignant_id)
+                        ->where('classe_id', $classe->id);
+                })->orWhere(function ($q) use ($user, $classe) {
+                    $q->where('origine', 'administration')
+                        ->whereHas('classes', function ($classes) use ($user, $classe) {
+                            $classes->where('classes.id', $classe->id)
+                                ->where(
+                                    'evaluation_classes.enseignant_id',
+                                    $user->enseignant_id
+                                );
+                        });
+                });
+            })
+            ->with('matiere:id,libelle')
+            ->orderBy('date_evaluation')
+            ->orderBy('id')
+            ->get();
+
+        // Charger les notes des seules évaluations affichées.
+        $notesProfesseur = Note::query()
+            ->whereIn('evaluation_id', $evaluationsProfesseur->pluck('id'))
+            ->whereIn('eleve_id', $eleves->pluck('id'))
+            ->get()
+            ->keyBy(fn($note) => $note->eleve_id . '-' . $note->evaluation_id);
+
+        foreach ($resultatsEleves as $eleveId => &$resultat) {
+            foreach ($evaluationsProfesseur as $evaluation) {
+                $note = $notesProfesseur->get(
+                    $eleveId . '-' . $evaluation->id
+                );
+
+                $resultat['notes_evaluations'][$evaluation->id] = [
+                    'note' => $note && $note->note !== null
+                        ? (float) $note->note
+                        : null,
+                    'absent' => (bool) ($note?->absent ?? false),
+                ];
+            }
+        }
+        unset($resultat);
+
+        return response()->json([
+            'classe' => [
+                'id' => $classe->id,
+                'libelle' => $classe->libelle,
+            ],
+            'annee_scolaire' => [
+                'id' => $classe->annee_scolaire_id,
+            ],
+            'periode' => [
+                'id' => $periode->id,
+                'libelle' => $periode->libelle,
+            ],
+            'periodes' => $periodes,
+            'evaluations' => $evaluationsProfesseur->map(fn($evaluation) => [
+                'id' => $evaluation->id,
+                'libelle' => $evaluation->libelle,
+                'matiere' => $evaluation->matiere?->libelle,
+                'bareme' => (float) $evaluation->bareme,
+                'date_evaluation' => $evaluation->date_evaluation?->format('Y-m-d'),
+            ])->values(),
+            'eleves' => array_values($resultatsEleves),
+            'effectif' => $eleves->count(),
         ]);
     }
 }
