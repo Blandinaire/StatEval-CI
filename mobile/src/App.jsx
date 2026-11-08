@@ -355,6 +355,38 @@ export default function App() {
   const [message, setMessage] = useState("");
   const userRole = getRole(user);
 
+  function calculerAppreciationMobile(note, absent = false, bareme = 20) {
+    if (absent) return "Absent";
+
+    if (note === "" || note === null || note === undefined) {
+      return "";
+    }
+
+    const valeur = Number(note);
+    const baremeNumerique = Number(bareme);
+
+    if (
+      Number.isNaN(valeur) ||
+      Number.isNaN(baremeNumerique) ||
+      baremeNumerique <= 0
+    ) {
+      return "";
+    }
+
+    const noteSur20 = (valeur / baremeNumerique) * 20;
+
+    if (noteSur20 >= 18) return "Excellent";
+    if (noteSur20 >= 16) return "Très bien";
+    if (noteSur20 >= 14) return "Bien";
+    if (noteSur20 >= 12) return "Assez bien";
+    if (noteSur20 >= 11) return "Moyen";
+    if (noteSur20 >= 10) return "Passable";
+    if (noteSur20 >= 8) return "Insuffisant";
+    if (noteSur20 >= 5) return "Très insuffisant";
+
+    return "Faible";
+  }
+
   async function chargerNotesEvaluation(evaluation, classeId) {
     if (!evaluation || !classeId) return;
 
@@ -371,13 +403,22 @@ export default function App() {
       setDonneesNotesEvaluation(resultat);
 
       setFormNotesEvaluation(
-        (resultat.eleves || []).map((eleve) => ({
-          eleve_id: eleve.id,
-          note: eleve.note?.note ?? "",
-          absent: Boolean(eleve.note?.absent),
-          appreciation: eleve.note?.appreciation || "",
-          observation: eleve.note?.observation || "",
-        })),
+        (resultat.eleves || []).map((eleve) => {
+          const note = eleve.note?.note ?? "";
+          const absent = Boolean(eleve.note?.absent);
+
+          return {
+            eleve_id: eleve.id,
+            note,
+            absent,
+            appreciation: calculerAppreciationMobile(
+              note,
+              absent,
+              resultat.evaluation?.bareme,
+            ),
+            observation: eleve.note?.observation || "",
+          };
+        }),
       );
 
       setClasseNotesSelectionnee(String(classeId));
@@ -3389,122 +3430,155 @@ export default function App() {
                         </strong>
                       </p>
 
-                      {donneesNotesEvaluation.eleves.map((eleve, index) => {
-                        const ligne = formNotesEvaluation[index];
-
-                        if (!ligne) return null;
-
-                        return (
-                          <article className="eleve-mobile-card" key={eleve.id}>
-                            <div className="eleve-mobile-infos">
-                              <strong>
-                                {eleve.nom} {eleve.prenoms}
-                              </strong>
-
-                              <span>
-                                Matricule :{" "}
-                                {eleve.matricule ||
-                                  eleve.code_eleve ||
-                                  "Non renseigné"}
-                              </span>
-
-                              <label>
+                      <div className="notes-table-container">
+                        <table className="notes-table">
+                          <thead>
+                            <tr>
+                              <th>N°</th>
+                              <th>Élève</th>
+                              <th>
                                 Note /{" "}
                                 {donneesNotesEvaluation.evaluation.bareme}
-                              </label>
+                              </th>
+                              <th>Absence</th>
+                              <th>Appréciation</th>
+                              <th>Observation</th>
+                            </tr>
+                          </thead>
 
-                              <input
-                                type="number"
-                                min="0"
-                                max={donneesNotesEvaluation.evaluation.bareme}
-                                step="0.25"
-                                value={ligne.absent ? "" : ligne.note}
-                                disabled={
-                                  ligne.absent || userRole !== "Professeur"
-                                }
-                                placeholder="Saisir la note"
-                                onChange={(e) => {
-                                  setFormNotesEvaluation((anciennes) =>
-                                    anciennes.map((item, i) =>
-                                      i === index
-                                        ? { ...item, note: e.target.value }
-                                        : item,
-                                    ),
-                                  );
-                                }}
-                              />
+                          <tbody>
+                            {donneesNotesEvaluation.eleves.map(
+                              (eleve, index) => {
+                                const ligne = formNotesEvaluation[index];
 
-                              <label>
-                                <input
-                                  type="checkbox"
-                                  checked={ligne.absent}
-                                  disabled={userRole !== "Professeur"}
-                                  onChange={(e) => {
-                                    setFormNotesEvaluation((anciennes) =>
-                                      anciennes.map((item, i) =>
-                                        i === index
-                                          ? {
-                                              ...item,
-                                              absent: e.target.checked,
-                                              note: e.target.checked
-                                                ? ""
-                                                : item.note,
-                                              appreciation: e.target.checked
-                                                ? "Absent"
-                                                : "",
-                                            }
-                                          : item,
-                                      ),
-                                    );
-                                  }}
-                                />
-                                Élève absent
-                              </label>
+                                if (!ligne) return null;
 
-                              <label>Appréciation</label>
-                              <input
-                                type="text"
-                                value={ligne.appreciation}
-                                disabled={
-                                  ligne.absent || userRole !== "Professeur"
-                                }
-                                placeholder="Appréciation"
-                                onChange={(e) => {
-                                  setFormNotesEvaluation((anciennes) =>
-                                    anciennes.map((item, i) =>
-                                      i === index
-                                        ? {
-                                            ...item,
-                                            appreciation: e.target.value,
-                                          }
-                                        : item,
-                                    ),
-                                  );
-                                }}
-                              />
+                                return (
+                                  <tr key={eleve.id}>
+                                    <td>{index + 1}</td>
 
-                              <label>Observation</label>
-                              <textarea
-                                value={ligne.observation}
-                                disabled={userRole !== "Professeur"}
-                                placeholder="Observation éventuelle"
-                                onChange={(e) => {
-                                  setFormNotesEvaluation((anciennes) =>
-                                    anciennes.map((item, i) =>
-                                      i === index
-                                        ? {
-                                            ...item,
-                                            observation: e.target.value,
-                                          }
-                                        : item,
-                                    ),
-                                  );
-                                }}
-                              />
-                            </div>
-                          </article>
-                        );
-                      })}
+                                    <td className="notes-eleve-identite">
+                                      <strong>
+                                        {eleve.nom} {eleve.prenoms}
+                                      </strong>
+                                      <small>
+                                        {eleve.matricule ||
+                                          eleve.code_eleve ||
+                                          "Sans matricule"}
+                                      </small>
+                                    </td>
+
+                                    <td>
+                                      <input
+                                        className="notes-table-input notes-input-note"
+                                        type="number"
+                                        min="0"
+                                        max={
+                                          donneesNotesEvaluation.evaluation
+                                            .bareme
+                                        }
+                                        step="0.25"
+                                        value={ligne.absent ? "" : ligne.note}
+                                        disabled={
+                                          ligne.absent ||
+                                          userRole !== "Professeur"
+                                        }
+                                        placeholder="Note"
+                                        onChange={(e) => {
+                                          const nouvelleNote = e.target.value;
+
+                                          setFormNotesEvaluation((anciennes) =>
+                                            anciennes.map((item, i) =>
+                                              i === index
+                                                ? {
+                                                    ...item,
+                                                    note: nouvelleNote,
+                                                    appreciation:
+                                                      calculerAppreciationMobile(
+                                                        nouvelleNote,
+                                                        item.absent,
+                                                        donneesNotesEvaluation
+                                                          .evaluation.bareme,
+                                                      ),
+                                                  }
+                                                : item,
+                                            ),
+                                          );
+                                        }}
+                                      />
+                                    </td>
+
+                                    <td className="notes-table-absence">
+                                      <input
+                                        type="checkbox"
+                                        checked={ligne.absent}
+                                        disabled={userRole !== "Professeur"}
+                                        onChange={(e) => {
+                                          const absent = e.target.checked;
+
+                                          setFormNotesEvaluation((anciennes) =>
+                                            anciennes.map((item, i) =>
+                                              i === index
+                                                ? {
+                                                    ...item,
+                                                    absent,
+                                                    note: absent
+                                                      ? ""
+                                                      : item.note,
+                                                    appreciation:
+                                                      calculerAppreciationMobile(
+                                                        item.note,
+                                                        absent,
+                                                        donneesNotesEvaluation
+                                                          .evaluation.bareme,
+                                                      ),
+                                                  }
+                                                : item,
+                                            ),
+                                          );
+                                        }}
+                                      />
+                                    </td>
+
+                                    <td>
+                                      <span
+                                        className={`notes-appreciation ${
+                                          ligne.appreciation
+                                            ? "notes-appreciation-active"
+                                            : ""
+                                        }`}
+                                      >
+                                        {ligne.appreciation || "—"}
+                                      </span>
+                                    </td>
+
+                                    <td>
+                                      <textarea
+                                        className="notes-table-observation"
+                                        value={ligne.observation}
+                                        disabled={userRole !== "Professeur"}
+                                        placeholder="Observation..."
+                                        rows={2}
+                                        onChange={(e) => {
+                                          const observation = e.target.value;
+
+                                          setFormNotesEvaluation((anciennes) =>
+                                            anciennes.map((item, i) =>
+                                              i === index
+                                                ? { ...item, observation }
+                                                : item,
+                                            ),
+                                          );
+                                        }}
+                                      />
+                                    </td>
+                                  </tr>
+                                );
+                              },
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
 
                       {userRole === "Professeur" && (
                         <button

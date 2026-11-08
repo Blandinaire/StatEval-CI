@@ -1267,6 +1267,39 @@ class MobileEvaluationController extends Controller
                 $absent = (bool) ($ligne['absent'] ?? false);
                 $note = $absent ? null : ($ligne['note'] ?? null);
 
+                // Calcul automatique de l'appréciation.
+                $appreciation = '';
+
+                if ($absent) {
+                    $appreciation = 'Absent';
+                } elseif ($note !== null && $note !== '') {
+                    $bareme = (float) $evaluation->bareme;
+
+                    if ($bareme > 0) {
+                        $noteSur20 = ((float) $note / $bareme) * 20;
+
+                        if ($noteSur20 >= 18) {
+                            $appreciation = 'Excellent';
+                        } elseif ($noteSur20 >= 16) {
+                            $appreciation = 'Très bien';
+                        } elseif ($noteSur20 >= 14) {
+                            $appreciation = 'Bien';
+                        } elseif ($noteSur20 >= 12) {
+                            $appreciation = 'Assez bien';
+                        } elseif ($noteSur20 >= 11) {
+                            $appreciation = 'Moyen';
+                        } elseif ($noteSur20 >= 10) {
+                            $appreciation = 'Passable';
+                        } elseif ($noteSur20 >= 8) {
+                            $appreciation = 'Insuffisant';
+                        } elseif ($noteSur20 >= 5) {
+                            $appreciation = 'Très insuffisant';
+                        } else {
+                            $appreciation = 'Faible';
+                        }
+                    }
+                }
+
                 Note::updateOrCreate(
                     [
                         'evaluation_id' => $evaluation->id,
@@ -1275,9 +1308,7 @@ class MobileEvaluationController extends Controller
                     [
                         'note' => $note,
                         'absent' => $absent,
-                        'appreciation' => $absent
-                            ? 'Absent'
-                            : ($ligne['appreciation'] ?? null),
+                        'appreciation' => $appreciation,
                         'observation' => $ligne['observation'] ?? null,
                     ]
                 );
