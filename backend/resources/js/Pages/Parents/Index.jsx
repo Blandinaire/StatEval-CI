@@ -18,6 +18,11 @@ export default function Index() {
 
     const [recherche, setRecherche] = useState(filtres.recherche || "");
     const [statut, setStatut] = useState(filtres.statut || "");
+    const [rechercheEleve, setRechercheEleve] = useState(
+        filtres.recherche_eleve || "",
+    );
+
+    const [classeFiltre, setClasseFiltre] = useState(filtres.classe_id || "");
     const [etablissementId, setEtablissementId] = useState(
         filtres.etablissement_id || "",
     );
@@ -43,10 +48,16 @@ export default function Index() {
             route("parents.index"),
             {
                 recherche,
+                recherche_eleve: rechercheEleve,
+                classe_id: classeFiltre,
                 statut,
                 etablissement_id: etablissementId,
             },
-            { preserveState: true, replace: true },
+            {
+                preserveState: true,
+                preserveScroll: true,
+                replace: true,
+            },
         );
     };
 
@@ -540,52 +551,156 @@ export default function Index() {
                 )}
 
                 {/* FILTRES */}
+
+                {/* FILTRES DES COMPTES PARENTS ET DES ÉLÈVES */}
                 <form
                     onSubmit={filtrer}
-                    className="flex flex-col gap-3 rounded-xl border bg-white p-4 md:flex-row"
+                    className="rounded-xl border bg-white p-4 shadow-sm"
                 >
-                    <input
-                        type="search"
-                        value={recherche}
-                        onChange={(e) => setRecherche(e.target.value)}
-                        placeholder="Nom, téléphone ou adresse e-mail..."
-                        className="flex-1 rounded-lg border-gray-300"
-                    />
+                    <div className="mb-4">
+                        <h3 className="font-bold text-gray-800">
+                            Filtrer les comptes parents
+                        </h3>
+                        <p className="mt-1 text-sm text-gray-500">
+                            Rechercher un parent ou retrouver les parents à
+                            partir de leurs enfants.
+                        </p>
+                    </div>
 
-                    <select
-                        value={statut}
-                        onChange={(e) => setStatut(e.target.value)}
-                        className="rounded-lg border-gray-300"
-                    >
-                        <option value="">Tous les statuts</option>
-                        <option value="actif">Actifs</option>
-                        <option value="inactif">Désactivés</option>
-                    </select>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-4">
+                        {/* RECHERCHE PARENT */}
+                        <div>
+                            <label className="mb-1 block text-sm font-medium text-gray-700">
+                                Nom ou téléphone du parent
+                            </label>
+                            <input
+                                type="search"
+                                value={recherche}
+                                onChange={(e) => setRecherche(e.target.value)}
+                                placeholder="Nom, téléphone ou e-mail..."
+                                className="w-full rounded-lg border-gray-300"
+                            />
+                        </div>
 
-                    {isSuperAdmin && (
-                        <select
-                            value={etablissementId}
-                            onChange={(e) => setEtablissementId(e.target.value)}
-                            className="rounded-lg border-gray-300"
-                        >
-                            <option value="">Tous les établissements</option>
-                            {etablissements.map((etablissement) => (
-                                <option
-                                    key={etablissement.id}
-                                    value={etablissement.id}
+                        {/* RECHERCHE ÉLÈVE */}
+                        <div>
+                            <label className="mb-1 block text-sm font-medium text-gray-700">
+                                Nom ou matricule de l'élève
+                            </label>
+                            <input
+                                type="search"
+                                value={rechercheEleve}
+                                onChange={(e) =>
+                                    setRechercheEleve(e.target.value)
+                                }
+                                placeholder="Nom, prénoms ou matricule..."
+                                className="w-full rounded-lg border-gray-300"
+                            />
+                        </div>
+
+                        {/* CLASSE */}
+                        <div>
+                            <label className="mb-1 block text-sm font-medium text-gray-700">
+                                Classe de l'élève
+                            </label>
+                            <select
+                                value={classeFiltre}
+                                onChange={(e) =>
+                                    setClasseFiltre(e.target.value)
+                                }
+                                className="w-full rounded-lg border-gray-300"
+                            >
+                                <option value="">Toutes les classes</option>
+
+                                {classes.map((classe) => (
+                                    <option key={classe.id} value={classe.id}>
+                                        {classe.libelle}
+                                        {classe.niveau?.libelle
+                                            ? ` (${classe.niveau.libelle})`
+                                            : ""}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* STATUT */}
+                        <div>
+                            <label className="mb-1 block text-sm font-medium text-gray-700">
+                                Statut du compte
+                            </label>
+                            <select
+                                value={statut}
+                                onChange={(e) => setStatut(e.target.value)}
+                                className="w-full rounded-lg border-gray-300"
+                            >
+                                <option value="">Tous les statuts</option>
+                                <option value="actif">Actifs</option>
+                                <option value="inactif">Désactivés</option>
+                            </select>
+                        </div>
+
+                        {/* ÉTABLISSEMENT SUPERADMIN */}
+                        {isSuperAdmin && (
+                            <div>
+                                <label className="mb-1 block text-sm font-medium text-gray-700">
+                                    Établissement
+                                </label>
+                                <select
+                                    value={etablissementId || ""}
+                                    onChange={(e) => {
+                                        setEtablissementId(e.target.value);
+                                        setClasseFiltre("");
+                                    }}
+                                    className="w-full rounded-lg border-gray-300"
                                 >
-                                    {etablissement.nom}
-                                </option>
-                            ))}
-                        </select>
-                    )}
+                                    <option value="">
+                                        Tous les établissements
+                                    </option>
+                                    {etablissements.map((etablissement) => (
+                                        <option
+                                            key={etablissement.id}
+                                            value={etablissement.id}
+                                        >
+                                            {etablissement.nom}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
+                    </div>
 
-                    <button
-                        type="submit"
-                        className="rounded-lg bg-blue-600 px-5 py-2 font-semibold text-white hover:bg-blue-700"
-                    >
-                        Rechercher
-                    </button>
+                    <div className="mt-4 flex flex-wrap gap-3">
+                        <button
+                            type="submit"
+                            className="rounded-lg bg-blue-600 px-5 py-2.5 font-semibold text-white hover:bg-blue-700"
+                        >
+                            Rechercher
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setRecherche("");
+                                setRechercheEleve("");
+                                setClasseFiltre("");
+                                setStatut("");
+
+                                router.get(
+                                    route("parents.index"),
+                                    {
+                                        etablissement_id: etablissementId,
+                                    },
+                                    {
+                                        preserveScroll: true,
+                                        replace: true,
+                                    },
+                                );
+                            }}
+                            className="rounded-lg border border-gray-300 px-5 py-2.5 font-semibold text-gray-700 hover:bg-gray-50"
+                        >
+                            Réinitialiser les filtres
+                        </button>
+                    </div>
                 </form>
 
                 {/* LISTE DES PARENTS */}
@@ -732,7 +847,7 @@ export default function Index() {
                                                     >
                                                         Consulter
                                                     </button>
-                                                    
+
                                                     <button
                                                         type="button"
                                                         onClick={() =>

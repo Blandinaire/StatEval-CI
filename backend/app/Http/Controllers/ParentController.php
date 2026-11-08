@@ -321,7 +321,46 @@ class ParentController extends Controller
             $query->where('etablissement_id', $etablissementId);
         }
 
+
         $recherche = trim($request->input('recherche', ''));
+        $rechercheEleve = trim($request->input('recherche_eleve', ''));
+        $classeId = $request->input('classe_id');
+
+        $request->validate([
+            'classe_id' => ['nullable', 'integer', 'exists:classes,id'],
+        ]);
+
+        if ($classeId) {
+            $classeSelectionnee = Classe::query()
+                ->whereKey($classeId)
+                ->when(
+                    $etablissementId,
+                    fn($q) => $q->where('etablissement_id', $etablissementId)
+                )
+                ->exists();
+
+            abort_unless(
+                $classeSelectionnee,
+                422,
+                'La classe sélectionnée ne correspond pas à votre établissement.'
+            );
+
+            $query->whereHas('eleves', function ($q) use ($classeId) {
+                $q->where('classe_id', $classeId);
+            });
+        }
+
+        if ($rechercheEleve !== '') {
+            $query->whereHas('eleves', function ($q) use ($rechercheEleve) {
+                $q->where(function ($eleveQuery) use ($rechercheEleve) {
+                    $eleveQuery
+                        ->where('matricule', 'like', "%{$rechercheEleve}%")
+                        ->orWhere('code_eleve', 'like', "%{$rechercheEleve}%")
+                        ->orWhere('nom', 'like', "%{$rechercheEleve}%")
+                        ->orWhere('prenoms', 'like', "%{$rechercheEleve}%");
+                });
+            });
+        }
 
         if ($recherche !== '') {
             $query->where(function ($q) use ($recherche) {
@@ -334,6 +373,7 @@ class ParentController extends Controller
         if ($request->filled('statut')) {
             $query->where('actif', $request->statut === 'actif');
         }
+
 
         $parents = (clone $query)
             ->orderBy('name')
@@ -402,6 +442,8 @@ class ParentController extends Controller
             'classes' => $classes,
             'filtres' => [
                 'recherche' => $recherche,
+                'recherche_eleve' => $rechercheEleve,
+                'classe_id' => $classeId,
                 'statut' => $request->input('statut', ''),
                 'etablissement_id' => $etablissementId,
             ],
