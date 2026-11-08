@@ -733,6 +733,7 @@ class MobileEvaluationController extends Controller
      * Créer une évaluation directement par un professeur.
      * L'évaluation est immédiatement active.
      */
+
     public function creerParProfesseur(Request $request): JsonResponse
     {
         $user = $request->user();
@@ -750,41 +751,53 @@ class MobileEvaluationController extends Controller
             'Votre compte professeur doit être rattaché à un établissement et à un enseignant.'
         );
 
+        // Récupérer automatiquement l'année scolaire active.
+        $anneeScolaire = AnneeScolaire::active();
+
+        abort_unless(
+            $anneeScolaire,
+            422,
+            'Aucune année scolaire active n’est actuellement définie.'
+        );
+
+        // Validation des seules données saisies par le professeur.
         $validated = $request->validate([
-            'annee_scolaire_id' => ['required', 'integer', 'exists:annee_scolaires,id'],
             'classe_id' => ['required', 'integer', 'exists:classes,id'],
             'matiere_id' => ['required', 'integer', 'exists:matieres,id'],
-            'libelle' => ['required', 'string', 'max:255'],
+
             'type' => [
                 'required',
                 'in:Devoir de classe,Composition trimestrielle,Examen blanc,Devoir commun,Évaluation commune,Test diagnostique,Examen,Interrogation écrite,Interrogation orale,Autre',
             ],
-            'numero' => ['nullable', 'integer', 'min:1'],
+
+            'numero' => ['required', 'integer', 'min:1'],
             'date_evaluation' => ['required', 'date'],
-            'heure_debut' => ['nullable', 'date_format:H:i'],
-            'heure_fin' => ['nullable', 'date_format:H:i', 'after:heure_debut'],
+
             'bareme' => ['required', 'numeric', 'min:1'],
             'coefficient' => ['required', 'numeric', 'min:0.1'],
+
             'periode_scolaire_id' => [
                 'required',
                 'integer',
                 'exists:periodes_scolaires,id',
             ],
+
             'prise_en_compte_moyenne' => ['sometimes', 'boolean'],
         ]);
 
-        // Vérifier la classe.
+        // Vérifier que la classe appartient à l'établissement
+        // et à l'année scolaire active.
         $classe = Classe::query()
             ->whereKey($validated['classe_id'])
             ->where('etablissement_id', $user->etablissement_id)
-            ->where('annee_scolaire_id', $validated['annee_scolaire_id'])
+            ->where('annee_scolaire_id', $anneeScolaire->id)
             ->where('active', true)
             ->firstOrFail();
 
         // Vérifier l'affectation réelle du professeur.
         $affectation = Affectation::query()
             ->where('etablissement_id', $user->etablissement_id)
-            ->where('annee_scolaire_id', $validated['annee_scolaire_id'])
+            ->where('annee_scolaire_id', $anneeScolaire->id)
             ->where('classe_id', $classe->id)
             ->where('matiere_id', $validated['matiere_id'])
             ->where('enseignant_id', $user->enseignant_id)
@@ -801,15 +814,19 @@ class MobileEvaluationController extends Controller
         $classe->load('maquette.matieres');
 
         abort_unless(
-            $classe->maquette?->matieres->contains('id', $validated['matiere_id']),
+            $classe->maquette?->matieres->contains(
+                'id',
+                $validated['matiere_id']
+            ),
             422,
             'Cette matière ne figure pas dans la maquette de la classe.'
         );
 
-        // Vérifier la période scolaire.
+        // Vérifier la période scolaire active appartenant
+        // à l'année scolaire active.
         $periode = PeriodeScolaire::query()
             ->whereKey($validated['periode_scolaire_id'])
-            ->where('annee_scolaire_id', $validated['annee_scolaire_id'])
+            ->where('annee_scolaire_id', $anneeScolaire->id)
             ->where('actif', true)
             ->first();
 
@@ -819,6 +836,7 @@ class MobileEvaluationController extends Controller
             'La période scolaire sélectionnée est invalide ou inactive.'
         );
 
+        // Vérifier que la date appartient à la période choisie.
         if (
             $validated['date_evaluation'] < $periode->date_debut->format('Y-m-d') ||
             $validated['date_evaluation'] > $periode->date_fin->format('Y-m-d')
@@ -828,50 +846,46 @@ class MobileEvaluationController extends Controller
             ]);
         }
 
-        // Vérifier les conflits horaires dans la classe.
-        if (!empty($validated['heure_debut']) && !empty($validated['heure_fin'])) {
-            $conflit = Evaluation::query()
-                ->where('etablissement_id', $user->etablissement_id)
-                ->where('classe_id', $classe->id)
-                ->whereDate('date_evaluation', $validated['date_evaluation'])
-                ->whereIn('statut', ['programmee', 'active'])
-                ->whereNotNull('heure_debut')
-                ->whereNotNull('heure_fin')
-                ->where('heure_debut', '<', $validated['heure_fin'])
-                ->where('heure_fin', '>', $validated['heure_debut'])
-                ->exists();
+        // Générer automatiquement le libellé.
+        $libelle = $validated['type']
+            . ' N°'
+            . $validated['numero']
+            . ' - '
+            . $periode->libelle;
 
-            abort_if(
-                $conflit,
-                422,
-                'Une autre évaluation est déjà prévue dans cette classe à cet horaire.'
-            );
-        }
-
+        // Créer et activer immédiatement l'évaluation.
         $evaluation = Evaluation::create([
             'etablissement_id' => $user->etablissement_id,
-            'annee_scolaire_id' => $validated['annee_scolaire_id'],
+            'annee_scolaire_id' => $anneeScolaire->id,
             'periode_scolaire_id' => $periode->id,
             'niveau_id' => $classe->niveau_id,
             'classe_id' => $classe->id,
             'matiere_id' => $validated['matiere_id'],
             'enseignant_id' => $user->enseignant_id,
+
             'origine' => 'professeur',
             'statut' => 'active',
             'cree_par' => $user->id,
             'active' => true,
-            'libelle' => $validated['libelle'],
+
+            'libelle' => $libelle,
             'type' => $validated['type'],
-            'numero' => $validated['numero'] ?? null,
+            'numero' => $validated['numero'],
             'date_evaluation' => $validated['date_evaluation'],
-            'heure_debut' => $validated['heure_debut'] ?? null,
-            'heure_fin' => $validated['heure_fin'] ?? null,
+
+            'heure_debut' => null,
+            'heure_fin' => null,
+
             'bareme' => $validated['bareme'],
             'coefficient' => $validated['coefficient'],
-            'prise_en_compte_moyenne' => $validated['prise_en_compte_moyenne'] ?? true,
+
+            'prise_en_compte_moyenne' =>
+            $validated['prise_en_compte_moyenne'] ?? true,
+
             'notifier_professeurs' => false,
             'publier_eleves' => false,
             'publier_parents' => false,
+
             'periode' => $periode->libelle,
         ]);
 
@@ -882,9 +896,11 @@ class MobileEvaluationController extends Controller
                 'libelle' => $evaluation->libelle,
                 'statut' => $evaluation->statut,
                 'origine' => $evaluation->origine,
+                'annee_scolaire' => $anneeScolaire->libelle,
             ],
         ], 201);
     }
+
 
 
     /**
