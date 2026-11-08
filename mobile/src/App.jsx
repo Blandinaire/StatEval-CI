@@ -2604,6 +2604,302 @@ export default function App() {
                 </div>
               )}
 
+              {userRole === "Professeur" && (
+                <div className="eleves-resultats" style={{ marginBottom: 20 }}>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => {
+                      setAfficherFormulaireProfesseur((visible) => !visible);
+                      setErreurEvaluationProfesseur("");
+                      setMessageEvaluationProfesseur("");
+
+                      if (!formEvaluationProfesseur.annee_scolaire_id) {
+                        const anneeId =
+                          anneeEvaluation || optionsEvaluations.annee?.id || "";
+
+                        setFormEvaluationProfesseur((ancien) => ({
+                          ...ancien,
+                          annee_scolaire_id: String(anneeId),
+                        }));
+                      }
+                    }}
+                  >
+                    {afficherFormulaireProfesseur
+                      ? "Fermer le formulaire"
+                      : "Créer une évaluation"}
+                  </button>
+
+                  {messageEvaluationProfesseur && (
+                    <div className="notice success" role="status">
+                      {messageEvaluationProfesseur}
+                    </div>
+                  )}
+
+                  {erreurEvaluationProfesseur && (
+                    <div className="notice error" role="alert">
+                      {erreurEvaluationProfesseur}
+                    </div>
+                  )}
+
+                  {afficherFormulaireProfesseur && (
+                    <form onSubmit={creerEvaluationProfesseur}>
+                      <h2>Nouvelle évaluation</h2>
+
+                      <p>
+                        Cette évaluation sera immédiatement activée. Vous
+                        pourrez ensuite saisir les notes de vos élèves.
+                      </p>
+
+                      <label>Année scolaire</label>
+                      <select
+                        required
+                        value={formEvaluationProfesseur.annee_scolaire_id}
+                        onChange={(e) => {
+                          const valeur = e.target.value;
+
+                          setAnneeEvaluation(valeur);
+
+                          setFormEvaluationProfesseur((ancien) => ({
+                            ...ancien,
+                            annee_scolaire_id: valeur,
+                            classe_id: "",
+                            matiere_id: "",
+                            periode_scolaire_id: "",
+                          }));
+                        }}
+                      >
+                        <option value="">Choisir une année scolaire</option>
+                        {(optionsEvaluations.years || []).map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.libelle}
+                          </option>
+                        ))}
+                      </select>
+
+                      <label>Classe</label>
+                      <select
+                        required
+                        value={formEvaluationProfesseur.classe_id}
+                        onChange={(e) =>
+                          setFormEvaluationProfesseur((ancien) => ({
+                            ...ancien,
+                            classe_id: e.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">Choisir une classe</option>
+                        {(optionsEvaluations.classes || [])
+                          .filter(
+                            (classe) =>
+                              String(classe.annee_scolaire_id) ===
+                              String(
+                                formEvaluationProfesseur.annee_scolaire_id,
+                              ),
+                          )
+                          .map((classe) => (
+                            <option key={classe.id} value={classe.id}>
+                              {classe.libelle}
+                            </option>
+                          ))}
+                      </select>
+
+                      <label>Matière</label>
+                      <select
+                        required
+                        value={formEvaluationProfesseur.matiere_id}
+                        onChange={(e) =>
+                          setFormEvaluationProfesseur((ancien) => ({
+                            ...ancien,
+                            matiere_id: e.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">Choisir une matière</option>
+                        {(optionsEvaluations.subjects || []).map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.libelle}
+                          </option>
+                        ))}
+                      </select>
+
+                      <label>Libellé de l'évaluation</label>
+                      <input
+                        required
+                        type="text"
+                        maxLength="255"
+                        placeholder="Ex. Devoir de mathématiques"
+                        value={formEvaluationProfesseur.libelle}
+                        onChange={(e) =>
+                          setFormEvaluationProfesseur((ancien) => ({
+                            ...ancien,
+                            libelle: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <label>Type d'évaluation</label>
+                      <select
+                        required
+                        value={formEvaluationProfesseur.type}
+                        onChange={(e) =>
+                          setFormEvaluationProfesseur((ancien) => ({
+                            ...ancien,
+                            type: e.target.value,
+                          }))
+                        }
+                      >
+                        <option value="Devoir de classe">
+                          Devoir de classe
+                        </option>
+                        <option value="Composition trimestrielle">
+                          Composition trimestrielle
+                        </option>
+                        <option value="Devoir commun">Devoir commun</option>
+                        <option value="Évaluation commune">
+                          Évaluation commune
+                        </option>
+                        <option value="Test diagnostique">
+                          Test diagnostique
+                        </option>
+                        <option value="Examen">Examen</option>
+                        <option value="Interrogation écrite">Interrogation écrite</option>
+                        <option value="Interrogation orale">Interrogation orale</option>
+                        <option value="Autre">Autre</option>
+                      </select>
+
+                      <label>Numéro (facultatif)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={formEvaluationProfesseur.numero}
+                        onChange={(e) =>
+                          setFormEvaluationProfesseur((ancien) => ({
+                            ...ancien,
+                            numero: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <label>Date de l'évaluation</label>
+                      <input
+                        required
+                        type="date"
+                        value={formEvaluationProfesseur.date_evaluation}
+                        onChange={(e) =>
+                          setFormEvaluationProfesseur((ancien) => ({
+                            ...ancien,
+                            date_evaluation: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <label>Heure de début</label>
+                      <input
+                        type="time"
+                        value={formEvaluationProfesseur.heure_debut}
+                        onChange={(e) =>
+                          setFormEvaluationProfesseur((ancien) => ({
+                            ...ancien,
+                            heure_debut: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <label>Heure de fin</label>
+                      <input
+                        type="time"
+                        value={formEvaluationProfesseur.heure_fin}
+                        onChange={(e) =>
+                          setFormEvaluationProfesseur((ancien) => ({
+                            ...ancien,
+                            heure_fin: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <label>Barème</label>
+                      <input
+                        required
+                        type="number"
+                        min="1"
+                        step="0.25"
+                        value={formEvaluationProfesseur.bareme}
+                        onChange={(e) =>
+                          setFormEvaluationProfesseur((ancien) => ({
+                            ...ancien,
+                            bareme: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <label>Coefficient</label>
+                      <input
+                        required
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={formEvaluationProfesseur.coefficient}
+                        onChange={(e) =>
+                          setFormEvaluationProfesseur((ancien) => ({
+                            ...ancien,
+                            coefficient: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <label>Période scolaire</label>
+                      <select
+                        required
+                        value={formEvaluationProfesseur.periode_scolaire_id}
+                        onChange={(e) =>
+                          setFormEvaluationProfesseur((ancien) => ({
+                            ...ancien,
+                            periode_scolaire_id: e.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">Choisir une période</option>
+                        {(optionsEvaluations.periods || []).map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.libelle} ({item.date_debut} au {item.date_fin}
+                            )
+                          </option>
+                        ))}
+                      </select>
+
+                      <div style={{ marginTop: 15 }}>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={
+                              formEvaluationProfesseur.prise_en_compte_moyenne
+                            }
+                            onChange={(e) =>
+                              setFormEvaluationProfesseur((ancien) => ({
+                                ...ancien,
+                                prise_en_compte_moyenne: e.target.checked,
+                              }))
+                            }
+                          />
+                          Prendre en compte dans la moyenne
+                        </label>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="btn-primary"
+                        disabled={enregistrementEvaluationProfesseur}
+                      >
+                        {enregistrementEvaluationProfesseur
+                          ? "Enregistrement..."
+                          : "Créer et activer l'évaluation"}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              )}
+
               {[
                 "SuperAdmin",
                 "Administrateur",

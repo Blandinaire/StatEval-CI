@@ -757,7 +757,7 @@ class MobileEvaluationController extends Controller
             'libelle' => ['required', 'string', 'max:255'],
             'type' => [
                 'required',
-                'in:Devoir de niveau,Composition trimestrielle,Examen blanc,Devoir commun,Évaluation commune,Test diagnostique,Examen,Autre',
+                'in:Devoir de classe,Composition trimestrielle,Examen blanc,Devoir commun,Évaluation commune,Test diagnostique,Examen,Interrogation écrite,Interrogation orale,Autre',
             ],
             'numero' => ['nullable', 'integer', 'min:1'],
             'date_evaluation' => ['required', 'date'],
