@@ -542,6 +542,16 @@ Route::middleware('auth')->group(function () {
             'index',
         ])->name('parents.index');
 
+        Route::get('/parents/create', [
+            ParentController::class,
+            'create',
+        ])->name('parents.create');
+
+        Route::post('/parents', [
+            ParentController::class,
+            'store',
+        ])->name('parents.store');
+
         Route::get('/parents/{parent}', [
             ParentController::class,
             'show',

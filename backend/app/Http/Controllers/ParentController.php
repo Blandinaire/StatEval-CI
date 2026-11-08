@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class ParentController extends Controller
@@ -302,6 +303,143 @@ class ParentController extends Controller
                 : 'Compte parent désactivé avec succès.'
         );
     }
+
+
+    /**
+     * Formulaire de création individuelle d'un compte parent.
+     */
+    public function create(Request $request)
+    {
+        $this->autoriser();
+
+        $user = Auth::user();
+
+        $etablissementId = $user->hasRole('SuperAdmin')
+            ? $request->input('etablissement_id')
+            : $user->etablissement_id;
+
+        if ($etablissementId) {
+            abort_unless(
+                Etablissement::whereKey($etablissementId)->exists(),
+                404,
+                'Établissement introuvable.'
+            );
+        }
+
+        $eleves = collect();
+
+        if ($etablissementId) {
+            $eleves = Eleve::query()
+                ->where('etablissement_id', $etablissementId)
+                ->with('classe:id,libelle')
+                ->orderBy('nom')
+                ->orderBy('prenoms')
+                ->get([
+                    'id',
+                    'matricule',
+                    'code_eleve',
+                    'nom',
+                    'prenoms',
+                    'classe_id',
+                    'etablissement_id',
+                ]);
+        }
+
+        return Inertia::render('Parents/Create', [
+            'etablissements' => Etablissement::query()
+                ->when(
+                    !$user->hasRole('SuperAdmin'),
+                    fn($q) => $q->where('id', $user->etablissement_id)
+                )
+                ->orderBy('nom')
+                ->get(['id', 'nom']),
+
+            'etablissementId' => $etablissementId,
+
+            'isSuperAdmin' => $user->hasRole('SuperAdmin'),
+
+            'eleves' => $eleves,
+        ]);
+    }
+
+    /**
+     * Création d'un compte parent et association à plusieurs élèves.
+     */
+    public function store(Request $request)
+    {
+        $this->autoriser();
+
+        $etablissementId = $this->etablissementId($request);
+
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:150'],
+            'telephone' => ['required', 'string', 'max:30'],
+            'email' => ['nullable', 'email', 'max:255', 'unique:users,email'],
+            'eleves' => ['required', 'array', 'min:1'],
+            'eleves.*.id' => ['required', 'integer', 'distinct'],
+            'eleves.*.lien' => ['nullable', 'string', 'max:30'],
+        ]);
+
+        $eleveIds = collect($validated['eleves'])
+            ->pluck('id')
+            ->map(fn($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        $eleves = Eleve::query()
+            ->where('etablissement_id', $etablissementId)
+            ->whereIn('id', $eleveIds)
+            ->get();
+
+        if ($eleves->count() !== $eleveIds->count()) {
+            throw ValidationException::withMessages([
+                'eleves' => 'Un ou plusieurs élèves ne correspondent pas à cet établissement.',
+            ]);
+        }
+
+        $motDePasseInitial = Str::random(12);
+
+        $parent = null;
+
+        DB::transaction(function () use (
+            $validated,
+            $etablissementId,
+            $motDePasseInitial,
+            &$parent
+        ) {
+            $parent = User::create([
+                'name' => $validated['name'],
+                'telephone' => $validated['telephone'],
+                'email' => $validated['email'] ?? null,
+                'password' => $motDePasseInitial,
+                'initial_password' => $motDePasseInitial,
+                'etablissement_id' => $etablissementId,
+                'fonction' => 'Parent',
+                'actif' => true,
+                'must_change_password' => true,
+                'genere_automatiquement' => false,
+            ]);
+
+            $parent->assignRole('Parent');
+
+            $associations = [];
+
+            foreach ($validated['eleves'] as $association) {
+                $associations[(int) $association['id']] = [
+                    'lien' => $association['lien'] ?? 'Responsable légal',
+                ];
+            }
+
+            $parent->eleves()->attach($associations);
+        });
+
+        return redirect()
+            ->route('parents.index')
+            ->with('success', 'Compte parent créé et élèves associés avec succès.')
+            ->with('initial_password', $motDePasseInitial)
+            ->with('created_user', $parent->name);
+    }
+
 
     public function index(Request $request)
     {

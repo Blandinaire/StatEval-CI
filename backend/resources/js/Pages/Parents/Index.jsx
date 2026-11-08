@@ -219,7 +219,7 @@ export default function Index() {
             {flash?.initial_password && (
                 <div className="rounded-xl border border-green-200 bg-green-50 p-4">
                     <p className="font-semibold text-green-800">
-                        Mot de passe réinitialisé
+                        Mot de passe temporaire du compte
                     </p>
 
                     <p className="mt-2 text-sm text-green-700">
@@ -252,14 +252,24 @@ export default function Index() {
             )}
 
             <div className="mx-auto max-w-7xl space-y-6">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-800">
-                        Comptes parents
-                    </h1>
-                    <p className="mt-1 text-gray-500">
-                        Gestion des accès des parents et consultation des élèves
-                        associés.
-                    </p>
+                <div className="flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                        <h1 className="text-3xl font-bold text-gray-800">
+                            Comptes parents
+                        </h1>
+                        <p className="mt-1 text-gray-500">
+                            Gestion des accès des parents et consultation des
+                            élèves associés.
+                        </p>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={() => router.get(route("parents.create"))}
+                        className="rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white hover:bg-blue-700"
+                    >
+                        + Créer un compte parent
+                    </button>
                 </div>
 
                 {isSuperAdmin && (
