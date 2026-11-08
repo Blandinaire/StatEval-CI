@@ -391,13 +391,25 @@ class ParentController extends Controller
             ->whereIn('id', $eleveIds)
             ->get();
 
+        $eleveSansMatricule = $eleves->first(
+            fn($eleve) => trim((string) $eleve->matricule) === ''
+        );
+
+        if ($eleveSansMatricule) {
+            throw ValidationException::withMessages([
+                'eleves' => 'Tous les élèves sélectionnés doivent posséder un matricule pour générer le mot de passe initial.',
+            ]);
+        }
+
         if ($eleves->count() !== $eleveIds->count()) {
             throw ValidationException::withMessages([
                 'eleves' => 'Un ou plusieurs élèves ne correspondent pas à cet établissement.',
             ]);
         }
 
-        $motDePasseInitial = Str::random(12);
+        $motDePasseInitial = trim(
+            (string) $eleves->first()->matricule
+        );
 
         $parent = null;
 
