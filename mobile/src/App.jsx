@@ -17,6 +17,7 @@ import {
   Plus,
   Pencil,
   Trash2,
+  BookOpen,
 } from "lucide-react";
 import "./App.css";
 
@@ -141,6 +142,13 @@ const MODULES = [
       "Professeur",
       "Parent",
     ],
+  },
+  {
+    id: "resultats",
+    label: "Résultats de mes classes",
+    description: "Consultation des moyennes, rangs et notes des élèves",
+    icon: BookOpen,
+    roles: ["Professeur"],
   },
   {
     id: "profil",
@@ -810,7 +818,13 @@ export default function App() {
   }, [token, userRole, activePage, eleveNotesSelectionne]);
 
   useEffect(() => {
-    if (!token || activePage !== "notes" || userRole === "Parent") return;
+    if (
+      !token ||
+      !["notes", "resultats"].includes(activePage) ||
+      userRole === "Parent"
+    ) {
+      return;
+    }
 
     let annule = false;
 
@@ -922,7 +936,7 @@ export default function App() {
     if (
       !token ||
       userRole !== "Professeur" ||
-      activePage !== "notes" ||
+      activePage !== "resultats" ||
       !classeResultatsProf
     ) {
       return;
@@ -2694,191 +2708,6 @@ export default function App() {
               )}
 
               {userRole === "Professeur" && (
-                <div className="eleves-resultats resultats-prof-section">
-                  <div className="eleves-resultats-entete">
-                    <strong>Résultats de mes classes</strong>
-                    <span>{donneesResultatsProf?.effectif ?? 0} élève(s)</span>
-                  </div>
-
-                  <div className="eleves-filtres">
-                    <label>Classe</label>
-                    <select
-                      value={classeResultatsProf}
-                      onChange={(e) => {
-                        setClasseResultatsProf(e.target.value);
-                        setPeriodeResultatsProf("");
-                        setDonneesResultatsProf(null);
-                      }}
-                    >
-                      <option value="">Choisir une classe</option>
-                      {(optionsEvaluations.classes || []).map((classe) => (
-                        <option key={classe.id} value={classe.id}>
-                          {classe.libelle}
-                        </option>
-                      ))}
-                    </select>
-
-                    <label>Période scolaire</label>
-                    <select
-                      value={periodeResultatsProf}
-                      onChange={(e) => setPeriodeResultatsProf(e.target.value)}
-                      disabled={!donneesResultatsProf?.periodes?.length}
-                    >
-                      {(donneesResultatsProf?.periodes || []).map((periode) => (
-                        <option key={periode.id} value={periode.id}>
-                          {periode.libelle}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {erreurResultatsProf && (
-                    <div className="notice error" role="alert">
-                      {erreurResultatsProf}
-                    </div>
-                  )}
-
-                  {chargementResultatsProf ? (
-                    <p className="eleves-etat">Chargement des résultats...</p>
-                  ) : !classeResultatsProf ? (
-                    <p className="eleves-etat">
-                      Sélectionnez une classe pour consulter ses résultats.
-                    </p>
-                  ) : donneesResultatsProf ? (
-                    <>
-                      <div className="resultats-prof-actions">
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          onClick={() =>
-                            setAfficherEvaluationsProf((visible) => !visible)
-                          }
-                        >
-                          {afficherEvaluationsProf
-                            ? "Masquer les évaluations"
-                            : "Afficher les évaluations"}
-                        </button>
-                      </div>
-
-                      <p className="resultats-prof-info">
-                        Les moyennes générales, totaux de points et rangs sont
-                        calculés sur l'ensemble des matières de la maquette. Les
-                        notes détaillées concernent uniquement vos évaluations.
-                      </p>
-
-                      <div className="notes-table-container resultats-prof-table-container">
-                        <table className="notes-table resultats-prof-table">
-                          <thead>
-                            <tr>
-                              <th>Rang</th>
-                              <th>Élève</th>
-
-                              {(donneesResultatsProf.matieres || []).map(
-                                (matiere) => (
-                                  <th key={matiere.id}>{matiere.libelle}</th>
-                                ),
-                              )}
-
-                              <th>Total points</th>
-                              <th>Moyenne générale</th>
-
-                              {afficherEvaluationsProf &&
-                                (donneesResultatsProf.evaluations || []).map(
-                                  (evaluation) => (
-                                    <th key={evaluation.id}>
-                                      {evaluation.libelle}
-                                      <small className="resultats-prof-sous-titre">
-                                        {evaluation.matiere} /{" "}
-                                        {evaluation.bareme}
-                                      </small>
-                                    </th>
-                                  ),
-                                )}
-                            </tr>
-                          </thead>
-
-                          <tbody>
-                            {(donneesResultatsProf.eleves || []).map(
-                              (eleve, index) => (
-                                <tr key={eleve.id}>
-                                  <td>{eleve.rang ?? "—"}</td>
-
-                                  <td className="notes-eleve-identite">
-                                    <strong>
-                                      {eleve.nom} {eleve.prenoms}
-                                    </strong>
-                                    <small>
-                                      {eleve.matricule ||
-                                        eleve.code_eleve ||
-                                        ""}
-                                    </small>
-                                  </td>
-
-                                  {(donneesResultatsProf.matieres || []).map(
-                                    (matiere) => {
-                                      const resultatMatiere = (
-                                        eleve.moyennes_matieres || []
-                                      ).find(
-                                        (item) =>
-                                          Number(item.matiere_id) ===
-                                          Number(matiere.id),
-                                      );
-
-                                      return (
-                                        <td key={matiere.id}>
-                                          {resultatMatiere?.moyenne != null
-                                            ? Number(
-                                                resultatMatiere.moyenne,
-                                              ).toFixed(2)
-                                            : "—"}
-                                        </td>
-                                      );
-                                    },
-                                  )}
-
-                                  <td>
-                                    {Number(eleve.total_points || 0).toFixed(2)}
-                                  </td>
-
-                                  <td className="resultats-prof-moyenne">
-                                    {eleve.moyenne_generale != null
-                                      ? Number(eleve.moyenne_generale).toFixed(
-                                          2,
-                                        )
-                                      : "—"}
-                                  </td>
-
-                                  {afficherEvaluationsProf &&
-                                    (
-                                      donneesResultatsProf.evaluations || []
-                                    ).map((evaluation) => {
-                                      const note =
-                                        eleve.notes_evaluations?.[
-                                          evaluation.id
-                                        ];
-
-                                      return (
-                                        <td key={evaluation.id}>
-                                          {note?.absent
-                                            ? "ABS"
-                                            : note?.note != null
-                                              ? Number(note.note).toFixed(2)
-                                              : "—"}
-                                        </td>
-                                      );
-                                    })}
-                                </tr>
-                              ),
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </>
-                  ) : null}
-                </div>
-              )}
-
-              {userRole === "Professeur" && (
                 <div className="eleves-resultats" style={{ marginBottom: 20 }}>
                   <button
                     type="button"
@@ -3916,6 +3745,184 @@ export default function App() {
                 )}
               </div>
             </section>
+          )}
+
+          {userRole === "Professeur" && (
+            <div className="eleves-resultats resultats-prof-section">
+              <div className="eleves-resultats-entete">
+                <strong>Résultats de mes classes</strong>
+                <span>{donneesResultatsProf?.effectif ?? 0} élève(s)</span>
+              </div>
+
+              <div className="eleves-filtres">
+                <label>Classe</label>
+                <select
+                  value={classeResultatsProf}
+                  onChange={(e) => {
+                    setClasseResultatsProf(e.target.value);
+                    setPeriodeResultatsProf("");
+                    setDonneesResultatsProf(null);
+                  }}
+                >
+                  <option value="">Choisir une classe</option>
+                  {(optionsEvaluations.classes || []).map((classe) => (
+                    <option key={classe.id} value={classe.id}>
+                      {classe.libelle}
+                    </option>
+                  ))}
+                </select>
+
+                <label>Période scolaire</label>
+                <select
+                  value={periodeResultatsProf}
+                  onChange={(e) => setPeriodeResultatsProf(e.target.value)}
+                  disabled={!donneesResultatsProf?.periodes?.length}
+                >
+                  {(donneesResultatsProf?.periodes || []).map((periode) => (
+                    <option key={periode.id} value={periode.id}>
+                      {periode.libelle}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {erreurResultatsProf && (
+                <div className="notice error" role="alert">
+                  {erreurResultatsProf}
+                </div>
+              )}
+
+              {chargementResultatsProf ? (
+                <p className="eleves-etat">Chargement des résultats...</p>
+              ) : !classeResultatsProf ? (
+                <p className="eleves-etat">
+                  Sélectionnez une classe pour consulter ses résultats.
+                </p>
+              ) : donneesResultatsProf ? (
+                <>
+                  <div className="resultats-prof-actions">
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      onClick={() =>
+                        setAfficherEvaluationsProf((visible) => !visible)
+                      }
+                    >
+                      {afficherEvaluationsProf
+                        ? "Masquer les évaluations"
+                        : "Afficher les évaluations"}
+                    </button>
+                  </div>
+
+                  <p className="resultats-prof-info">
+                    Les moyennes générales, totaux de points et rangs sont
+                    calculés sur l'ensemble des matières de la maquette. Les
+                    notes détaillées concernent uniquement vos évaluations.
+                  </p>
+
+                  <div className="notes-table-container resultats-prof-table-container">
+                    <table className="notes-table resultats-prof-table">
+                      <thead>
+                        <tr>
+                          <th>Rang</th>
+                          <th>Élève</th>
+
+                          {(donneesResultatsProf.matieres || []).map(
+                            (matiere) => (
+                              <th key={matiere.id}>{matiere.libelle}</th>
+                            ),
+                          )}
+
+                          <th>Total points</th>
+                          <th>Moyenne générale</th>
+
+                          {afficherEvaluationsProf &&
+                            (donneesResultatsProf.evaluations || []).map(
+                              (evaluation) => (
+                                <th key={evaluation.id}>
+                                  {evaluation.libelle}
+                                  <small className="resultats-prof-sous-titre">
+                                    {evaluation.matiere} / {evaluation.bareme}
+                                  </small>
+                                </th>
+                              ),
+                            )}
+                        </tr>
+                      </thead>
+
+                      <tbody>
+                        {(donneesResultatsProf.eleves || []).map(
+                          (eleve, index) => (
+                            <tr key={eleve.id}>
+                              <td>{eleve.rang ?? "—"}</td>
+
+                              <td className="notes-eleve-identite">
+                                <strong>
+                                  {eleve.nom} {eleve.prenoms}
+                                </strong>
+                                <small>
+                                  {eleve.matricule || eleve.code_eleve || ""}
+                                </small>
+                              </td>
+
+                              {(donneesResultatsProf.matieres || []).map(
+                                (matiere) => {
+                                  const resultatMatiere = (
+                                    eleve.moyennes_matieres || []
+                                  ).find(
+                                    (item) =>
+                                      Number(item.matiere_id) ===
+                                      Number(matiere.id),
+                                  );
+
+                                  return (
+                                    <td key={matiere.id}>
+                                      {resultatMatiere?.moyenne != null
+                                        ? Number(
+                                            resultatMatiere.moyenne,
+                                          ).toFixed(2)
+                                        : "—"}
+                                    </td>
+                                  );
+                                },
+                              )}
+
+                              <td>
+                                {Number(eleve.total_points || 0).toFixed(2)}
+                              </td>
+
+                              <td className="resultats-prof-moyenne">
+                                {eleve.moyenne_generale != null
+                                  ? Number(eleve.moyenne_generale).toFixed(2)
+                                  : "—"}
+                              </td>
+
+                              {afficherEvaluationsProf &&
+                                (donneesResultatsProf.evaluations || []).map(
+                                  (evaluation) => {
+                                    const note =
+                                      eleve.notes_evaluations?.[evaluation.id];
+
+                                    return (
+                                      <td key={evaluation.id}>
+                                        {note?.absent
+                                          ? "ABS"
+                                          : note?.note != null
+                                            ? Number(note.note).toFixed(2)
+                                            : "—"}
+                                      </td>
+                                    );
+                                  },
+                                )}
+                            </tr>
+                          ),
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              ) : null}
+            </div>
           )}
 
           {activePage !== "dashboard" &&
