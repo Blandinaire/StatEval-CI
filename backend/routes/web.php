@@ -717,6 +717,16 @@ Route::middleware('auth')->group(function () {
         [EleveController::class, 'suppressionGroupee']
     )->name('eleves.suppression-groupee');
 
+    Route::get(
+        '/eleves/{eleve}/parents/recherche',
+        [ParentController::class, 'rechercherPourEleve']
+    )->name('eleves.parents.rechercher');
+
+    Route::post(
+        '/eleves/{eleve}/parents',
+        [ParentController::class, 'associerDepuisEleve']
+    )->name('eleves.parents.associer');
+
     Route::resource('eleves', EleveController::class)
 
         ->parameters([

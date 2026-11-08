@@ -891,4 +891,229 @@ class ParentController extends Controller
             "{$nombre} compte(s) parent(s) généré(s) automatiquement supprimé(s)."
         );
     }
+
+    /**
+     * Vérifier les droits d'accès à la fiche de l'élève.
+     */
+    private function autoriserAccesEleve(Eleve $eleve): void
+    {
+        $this->autoriser();
+
+        $user = Auth::user();
+
+        if (!$user->hasRole('SuperAdmin')) {
+            abort_unless(
+                (int) $eleve->etablissement_id === (int) $user->etablissement_id,
+                403,
+                'Vous ne pouvez pas gérer les parents d’un élève d’un autre établissement.'
+            );
+        }
+    }
+
+    /**
+     * Rechercher les comptes parents existants dans l'établissement.
+     */
+    public function rechercherPourEleve(Request $request, Eleve $eleve)
+    {
+        $this->autoriserAccesEleve($eleve);
+
+        $terme = trim((string) $request->input('q', ''));
+
+        if (mb_strlen($terme) < 2) {
+            return response()->json([]);
+        }
+
+        $parents = User::query()
+            ->where('etablissement_id', $eleve->etablissement_id)
+            ->whereHas('roles', function ($query) {
+                $query->where('name', 'Parent');
+            })
+            ->where(function ($query) use ($terme) {
+                $query->where('name', 'like', "%{$terme}%")
+                    ->orWhere('telephone', 'like', "%{$terme}%")
+                    ->orWhere('email', 'like', "%{$terme}%");
+            })
+            ->orderBy('name')
+            ->limit(20)
+            ->get([
+                'id',
+                'name',
+                'telephone',
+                'email',
+            ]);
+
+        return response()->json(
+            $parents->map(function ($parent) use ($eleve) {
+                return [
+                    'id' => $parent->id,
+                    'name' => $parent->name,
+                    'telephone' => $parent->telephone,
+                    'email' => $parent->email,
+                    'deja_associe' => $eleve->parents()
+                        ->where('users.id', $parent->id)
+                        ->exists(),
+                ];
+            })
+        );
+    }
+
+    /**
+     * Associer un compte parent existant ou en créer un nouveau.
+     */
+    public function associerDepuisEleve(Request $request, Eleve $eleve)
+    {
+        $this->autoriserAccesEleve($eleve);
+
+        $validated = $request->validate([
+            'parent_id' => ['nullable', 'integer'],
+
+            'name' => ['nullable', 'required_without:parent_id', 'string', 'max:150'],
+
+            'telephone' => ['nullable', 'required_without:parent_id', 'string', 'max:30'],
+
+            'email' => ['nullable', 'email', 'max:255'],
+
+            'lien' => [
+                'required',
+                'in:Père,Mère,Tuteur,Responsable légal,Autre',
+            ],
+        ]);
+
+        $parent = null;
+        $compteCree = false;
+
+        DB::transaction(function () use (
+            $validated,
+            $eleve,
+            &$parent,
+            &$compteCree
+        ) {
+            /*
+         * CAS 1 : UTILISATION D'UN COMPTE EXISTANT
+         */
+            if (!empty($validated['parent_id'])) {
+                $parent = User::query()
+                    ->whereKey($validated['parent_id'])
+                    ->where('etablissement_id', $eleve->etablissement_id)
+                    ->whereHas('roles', function ($query) {
+                        $query->where('name', 'Parent');
+                    })
+                    ->firstOrFail();
+            }
+
+            /*
+         * CAS 2 : CRÉATION OU RÉUTILISATION AUTOMATIQUE
+         */ else {
+                $telephoneRecherche = $this->telephoneNormalise(
+                    $validated['telephone']
+                );
+
+                $emailRecherche = strtolower(
+                    trim($validated['email'] ?? '')
+                );
+
+                /*
+             * On recherche d'abord un compte parent existant
+             * avec le même téléphone ou la même adresse e-mail.
+             */
+                $comptesParents = User::query()
+                    ->where('etablissement_id', $eleve->etablissement_id)
+                    ->whereHas('roles', function ($query) {
+                        $query->where('name', 'Parent');
+                    })
+                    ->get();
+
+                $parent = $comptesParents->first(function ($compte) use (
+                    $telephoneRecherche,
+                    $emailRecherche
+                ) {
+                    $telephoneExistant = $this->telephoneNormalise(
+                        $compte->telephone
+                    );
+
+                    $emailExistant = strtolower(
+                        trim($compte->email ?? '')
+                    );
+
+                    return (
+                        $telephoneRecherche !== ''
+                        && $telephoneRecherche === $telephoneExistant
+                    ) || (
+                        $emailRecherche !== ''
+                        && $emailRecherche === $emailExistant
+                    );
+                });
+
+                /*
+             * Aucun compte correspondant : création.
+             */
+                if (!$parent) {
+                    if (
+                        !empty($validated['email'])
+                        && User::where('email', $validated['email'])->exists()
+                    ) {
+                        throw ValidationException::withMessages([
+                            'email' => 'Cette adresse e-mail est déjà utilisée par un autre compte.',
+                        ]);
+                    }
+
+                    $matricule = trim((string) $eleve->matricule);
+
+                    if ($matricule === '') {
+                        throw ValidationException::withMessages([
+                            'telephone' => 'L’élève doit posséder un matricule pour créer le mot de passe initial du parent.',
+                        ]);
+                    }
+
+                    $parent = User::create([
+                        'name' => $validated['name'],
+                        'telephone' => $validated['telephone'],
+                        'email' => $validated['email'] ?? null,
+                        'password' => $matricule,
+                        'initial_password' => $matricule,
+                        'etablissement_id' => $eleve->etablissement_id,
+                        'fonction' => 'Parent',
+                        'actif' => true,
+                        'must_change_password' => true,
+                        'genere_automatiquement' => false,
+                    ]);
+
+                    $parent->assignRole('Parent');
+
+                    $compteCree = true;
+                }
+            }
+
+            /*
+         * Éviter une deuxième association du même parent
+         * au même élève.
+         */
+            $dejaAssocie = $eleve->parents()
+                ->where('users.id', $parent->id)
+                ->exists();
+
+            if ($dejaAssocie) {
+                throw ValidationException::withMessages([
+                    'parent_id' => 'Ce compte parent est déjà associé à cet élève.',
+                ]);
+            }
+
+            /*
+         * Enregistrement de l'association.
+         */
+            $eleve->parents()->attach($parent->id, [
+                'lien' => $validated['lien'],
+            ]);
+        });
+
+        return back()->with(
+            'success',
+            $compteCree
+                ? "Le compte de {$parent->name} a été créé et associé à l’élève."
+                : "Le compte de {$parent->name} a été associé à l’élève."
+        )->with(
+            'parent_initial_password',
+            $compteCree ? $eleve->matricule : null
+        );
+    }
 }

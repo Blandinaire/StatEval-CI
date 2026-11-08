@@ -767,6 +767,25 @@ class EleveController extends Controller
                 'eleve' => $eleve,
                 'historique' => $historique,
                 'statistiques' => $statistiques,
+
+                'parents' => $eleve->parents()
+                    ->orderBy('users.name')
+                    ->get([
+                        'users.id',
+                        'users.name',
+                        'users.telephone',
+                        'users.email',
+                    ])
+                    ->map(function ($parent) {
+                        return [
+                            'id' => $parent->id,
+                            'name' => $parent->name,
+                            'telephone' => $parent->telephone,
+                            'email' => $parent->email,
+                            'lien' => $parent->pivot->lien,
+                        ];
+                    })
+                    ->values(),
             ]
         );
     }
