@@ -730,6 +730,164 @@ class MobileEvaluationController extends Controller
 
 
     /**
+     * Créer une évaluation directement par un professeur.
+     * L'évaluation est immédiatement active.
+     */
+    public function creerParProfesseur(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        abort_unless(
+            $user->hasRole('Professeur'),
+            403,
+            'Seuls les professeurs peuvent utiliser cette fonctionnalité.'
+        );
+
+        abort_unless(
+            !empty($user->enseignant_id) &&
+                !empty($user->etablissement_id),
+            403,
+            'Votre compte professeur doit être rattaché à un établissement et à un enseignant.'
+        );
+
+        $validated = $request->validate([
+            'annee_scolaire_id' => ['required', 'integer', 'exists:annee_scolaires,id'],
+            'classe_id' => ['required', 'integer', 'exists:classes,id'],
+            'matiere_id' => ['required', 'integer', 'exists:matieres,id'],
+            'libelle' => ['required', 'string', 'max:255'],
+            'type' => [
+                'required',
+                'in:Devoir de niveau,Composition trimestrielle,Examen blanc,Devoir commun,Évaluation commune,Test diagnostique,Examen,Autre',
+            ],
+            'numero' => ['nullable', 'integer', 'min:1'],
+            'date_evaluation' => ['required', 'date'],
+            'heure_debut' => ['nullable', 'date_format:H:i'],
+            'heure_fin' => ['nullable', 'date_format:H:i', 'after:heure_debut'],
+            'bareme' => ['required', 'numeric', 'min:1'],
+            'coefficient' => ['required', 'numeric', 'min:0.1'],
+            'periode_scolaire_id' => [
+                'required',
+                'integer',
+                'exists:periodes_scolaires,id',
+            ],
+            'prise_en_compte_moyenne' => ['sometimes', 'boolean'],
+        ]);
+
+        // Vérifier la classe.
+        $classe = Classe::query()
+            ->whereKey($validated['classe_id'])
+            ->where('etablissement_id', $user->etablissement_id)
+            ->where('annee_scolaire_id', $validated['annee_scolaire_id'])
+            ->where('active', true)
+            ->firstOrFail();
+
+        // Vérifier l'affectation réelle du professeur.
+        $affectation = Affectation::query()
+            ->where('etablissement_id', $user->etablissement_id)
+            ->where('annee_scolaire_id', $validated['annee_scolaire_id'])
+            ->where('classe_id', $classe->id)
+            ->where('matiere_id', $validated['matiere_id'])
+            ->where('enseignant_id', $user->enseignant_id)
+            ->where('actif', true)
+            ->exists();
+
+        abort_unless(
+            $affectation,
+            403,
+            'Vous n’êtes pas affecté à cette classe et à cette matière.'
+        );
+
+        // Vérifier la matière dans la maquette de la classe.
+        $classe->load('maquette.matieres');
+
+        abort_unless(
+            $classe->maquette?->matieres->contains('id', $validated['matiere_id']),
+            422,
+            'Cette matière ne figure pas dans la maquette de la classe.'
+        );
+
+        // Vérifier la période scolaire.
+        $periode = PeriodeScolaire::query()
+            ->whereKey($validated['periode_scolaire_id'])
+            ->where('annee_scolaire_id', $validated['annee_scolaire_id'])
+            ->where('actif', true)
+            ->first();
+
+        abort_unless(
+            $periode,
+            422,
+            'La période scolaire sélectionnée est invalide ou inactive.'
+        );
+
+        if (
+            $validated['date_evaluation'] < $periode->date_debut->format('Y-m-d') ||
+            $validated['date_evaluation'] > $periode->date_fin->format('Y-m-d')
+        ) {
+            throw ValidationException::withMessages([
+                'date_evaluation' => 'La date doit être comprise dans la période scolaire sélectionnée.',
+            ]);
+        }
+
+        // Vérifier les conflits horaires dans la classe.
+        if (!empty($validated['heure_debut']) && !empty($validated['heure_fin'])) {
+            $conflit = Evaluation::query()
+                ->where('etablissement_id', $user->etablissement_id)
+                ->where('classe_id', $classe->id)
+                ->whereDate('date_evaluation', $validated['date_evaluation'])
+                ->whereIn('statut', ['programmee', 'active'])
+                ->whereNotNull('heure_debut')
+                ->whereNotNull('heure_fin')
+                ->where('heure_debut', '<', $validated['heure_fin'])
+                ->where('heure_fin', '>', $validated['heure_debut'])
+                ->exists();
+
+            abort_if(
+                $conflit,
+                422,
+                'Une autre évaluation est déjà prévue dans cette classe à cet horaire.'
+            );
+        }
+
+        $evaluation = Evaluation::create([
+            'etablissement_id' => $user->etablissement_id,
+            'annee_scolaire_id' => $validated['annee_scolaire_id'],
+            'periode_scolaire_id' => $periode->id,
+            'niveau_id' => $classe->niveau_id,
+            'classe_id' => $classe->id,
+            'matiere_id' => $validated['matiere_id'],
+            'enseignant_id' => $user->enseignant_id,
+            'origine' => 'professeur',
+            'statut' => 'active',
+            'cree_par' => $user->id,
+            'active' => true,
+            'libelle' => $validated['libelle'],
+            'type' => $validated['type'],
+            'numero' => $validated['numero'] ?? null,
+            'date_evaluation' => $validated['date_evaluation'],
+            'heure_debut' => $validated['heure_debut'] ?? null,
+            'heure_fin' => $validated['heure_fin'] ?? null,
+            'bareme' => $validated['bareme'],
+            'coefficient' => $validated['coefficient'],
+            'prise_en_compte_moyenne' => $validated['prise_en_compte_moyenne'] ?? true,
+            'notifier_professeurs' => false,
+            'publier_eleves' => false,
+            'publier_parents' => false,
+            'periode' => $periode->libelle,
+        ]);
+
+        return response()->json([
+            'message' => 'Votre évaluation a été créée et activée avec succès.',
+            'data' => [
+                'id' => $evaluation->id,
+                'libelle' => $evaluation->libelle,
+                'statut' => $evaluation->statut,
+                'origine' => $evaluation->origine,
+            ],
+        ], 201);
+    }
+
+
+    /**
      * Options nécessaires aux filtres et formulaires mobiles.
      */
     public function options(Request $request): JsonResponse

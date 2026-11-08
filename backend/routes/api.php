@@ -232,6 +232,16 @@ Route::middleware('auth:sanctum')->group(function () {
         'role:SuperAdmin|Administrateur|Direction|Directeur',
     ]);
 
+
+    Route::post('/mobile/evaluations/creer', [
+        MobileEvaluationController::class,
+        'creerParProfesseur',
+    ])->middleware([
+        'abilities:*',
+        'role:Professeur',
+    ]);
+
+
     /*
 |--------------------------------------------------------------------------
 | Notes et évaluations - Application mobile
