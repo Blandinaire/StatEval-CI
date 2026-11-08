@@ -444,7 +444,11 @@ export default function App() {
         method: "POST",
         body: JSON.stringify({
           ...formProgrammation,
-          etablissement_id: Number(formProgrammation.etablissement_id),
+          etablissement_id: Number(
+            isSuperAdmin
+              ? formProgrammation.etablissement_id
+              : user?.etablissement_id,
+          ),
           annee_scolaire_id: Number(formProgrammation.annee_scolaire_id),
           niveau_id: Number(formProgrammation.niveau_id),
           classe_ids: formProgrammation.classe_ids.map(Number),
@@ -2509,6 +2513,401 @@ export default function App() {
               {erreurEvaluations && (
                 <div className="notice error" role="alert">
                   {erreurEvaluations}
+                </div>
+              )}
+
+              {[
+                "SuperAdmin",
+                "Administrateur",
+                "Direction",
+                "Directeur",
+              ].includes(userRole) && (
+                <div className="eleves-resultats" style={{ marginBottom: 20 }}>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    onClick={() => {
+                      setAfficherFormulaireProgrammation((visible) => !visible);
+                      setErreurProgrammation("");
+                      setMessageProgrammation("");
+                    }}
+                  >
+                    {afficherFormulaireProgrammation
+                      ? "Fermer le formulaire"
+                      : "Programmer une évaluation"}
+                  </button>
+
+                  {messageProgrammation && (
+                    <div className="notice success" role="status">
+                      {messageProgrammation}
+                    </div>
+                  )}
+
+                  {erreurProgrammation && (
+                    <div className="notice error" role="alert">
+                      {erreurProgrammation}
+                    </div>
+                  )}
+
+                  {afficherFormulaireProgrammation && (
+                    <form onSubmit={programmerEvaluationMobile}>
+                      <h2>Nouvelle évaluation</h2>
+
+                      {isSuperAdmin && (
+                        <>
+                          <label>Établissement</label>
+                          <select
+                            required
+                            value={formProgrammation.etablissement_id}
+                            onChange={(e) =>
+                              setFormProgrammation((ancien) => ({
+                                ...ancien,
+                                etablissement_id: e.target.value,
+                                classe_ids: [],
+                              }))
+                            }
+                          >
+                            <option value="">Choisir un établissement</option>
+                            {(optionsEvaluations.etablissements || []).map(
+                              (item) => (
+                                <option key={item.id} value={item.id}>
+                                  {item.nom}
+                                </option>
+                              ),
+                            )}
+                          </select>
+                        </>
+                      )}
+
+                      <label>Année scolaire</label>
+                      <select
+                        required
+                        value={formProgrammation.annee_scolaire_id}
+                        onChange={(e) =>
+                          setFormProgrammation((ancien) => ({
+                            ...ancien,
+                            annee_scolaire_id: e.target.value,
+                            classe_ids: [],
+                            periode_scolaire_id: "",
+                          }))
+                        }
+                      >
+                        <option value="">Choisir une année scolaire</option>
+                        {(optionsEvaluations.years || []).map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.libelle}
+                          </option>
+                        ))}
+                      </select>
+
+                      <label>Niveau</label>
+                      <select
+                        required
+                        value={formProgrammation.niveau_id}
+                        onChange={(e) =>
+                          setFormProgrammation((ancien) => ({
+                            ...ancien,
+                            niveau_id: e.target.value,
+                            classe_ids: [],
+                          }))
+                        }
+                      >
+                        <option value="">Choisir un niveau</option>
+                        {(optionsEvaluations.niveaux || []).map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.libelle}
+                          </option>
+                        ))}
+                      </select>
+
+                      <label>Classes concernées</label>
+                      <div className="eleve-mobile-card">
+                        {(optionsEvaluations.classes || [])
+                          .filter(
+                            (classe) =>
+                              String(classe.annee_scolaire_id) ===
+                                String(formProgrammation.annee_scolaire_id) &&
+                              String(classe.niveau_id) ===
+                                String(formProgrammation.niveau_id) &&
+                              (!formProgrammation.etablissement_id ||
+                                String(classe.etablissement_id) ===
+                                  String(formProgrammation.etablissement_id)),
+                          )
+                          .map((classe) => (
+                            <label key={classe.id} style={{ display: "block" }}>
+                              <input
+                                type="checkbox"
+                                checked={formProgrammation.classe_ids.includes(
+                                  String(classe.id),
+                                )}
+                                onChange={(e) =>
+                                  setFormProgrammation((ancien) => ({
+                                    ...ancien,
+                                    classe_ids: e.target.checked
+                                      ? [
+                                          ...ancien.classe_ids,
+                                          String(classe.id),
+                                        ]
+                                      : ancien.classe_ids.filter(
+                                          (id) => id !== String(classe.id),
+                                        ),
+                                  }))
+                                }
+                              />
+                              {classe.libelle}
+                            </label>
+                          ))}
+
+                        {formProgrammation.annee_scolaire_id &&
+                          formProgrammation.niveau_id &&
+                          (optionsEvaluations.classes || []).filter(
+                            (classe) =>
+                              String(classe.annee_scolaire_id) ===
+                                String(formProgrammation.annee_scolaire_id) &&
+                              String(classe.niveau_id) ===
+                                String(formProgrammation.niveau_id) &&
+                              (!formProgrammation.etablissement_id ||
+                                String(classe.etablissement_id) ===
+                                  String(formProgrammation.etablissement_id)),
+                          ).length === 0 && (
+                            <p className="eleves-etat">
+                              Aucune classe disponible pour ces critères.
+                            </p>
+                          )}
+                      </div>
+
+                      <label>Matière</label>
+                      <select
+                        required
+                        value={formProgrammation.matiere_id}
+                        onChange={(e) =>
+                          setFormProgrammation((ancien) => ({
+                            ...ancien,
+                            matiere_id: e.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">Choisir une matière</option>
+                        {(optionsEvaluations.subjects || []).map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.libelle}
+                          </option>
+                        ))}
+                      </select>
+
+                      <label>Libellé de l'évaluation</label>
+                      <input
+                        required
+                        type="text"
+                        maxLength="255"
+                        placeholder="Ex. Devoir de mathématiques"
+                        value={formProgrammation.libelle}
+                        onChange={(e) =>
+                          setFormProgrammation((ancien) => ({
+                            ...ancien,
+                            libelle: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <label>Type d'évaluation</label>
+                      <select
+                        required
+                        value={formProgrammation.type}
+                        onChange={(e) =>
+                          setFormProgrammation((ancien) => ({
+                            ...ancien,
+                            type: e.target.value,
+                          }))
+                        }
+                      >
+                        <option value="Devoir de niveau">
+                          Devoir de niveau
+                        </option>
+                        <option value="Composition trimestrielle">
+                          Composition trimestrielle
+                        </option>
+                        <option value="Examen blanc">Examen blanc</option>
+                        <option value="Devoir commun">Devoir commun</option>
+                        <option value="Évaluation commune">
+                          Évaluation commune
+                        </option>
+                        <option value="Test diagnostique">
+                          Test diagnostique
+                        </option>
+                        <option value="Examen">Examen</option>
+                        <option value="Autre">Autre</option>
+                      </select>
+
+                      <label>Numéro (facultatif)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={formProgrammation.numero}
+                        onChange={(e) =>
+                          setFormProgrammation((ancien) => ({
+                            ...ancien,
+                            numero: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <label>Date de l'évaluation</label>
+                      <input
+                        required
+                        type="date"
+                        value={formProgrammation.date_evaluation}
+                        onChange={(e) =>
+                          setFormProgrammation((ancien) => ({
+                            ...ancien,
+                            date_evaluation: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <label>Heure de début</label>
+                      <input
+                        type="time"
+                        value={formProgrammation.heure_debut}
+                        onChange={(e) =>
+                          setFormProgrammation((ancien) => ({
+                            ...ancien,
+                            heure_debut: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <label>Heure de fin</label>
+                      <input
+                        type="time"
+                        value={formProgrammation.heure_fin}
+                        onChange={(e) =>
+                          setFormProgrammation((ancien) => ({
+                            ...ancien,
+                            heure_fin: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <label>Barème</label>
+                      <input
+                        required
+                        type="number"
+                        min="1"
+                        step="0.25"
+                        value={formProgrammation.bareme}
+                        onChange={(e) =>
+                          setFormProgrammation((ancien) => ({
+                            ...ancien,
+                            bareme: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <label>Coefficient</label>
+                      <input
+                        required
+                        type="number"
+                        min="0.1"
+                        step="0.1"
+                        value={formProgrammation.coefficient}
+                        onChange={(e) =>
+                          setFormProgrammation((ancien) => ({
+                            ...ancien,
+                            coefficient: e.target.value,
+                          }))
+                        }
+                      />
+
+                      <label>Période scolaire</label>
+                      <select
+                        required
+                        value={formProgrammation.periode_scolaire_id}
+                        onChange={(e) =>
+                          setFormProgrammation((ancien) => ({
+                            ...ancien,
+                            periode_scolaire_id: e.target.value,
+                          }))
+                        }
+                      >
+                        <option value="">Choisir une période</option>
+                        {(optionsEvaluations.periods || []).map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.libelle} ({item.date_debut} au {item.date_fin}
+                            )
+                          </option>
+                        ))}
+                      </select>
+
+                      <div style={{ marginTop: 15 }}>
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={formProgrammation.prise_en_compte_moyenne}
+                            onChange={(e) =>
+                              setFormProgrammation((ancien) => ({
+                                ...ancien,
+                                prise_en_compte_moyenne: e.target.checked,
+                              }))
+                            }
+                          />
+                          Prendre en compte dans la moyenne
+                        </label>
+
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={formProgrammation.notifier_professeurs}
+                            onChange={(e) =>
+                              setFormProgrammation((ancien) => ({
+                                ...ancien,
+                                notifier_professeurs: e.target.checked,
+                              }))
+                            }
+                          />
+                          Notifier les professeurs
+                        </label>
+
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={formProgrammation.publier_eleves}
+                            onChange={(e) =>
+                              setFormProgrammation((ancien) => ({
+                                ...ancien,
+                                publier_eleves: e.target.checked,
+                              }))
+                            }
+                          />
+                          Publier aux élèves
+                        </label>
+
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={formProgrammation.publier_parents}
+                            onChange={(e) =>
+                              setFormProgrammation((ancien) => ({
+                                ...ancien,
+                                publier_parents: e.target.checked,
+                              }))
+                            }
+                          />
+                          Publier aux parents
+                        </label>
+                      </div>
+
+                      <button
+                        type="submit"
+                        className="btn-primary"
+                        disabled={enregistrementProgrammation}
+                      >
+                        {enregistrementProgrammation
+                          ? "Programmation en cours..."
+                          : "Enregistrer la programmation"}
+                      </button>
+                    </form>
+                  )}
                 </div>
               )}
 
