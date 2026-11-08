@@ -246,6 +246,36 @@ export default function App() {
   const [erreurProgrammation, setErreurProgrammation] = useState("");
   const [messageProgrammation, setMessageProgrammation] = useState("");
 
+  const [afficherFormulaireProfesseur, setAfficherFormulaireProfesseur] =
+    useState(false);
+
+  const [
+    enregistrementEvaluationProfesseur,
+    setEnregistrementEvaluationProfesseur,
+  ] = useState(false);
+
+  const [erreurEvaluationProfesseur, setErreurEvaluationProfesseur] =
+    useState("");
+
+  const [messageEvaluationProfesseur, setMessageEvaluationProfesseur] =
+    useState("");
+
+  const [formEvaluationProfesseur, setFormEvaluationProfesseur] = useState({
+    annee_scolaire_id: "",
+    classe_id: "",
+    matiere_id: "",
+    libelle: "",
+    type: "Devoir de niveau",
+    numero: "",
+    date_evaluation: "",
+    heure_debut: "",
+    heure_fin: "",
+    bareme: "20",
+    coefficient: "1",
+    periode_scolaire_id: "",
+    prise_en_compte_moyenne: true,
+  });
+
   const [formProgrammation, setFormProgrammation] = useState({
     etablissement_id: "",
     annee_scolaire_id: "",
@@ -481,6 +511,64 @@ export default function App() {
       setErreurProgrammation(err.message);
     } finally {
       setEnregistrementProgrammation(false);
+    }
+  }
+
+  async function creerEvaluationProfesseur(e) {
+    e.preventDefault();
+
+    setErreurEvaluationProfesseur("");
+    setMessageEvaluationProfesseur("");
+
+    setEnregistrementEvaluationProfesseur(true);
+
+    try {
+      const resultat = await apiRequest("/mobile/evaluations/creer", {
+        token,
+        method: "POST",
+        body: JSON.stringify({
+          ...formEvaluationProfesseur,
+          annee_scolaire_id: Number(formEvaluationProfesseur.annee_scolaire_id),
+          classe_id: Number(formEvaluationProfesseur.classe_id),
+          matiere_id: Number(formEvaluationProfesseur.matiere_id),
+          numero: formEvaluationProfesseur.numero
+            ? Number(formEvaluationProfesseur.numero)
+            : null,
+          bareme: Number(formEvaluationProfesseur.bareme),
+          coefficient: Number(formEvaluationProfesseur.coefficient),
+          periode_scolaire_id: Number(
+            formEvaluationProfesseur.periode_scolaire_id,
+          ),
+        }),
+      });
+
+      setMessageEvaluationProfesseur(
+        resultat.message || "Évaluation créée avec succès.",
+      );
+
+      setAfficherFormulaireProfesseur(false);
+
+      setFormEvaluationProfesseur((ancien) => ({
+        ...ancien,
+        classe_id: "",
+        matiere_id: "",
+        libelle: "",
+        numero: "",
+        date_evaluation: "",
+        heure_debut: "",
+        heure_fin: "",
+      }));
+
+      const actualisation = await apiRequest(
+        `/mobile/evaluations?annee_scolaire_id=${formEvaluationProfesseur.annee_scolaire_id}`,
+        { token },
+      );
+
+      setEvaluations(actualisation.data || []);
+    } catch (err) {
+      setErreurEvaluationProfesseur(err.message);
+    } finally {
+      setEnregistrementEvaluationProfesseur(false);
     }
   }
 
