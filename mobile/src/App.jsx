@@ -570,6 +570,10 @@ export default function App() {
           params.set("etablissement_id", user.etablissement_id);
         }
 
+        if (anneeEvaluation) {
+          params.set("annee_scolaire_id", anneeEvaluation);
+        }
+
         const resultat = await apiRequest(
           `/mobile/evaluations/options?${params.toString()}`,
           { token },
@@ -577,9 +581,19 @@ export default function App() {
 
         if (annule) return;
 
-        setOptionsEvaluations(resultat);
+        const donnees = resultat.data || {};
 
-        const anneeId = resultat.annee?.id ? String(resultat.annee.id) : "";
+        setOptionsEvaluations({
+          annee: donnees.annee_scolaire || null,
+          years: donnees.annees || [],
+          classes: donnees.classes || [],
+          subjects: donnees.matieres || [],
+          periods: donnees.periodes || [],
+        });
+
+        const anneeId = donnees.annee_scolaire?.id
+          ? String(donnees.annee_scolaire.id)
+          : "";
 
         setAnneeEvaluation((actuelle) => actuelle || anneeId);
       } catch (err) {
@@ -594,7 +608,7 @@ export default function App() {
     return () => {
       annule = true;
     };
-  }, [token, activePage, userRole]);
+  }, [token, activePage, userRole, anneeEvaluation]);
 
   useEffect(() => {
     if (!token || activePage !== "notes" || userRole === "Parent") return;
