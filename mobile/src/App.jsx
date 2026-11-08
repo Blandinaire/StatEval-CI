@@ -237,6 +237,36 @@ export default function App() {
     periods: [],
   });
 
+  const [afficherFormulaireProgrammation, setAfficherFormulaireProgrammation] =
+    useState(false);
+
+  const [enregistrementProgrammation, setEnregistrementProgrammation] =
+    useState(false);
+
+  const [erreurProgrammation, setErreurProgrammation] = useState("");
+  const [messageProgrammation, setMessageProgrammation] = useState("");
+
+  const [formProgrammation, setFormProgrammation] = useState({
+    etablissement_id: "",
+    annee_scolaire_id: "",
+    niveau_id: "",
+    classe_ids: [],
+    matiere_id: "",
+    libelle: "",
+    type: "Devoir de niveau",
+    numero: "",
+    date_evaluation: "",
+    heure_debut: "",
+    heure_fin: "",
+    bareme: "20",
+    coefficient: "1",
+    periode_scolaire_id: "",
+    prise_en_compte_moyenne: true,
+    notifier_professeurs: true,
+    publier_eleves: false,
+    publier_parents: false,
+  });
+
   const [evaluations, setEvaluations] = useState([]);
   const [chargementEvaluations, setChargementEvaluations] = useState(false);
   const [erreurEvaluations, setErreurEvaluations] = useState("");
@@ -392,6 +422,61 @@ export default function App() {
       setErreurDetailEvaluation(err.message);
     } finally {
       setEnregistrementNotesEvaluation(false);
+    }
+  }
+
+  async function programmerEvaluationMobile(e) {
+    e.preventDefault();
+
+    setErreurProgrammation("");
+    setMessageProgrammation("");
+
+    if (formProgrammation.classe_ids.length === 0) {
+      setErreurProgrammation("Sélectionnez au moins une classe.");
+      return;
+    }
+
+    setEnregistrementProgrammation(true);
+
+    try {
+      const resultat = await apiRequest("/mobile/evaluations/programmer", {
+        token,
+        method: "POST",
+        body: JSON.stringify({
+          ...formProgrammation,
+          etablissement_id: Number(formProgrammation.etablissement_id),
+          annee_scolaire_id: Number(formProgrammation.annee_scolaire_id),
+          niveau_id: Number(formProgrammation.niveau_id),
+          classe_ids: formProgrammation.classe_ids.map(Number),
+          matiere_id: Number(formProgrammation.matiere_id),
+          numero: formProgrammation.numero
+            ? Number(formProgrammation.numero)
+            : null,
+          bareme: Number(formProgrammation.bareme),
+          coefficient: Number(formProgrammation.coefficient),
+          periode_scolaire_id: Number(formProgrammation.periode_scolaire_id),
+        }),
+      });
+
+      setMessageProgrammation(
+        resultat.message || "Évaluation programmée avec succès.",
+      );
+
+      setAfficherFormulaireProgrammation(false);
+
+      setFormProgrammation((ancien) => ({
+        ...ancien,
+        classe_ids: [],
+        libelle: "",
+        numero: "",
+        date_evaluation: "",
+        heure_debut: "",
+        heure_fin: "",
+      }));
+    } catch (err) {
+      setErreurProgrammation(err.message);
+    } finally {
+      setEnregistrementProgrammation(false);
     }
   }
 
